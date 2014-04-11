@@ -1,0 +1,33 @@
+{
+    "manifest_version": 2,
+    "name": "Probability Stock Screener",
+    "short_name": "Screener",
+    "description": "Stock Screener for TSX, TSX-V, NASDAQ, NYSE, and AMEX exchanges.",
+    "version": "0.1",
+    "author": "James Leigh",
+    "offline_enabled": false,
+    "minimum_chrome_version": "33",
+    "icons": {
+        "16": "favicon.png",
+        "48": "launcher.png",
+        "128": "logo.png"
+    },
+    "app": {
+        "background": {
+            "scripts": ["config.js", "src/main.js"]
+        }
+    },
+    "permissions": [
+        "*://*.probabilitytrading.net/*",
+        "http://d.yimg.com/*",
+        "http://query.yahooapis.com/*",
+        "http://ichart.finance.yahoo.com/*",
+        "http://financials.morningstar.com/*",
+        "http://qt.morningstar.com/*",
+        "http://www.nasdaq.com/*",
+        "http://www.tmx.com/*",
+        "contextMenus",
+        "webview",
+        "storage"
+    ]
+}
