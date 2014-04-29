@@ -29,6 +29,8 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+importScripts('utils.js');
+
 onmessage = dispatch.bind(this, {
 
     close: function() {
@@ -92,7 +94,7 @@ onmessage = dispatch.bind(this, {
                 result: result
             };
         });
-    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols))), loadSymbol.bind(this, queue(loadQuotes)), synchronized(loadCSV))
+    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols))), loadSymbol.bind(this, queue(loadQuotes, 100)), synchronized(loadCSV))
 });
 
 function loadSymbol(loadQuotes, data, symbol){
@@ -138,11 +140,11 @@ function loadQuotes(queue) {
             encodeURIComponent([
                 'select * from yahoo.finance.historicaldata where symbol in (',
                 byFilter[filter].sort().reduce(function(sb, symbol) {
-                    sb.push('"' + symbol.replace(/"/g, '\\"') + '"');
+                    sb.push("'" + symbol.replace(/'/g, "\\'") + "'");
                     return sb;
                 }, []).join(','),
                 ') and ', filter
-            ].join('')),
+            ].join('')).replace(/%2C/g, ','),
             "&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys"
         ].join('');
         return promiseText(url).then(parseJSON).then(function(result){
@@ -313,7 +315,7 @@ function parseCSVLine(line) {
     return row;
 }
 
-function queue(func) {
+function queue(func, batchSize) {
     var context, timeout, promise = Promise.resolve();
     var queue = [], listeners = [];
 
@@ -325,8 +327,8 @@ function queue(func) {
             promise.then(function(){
                 if (timeout) clearTimeout(timeout);
                 timeout = setTimeout(function() {
-                    var taken = queue.slice(0, queue.length);
-                    var notifications = listeners.slice(0, listeners.length);
+                    var taken = queue.slice(0, batchSize);
+                    var notifications = listeners.slice(0, batchSize);
                     timeout = null;
                     queue = [];
                     listeners = [];
@@ -343,105 +345,4 @@ function queue(func) {
             });
         });
     };
-}
-
-function synchronized(func) {
-    var promise = Promise.resolve();
-    return function(/* arguments */) {
-        var context = this;
-        var args = arguments;
-        return promise = promise.catch(function() {
-            // ignore previous error
-        }).then(function() {
-            return func.apply(context, args);
-        });
-    };
-}
-
-function memoize(func) {
-    var memo = {};
-    return function() {
-        var key = arguments[0] || '*';
-        return memo[key] ? memo[key] : (memo[key] = func.apply(this, arguments));
-    };
-}
-
-function object(list, values) {
-    if (list == null) return {};
-    var result = {};
-    for (var i = 0, length = list.length; i < length; i++) {
-      if (values) {
-        result[list[i]] = values[i];
-      } else {
-        result[list[i][0]] = list[i][1];
-      }
-    }
-    return result;
-  }
-
-function promiseText(url) {
-    return new Promise(function(resolve, reject) {
-        console.log(url);
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function(){
-            if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 203)) {
-                resolve(xhr.responseText);
-            } else if (xhr.readyState == 4) {
-                reject({status: xhr.statusText, message: xhr.responseText, url: url});
-            }
-        };
-        xhr.open("GET", url, true);
-        xhr.send();
-    });
-}
-
-function dispatch(handler, event){
-    var cmd = event.data.cmd || event.data;
-    if (typeof cmd == 'string' && typeof handler[cmd] == 'function') {
-        Promise.resolve(event).then(handler[cmd]).then(function(result){
-            if (result !== undefined) {
-                event.ports[0].postMessage(result);
-            }
-        }).catch(rejectNormalizedError).catch(function(error){
-            event.ports[0].postMessage(error);
-        });
-    } else if (event.ports && event.ports.length) {
-        console.log('Unknown command ' + cmd);
-        event.ports[0].postMessage({
-            status: 'error',
-            message: 'Unknown command ' + cmd
-        });
-    } else {
-        console.log(event.data);
-    }
-}
-
-function rejectNormalizedError(error) {
-    if (error.status != 'error' || error.message) {
-        console.log(error);
-    }
-    if (error && error.status == 'error') {
-        return Promise.reject(error);
-    } else if (error.target && error.target.errorCode){
-        return Promise.reject({
-            status: 'error',
-            errorCode: error.target.errorCode
-        });
-    } else if (error.message && error.stack) {
-        return Promise.reject({
-            status: 'error',
-            message: error.message,
-            stack: error.stack
-        });
-    } else if (error.message) {
-        return Promise.reject({
-            status: 'error',
-            message: error.message
-        });
-    } else {
-        return Promise.reject({
-            status: 'error',
-            message: error
-        });
-    }
 }

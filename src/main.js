@@ -52,7 +52,10 @@
 
         chrome.app.runtime.onLaunched.addListener(launch);
         chrome.app.runtime.onRestarted.addListener(restart);
-        openRemoteBackgroundPage(chrome, workers, config.event_url)
+        openWebview(chrome, undefined, config.event_url, {
+            id: 'events',
+            hidden: true
+        })  .then(sayHello.bind(this, workers))
             .then(restart.bind(this, 'ready'))
             .then(launch.bind(this, 'ready'))
             .catch(console.log.bind(console));
@@ -92,13 +95,6 @@
         return hash;
     }
 
-    function openRemoteBackgroundPage(chrome, workers, url) {
-        return openWebview(chrome, undefined, url, {
-            id: 'events',
-            hidden: true
-        }).then(sayHello.bind(this, workers));
-    }
-
     function closeAllWorkers(workers) {
         workers.forEach(function(worker) {
             worker.postMessage("close");
@@ -110,7 +106,8 @@
             return win.id;
         });
         for (var id in settings) {
-            if (id.indexOf('win') === 0 && alreadyOpen.indexOf(id) < 0) {
+            if (id.indexOf('win') === 0 && alreadyOpen.indexOf(id) < 0 &&
+                    settings[id].indexOf('://') > 0) {
                 console.log("Restoring " + id, settings[id]);
                 openWebview(chrome, idFactory, settings[id], {
                     id: id

@@ -26,7 +26,6 @@
         "http://qt.morningstar.com/*",
         "http://www.nasdaq.com/*",
         "http://www.tmx.com/*",
-        "contextMenus",
         "webview",
         "storage"
     ]

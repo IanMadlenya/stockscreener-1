@@ -29,6 +29,8 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+importScripts('utils.js');
+
 onmessage = dispatch.bind(this, {
 
     close: function() {
@@ -215,92 +217,4 @@ function asArray(hash) {
 function isEmpty(obj) {
     for (var key in obj) if (obj[key] != undefined) return false;
     return true;
-}
-
-function synchronized(func) {
-    var promise = Promise.resolve();
-    return function(/* arguments */) {
-        var context = this;
-        var args = arguments;
-        return promise = promise.catch(function() {
-            // ignore previous error
-        }).then(function() {
-            return func.apply(context, args);
-        });
-    };
-}
-
-function memoize(func) {
-    var memo = {};
-    return function() {
-        var key = arguments[0] || '*';
-        return memo[key] ? memo[key] : (memo[key] = func.apply(this, arguments));
-    };
-}
-
-function promiseText(url) {
-    return new Promise(function(resolve, reject) {
-        console.log(url);
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function(){
-            if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 203)) {
-                resolve(xhr.responseText);
-            } else if (xhr.readyState == 4) {
-                reject({status: xhr.statusText, message: xhr.responseText, url: url});
-            }
-        };
-        xhr.open("GET", url, true);
-        xhr.send();
-    });
-}
-
-function dispatch(handler, event){
-    var cmd = event.data.cmd || event.data;
-    if (typeof cmd == 'string' && typeof handler[cmd] == 'function') {
-        Promise.resolve(event).then(handler[cmd]).then(function(result){
-            if (result !== undefined) {
-                event.ports[0].postMessage(result);
-            }
-        }).catch(rejectNormalizedError).catch(function(error){
-            event.ports[0].postMessage(error);
-        });
-    } else if (event.ports && event.ports.length) {
-        console.log('Unknown command ' + cmd);
-        event.ports[0].postMessage({
-            status: 'error',
-            message: 'Unknown command ' + cmd
-        });
-    } else {
-        console.log(event.data);
-    }
-}
-
-function rejectNormalizedError(error) {
-    if (error.status != 'error' || error.message) {
-        console.log(error);
-    }
-    if (error && error.status == 'error') {
-        return Promise.reject(error);
-    } else if (error.target && error.target.errorCode){
-        return Promise.reject({
-            status: 'error',
-            errorCode: error.target.errorCode
-        });
-    } else if (error.message && error.stack) {
-        return Promise.reject({
-            status: 'error',
-            message: error.message,
-            stack: error.stack
-        });
-    } else if (error.message) {
-        return Promise.reject({
-            status: 'error',
-            message: error.message
-        });
-    } else {
-        return Promise.reject({
-            status: 'error',
-            message: error
-        });
-    }
 }
