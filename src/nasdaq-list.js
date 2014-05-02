@@ -71,7 +71,7 @@ onmessage = dispatch.bind(this, {
             result: industries
         };
     },
-    'security-list': (function(tickers, event) {
+    'security-list': (function(downloadCSV, event) {
         var market = {
             'XNCM': "&exchange=NASDAQ&market=NCM",
             'XNMS': "&exchange=NASDAQ&market=NGM",
@@ -89,9 +89,14 @@ onmessage = dispatch.bind(this, {
             market[exchange.mic],
             "&industry=", encodeURIComponent(event.data.sector)
         ].join('');
-        return tickers(url).then(function(tickers){
-            return tickers.map(function(ticker){
-                return exchange.iri + '/' + encodeURI(ticker);
+        return downloadCSV(url).then(function(companies){
+            var mincap = event.data.mincap;
+            var maxcap = event.data.maxcap;
+            return companies.filter(function(company){
+                var cap = parseInt(company.MarketCap, 10);
+                return (!mincap || cap >= mincap) && (!maxcap || cap < maxcap);
+            }).map(function(company){
+                return exchange.iri + '/' + encodeURI(company.Symbol);
             });
         }).then(function(securities){
             return {
@@ -100,22 +105,6 @@ onmessage = dispatch.bind(this, {
             };
         });
     }).bind(this, synchronized(cache(indexedDB, 'nasdaq-sectors', function(url){
-        return promiseText(url).then(function(csv){
-            return csv.split(/\r?\n/);
-        }).then(function(lines){
-            return lines.map(function(line) {
-                if (line.charAt(0) == '"') {
-                    return line.substring(1, line.indexOf('"', 1)).trim();
-                } else if (line.indexOf(',') > 0) {
-                    return line.substring(0, line.indexOf(',')).trim();
-                } else {
-                    return null;
-                }
-            });
-        }).then(function(tickers){
-            return tickers.filter(function(ticker) {
-                return ticker && ticker != 'Symbol';
-            });
-        });
+        return promiseText(url).then(parseCSV).then(rows2objects);
     })))
 });

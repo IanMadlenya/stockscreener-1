@@ -83,9 +83,15 @@ onmessage = dispatch.bind(this, {
             throw new Error('Unknown sector: ' + event.data.sector);
         return listResults(url).then(function(lists){
             return lists[sheetNumber];
-        }).then(function(roots){
+        }).then(function(companies){
+            var mincap = event.data.mincap;
+            var maxcap = event.data.maxcap;
             var market = mic == 'XTSE' ? 'T' : 'V';
-            return Promise.all(roots.map(function(root){
+            return Promise.all(companies.filter(function(company){
+                var cap = parseInt(company['QMV(C$)'], 10);
+                return (!mincap || cap >= mincap) && (!maxcap || cap < maxcap);
+            }).map(function(company){
+                var root = company['Root'];
                 var letter = root.charAt(0);
                 return tickersForLetter(market + letter).then(function(tickers){
                     return tickers.filter(function(ticker){
@@ -107,7 +113,7 @@ onmessage = dispatch.bind(this, {
                 result: securities
             };
         });
-    }).bind(this, synchronized(cache(indexedDB, 'tmx-sectors', loadWorkbookSheetsAsTickers.bind(this, XLS))), memoize(synchronized(tickersForLetter)))
+    }).bind(this, synchronized(cache(indexedDB, 'tmx-sectors', loadWorkbookSheetsAsObjects.bind(this, XLS))), memoize(synchronized(tickersForLetter)))
 });
 
 function decodeSymbol(pattern, symbol) {
@@ -119,13 +125,13 @@ function decodeSymbol(pattern, symbol) {
     return m[1];
 }
 
-function loadWorkbookSheetsAsTickers(XLS, url) {
+function loadWorkbookSheetsAsObjects(XLS, url) {
     return promiseBinaryString(url).then(function(bin){
         return XLS.read(bin, {type:"binary"});
     }).then(function(workbook){
         var array = [];
         return workbook.SheetNames.reduce(function(promise, sheetName){
-            return promise.then(sheetToTickers.bind(this, workbook.Sheets[sheetName])).then(function(results){
+            return promise.then(sheetToObjects.bind(this, workbook.Sheets[sheetName])).then(function(results){
                 array.push(results);
                 return array;
             });
@@ -133,7 +139,7 @@ function loadWorkbookSheetsAsTickers(XLS, url) {
     });
 }
 
-function sheetToTickers(sheet) {
+function sheetToObjects(sheet) {
     return Promise.resolve(sheet).then(function(sheet){
         var out = [];
         if(!sheet || !sheet["!ref"]) throw new Error('Missing sheet');
@@ -150,24 +156,26 @@ function sheetToTickers(sheet) {
         }
         return out;
     }).then(function(rows){
-        var rootTicker = findRootTicker(rows);
-        if (!rootTicker)
-            throw new Error("Could not find Root Ticker column");
-        var roots = [];
-        for (var r=rootTicker[0] + 1; r<rows.length; r++) {
-            roots.push(rows[r][rootTicker[1]]);
-        }
-        return roots;
+        var headingIndex = findHeadingIndex(rows);
+        if (headingIndex === undefined)
+            throw new Error("Could not find Name column");
+        var headers = rows[headingIndex].map(function(name){
+            return name.replace(/\s*[\r\n][\s\S]*/, '').replace(/\s/g,'');
+        });
+        return rows.slice(headingIndex + 1).reduce(function(points, row){
+            if (headers.length && headers.length == row.length) {
+                points.push(object(headers, row));
+            }
+            return points;
+        }, []);
     });
 }
 
-function findRootTicker(rows){
+function findHeadingIndex(rows){
     for (var r=0; r<rows.length; r++) {
         var row = rows[r];
-        for (var c=0; c<row.length; c++) {
-            if (row[c] && row[c].match(/Root\s+Ticker/i)) {
-                return [r, c];
-            }
+        if (row[1] && row[1].match(/Name/i)) {
+            return r;
         }
     }
 }

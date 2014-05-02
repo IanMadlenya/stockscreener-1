@@ -63,47 +63,15 @@ onmessage = dispatch.bind(this, {
         }, {status: 'success'});
     },
 
-    quote: (function(lookupSymbol, promiseText, event) {
+    quote: (function(loadCSV, event) {
         var exchange = event.data.exchange;
         var ticker = event.data.ticker;
-        var symbol = guessSymbol(exchange, ticker);
         var interval = event.data.interval;
         var yearsAgo = new Date();
         yearsAgo.setFullYear(yearsAgo.getFullYear() - 9);
         if (interval != 'm12' || new Date(event.data.end).valueOf() < yearsAgo.valueOf())
             return {status: 'success', result: []};
-        return encodeInURL(symbol).then(promiseText).then(function(text){
-            if (text) return text;
-            return lookupSymbol(exchange, ticker).then(encodeInURL).then(promiseText);
-        }).then(function(csv){
-            return csv.split(/\r?\n/);
-        }).then(function(lines) {
-            return lines.map(function(line) {
-                return parseCSVLine(line);
-            });
-        }).then(function(rows){
-            var suffix = '';
-            var headers = [];
-            var points = {};
-            rows.forEach(function(row){
-                if (row.length > 2 && row[1].match(/\d\d\d\d-\d\d/)) {
-                    headers = row;
-                    suffix = '';
-                } else if (row.length == 1) {
-                    suffix = ' ' + row[0];
-                } else if (row.length == headers.length) {
-                    for (var i=1; i < row.length - 1; i++) {
-                        if (row[i]) {
-                            points[headers[i]] = points[headers[i]] || {dateTime: asof(headers[i])};
-                            points[headers[i]][cleanField(row[0] + suffix)] = parseFloat(row[i].replace(/,/g, ''));
-                        }
-                    }
-                } else {
-                    console.log(headers, row);
-                }
-            });
-            return points;
-        }).then(asArray).then(function(result) {
+        return loadCSV(exchange, ticker).then(asArray).then(function(result) {
             return {
                 status: 'success',
                 exchange: event.data.exchange,
@@ -112,8 +80,50 @@ onmessage = dispatch.bind(this, {
                 result: result
             };
         });
-    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(promiseText))), synchronized(promiseText))
+    }).bind(this, loadCSV.bind(this,
+        lookupSymbol.bind(this, memoize(synchronized(promiseText))),
+        blacklistEmpty.bind(this, synchronized(promiseText), [])
+    ))
 });
+
+function loadCSV(lookupSymbol, promiseText, exchange, ticker) {
+    var symbol = guessSymbol(exchange, ticker);
+    return encodeInURL(symbol).then(promiseText).then(function(text){
+        if (text) return text;
+        return lookupSymbol(exchange, ticker).then(encodeInURL).then(promiseText);
+    }).then(parseCSV).then(function(rows){
+        var suffix = '';
+        var headers = [];
+        var points = {};
+        rows.forEach(function(row){
+            if (row.length > 2 && row[1].match(/\d\d\d\d-\d\d/)) {
+                headers = row;
+                suffix = '';
+            } else if (row.length == 1) {
+                suffix = ' ' + row[0];
+            } else if (row.length == headers.length) {
+                for (var i=1; i < row.length - 1; i++) {
+                    if (row[i]) {
+                        points[headers[i]] = points[headers[i]] || {dateTime: asof(headers[i])};
+                        points[headers[i]][cleanField(row[0] + suffix)] = parseFloat(row[i].replace(/,/g, ''));
+                    }
+                }
+            } else {
+                console.log(headers, row);
+            }
+        });
+        return points;
+    })
+}
+
+function blacklistEmpty(promiseText, blacklist, url) {
+    if (blacklist[url] !== undefined)
+        return Promise.reject(blacklist[url]);
+    return promiseText(url).then(function(text){
+        if (!text) blacklist[url] = text;
+        return text;
+    });
+}
 
 function guessSymbol(exchange, ticker) {
     return exchange.morningstarCode + ':' + ticker.replace(/\^/, 'PR');
@@ -182,26 +192,12 @@ function cleanField(field) {
 function asof(ym) {
     var m = ym.match(/(\d\d\d\d)-(\d\d)/);
     var date = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, 1);
-    date.setMonth(date.getMonth() + 3); // two months after the end of the fiscal year
+    date.setMonth(date.getMonth() + 2); // one month following the end of the fiscal year
     return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
 }
 
 function pad(num) {
     return (num < 10 ? '0' : '') +  num;
-}
-
-function parseCSVLine(line) {
-    if (line.indexOf(',') < 0) return [line];
-    var m;
-    var row = [];
-    var regex = /(?:,|^)(?:"([^"]*)"|([^",]*))/g;
-    if (line.charAt(0) == ',') {
-        row.push('');
-    }
-    while (m = regex.exec(line)) {
-        row.push(m[1] || m[2]);
-    }
-    return row;
 }
 
 function asArray(hash) {

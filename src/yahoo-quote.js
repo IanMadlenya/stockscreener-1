@@ -94,7 +94,7 @@ onmessage = dispatch.bind(this, {
                 result: result
             };
         });
-    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols))), loadSymbol.bind(this, queue(loadQuotes, 100)), synchronized(loadCSV))
+    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols))), loadSymbol.bind(this, queue(loadQuotes, 100)), synchronized(loadCSV.bind(this, [])))
 });
 
 function loadSymbol(loadQuotes, data, symbol){
@@ -171,7 +171,7 @@ function loadQuotes(queue) {
     });
 }
 
-function loadCSV(data, symbol) {
+function loadCSV(blacklist, data, symbol) {
     var from = data.start.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var to = data.end.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var url = [
@@ -180,23 +180,14 @@ function loadCSV(data, symbol) {
         "&d=", parseInt(to[2], 10) - 1, "&e=", to[3], "&f=", to[1],
         "&g=d"
     ].join('');
-    return promiseText(url).then(function(csv){
-        return csv.split(/\r?\n/);
-    }).then(function(lines){
-        return lines.map(function(line) {
-            return parseCSVLine(line);
-        });
-    }).then(function(rows){
-        var headers = [];
-        return rows.reduce(function(points, row){
-            if (headers.length && headers.length == row.length) {
-                points.push(object(headers, row));
-            } else {
-                headers = row;
-            }
-            return points;
-        }, []);
-    }).then(function(results){
+    if (blacklist[url])
+        return Promise.reject(blacklist[url]);
+    return promiseText(url).catch(function(reject){
+        if (reject.statusCode == 404) {
+            blacklist[url] = reject;
+        }
+        return Promise.reject(reject);
+    }).then(parseCSV).then(rows2objects).then(function(results){
         var m = data.exchange.marketClosesAt.match(/(\d+)(:\d+:\d+)/);
         var hour = parseInt(m[1], 10);
         var time = ' ' + Math.min(hour + 5,23) + m[2];
@@ -301,20 +292,6 @@ function parseJSON(text) {
     }
 }
 
-function parseCSVLine(line) {
-    if (line.indexOf(',') < 0) return [line];
-    var m;
-    var row = [];
-    var regex = /(?:,|^)(?:"([^"]*)"|([^",]*))/g;
-    if (line.charAt(0) == ',') {
-        row.push('');
-    }
-    while (m = regex.exec(line)) {
-        row.push(m[1] || m[2]);
-    }
-    return row;
-}
-
 function queue(func, batchSize) {
     var context, timeout, promise = Promise.resolve();
     var queue = [], listeners = [];
@@ -327,11 +304,9 @@ function queue(func, batchSize) {
             promise.then(function(){
                 if (timeout) clearTimeout(timeout);
                 timeout = setTimeout(function() {
-                    var taken = queue.slice(0, batchSize);
-                    var notifications = listeners.slice(0, batchSize);
+                    var taken = queue.splice(0, batchSize);
+                    var notifications = listeners.splice(0, batchSize);
                     timeout = null;
-                    queue = [];
-                    listeners = [];
                     promise = func.call(context, taken).then(function(result) {
                         for (var i=0; i<notifications.length; i++) {
                             notifications[i].resolve(result);

@@ -29,6 +29,34 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+function parseCSV(text) {
+    return text.split(/\r?\n/).map(function(line) {
+        if (line.indexOf(',') < 0) return [line];
+        var m;
+        var row = [];
+        var regex = /(?:,|^)(?:"([^"]*)"|([^",]*))/g;
+        if (line.charAt(0) == ',') {
+            row.push('');
+        }
+        while (m = regex.exec(line)) {
+            row.push(m[1] || m[2]);
+        }
+        return row;
+    });
+}
+
+function rows2objects(rows) {
+    var headers = [];
+    return rows.reduce(function(points, row){
+        if (headers.length && headers.length == row.length) {
+            points.push(object(headers, row));
+        } else {
+            headers = row;
+        }
+        return points;
+    }, []);
+}
+
 function cache(indexedDB, name, func) {
     return function(key) {
         var args = arguments;
@@ -146,7 +174,7 @@ function promiseText(url) {
             if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 203)) {
                 resolve(xhr.responseText);
             } else if (xhr.readyState == 4) {
-                reject({status: xhr.statusText, message: xhr.responseText, url: url});
+                reject({status: xhr.statusText, statusCode: xhr.status, message: xhr.responseText, url: url});
             }
         };
         xhr.open("GET", url, true);
