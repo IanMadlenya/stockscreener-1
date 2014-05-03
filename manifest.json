@@ -12,11 +12,11 @@
         "48": "launcher.png",
         "128": "logo.png"
     },
-    "app": {
-        "background": {
-            "scripts": ["config.js", "src/main.js"]
-        }
+    "background": {
+        "page": "src/background.html",
+        "persistent": true
     },
+    "homepage_url": "http://localhost:8080/", 
     "permissions": [
         "*://*.probabilitytrading.net/*",
         "http://d.yimg.com/*",
@@ -25,8 +25,6 @@
         "http://financials.morningstar.com/*",
         "http://qt.morningstar.com/*",
         "http://www.nasdaq.com/*",
-        "http://www.tmx.com/*",
-        "webview",
-        "storage"
+        "http://www.tmx.com/*"
     ]
 }
