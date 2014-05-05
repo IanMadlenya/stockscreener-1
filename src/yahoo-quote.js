@@ -141,7 +141,7 @@ function loadQuotes(queue) {
         }
         return byFilter;
     }, {});
-    return Promise.all(filters.map(function(filter) {
+    return filters.reduce(function(promise, filter){
         var url = [
             "http://query.yahooapis.com/v1/public/yql?q=",
             encodeURIComponent([
@@ -154,28 +154,29 @@ function loadQuotes(queue) {
             ].join('')).replace(/%2C/g, ','),
             "&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys"
         ].join('');
-        return promiseText(url).then(parseJSON).then(function(result){
-            if (result.query.results) return result.query.results.quote;
-            return [];
+        return promise.then(function(array){
+            return promiseText(url).then(parseJSON).then(function(result){
+                if (result.query.results)
+                    return result.query.results.quote;
+                return [];
+            }).then(function(results){
+                return results.map(function(result){
+                    return {
+                        symbol: result.Symbol,
+                        dateTime: result.Date + time[result.Symbol],
+                        open: parseFloat(result.Open),
+                        high: parseFloat(result.High),
+                        low: parseFloat(result.Low),
+                        close: parseFloat(result.Close),
+                        volume: parseFloat(result.Volume),
+                        adj_close: parseFloat(result.Adj_Close)
+                    };
+                });
+            }).then(function(results){
+                return array.concat(results);
+            });
         });
-    })).then(function(arrays){
-        return arrays.reduce(function(memo, array){
-            return memo.concat(array);
-        }, []);
-    }).then(function(results){
-        return results.map(function(result){
-            return {
-                symbol: result.Symbol,
-                dateTime: result.Date + time[result.Symbol],
-                open: parseFloat(result.Open),
-                high: parseFloat(result.High),
-                low: parseFloat(result.Low),
-                close: parseFloat(result.Close),
-                volume: parseFloat(result.Volume),
-                adj_close: parseFloat(result.Adj_Close)
-            };
-        });
-    });
+    }, Promise.resolve([]));
 }
 
 function loadPriceTable(loadCSV, data, symbol) {
