@@ -47,7 +47,8 @@ onmessage = dispatch.bind(this, {
         channel.port2.start();
         event.ports[0].postMessage({
             cmd: 'register',
-            service: 'quote'
+            service: 'quote',
+            name: 'yahoo-quote'
         }, [channel.port1]);
     },
 
@@ -61,13 +62,12 @@ onmessage = dispatch.bind(this, {
         }, {status: 'success'});
     },
 
-    quote: (function(lookupSymbol, loadSymbol, loadCSV, event) {
+    quote: (function(lookupSymbol, loadSymbol, loadPriceTable, event) {
         var data = event.data;
         var interval = data.interval;
         if (data.interval != 'd1') return {status: 'success', result: []};
         var symbol = guessSymbol(data.exchange, data.ticker);
-        return loadSymbol(data, symbol).then(function(result) {
-            if (result.length) return result;
+        return loadSymbol(data, symbol).catch(function(error) {
             return Promise.resolve().then(function(){
                 if (data.ticker.match(/^[A-Z]+$/))
                     return symbol;
@@ -78,10 +78,7 @@ onmessage = dispatch.bind(this, {
                     if (symbol != lookup)
                         return loadSymbol(data, lookup);
                     return result;
-                }).then(function(result) {
-                    if (result.length) return result;
-                    return loadCSV(data, lookup);
-                });
+                }).catch(loadPriceTable.bind(this, data, lookup));
             });
         }).then(function(result){
             return {
@@ -94,19 +91,29 @@ onmessage = dispatch.bind(this, {
                 result: result
             };
         });
-    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols))), loadSymbol.bind(this, queue(loadQuotes, 100)), synchronized(loadCSV.bind(this, [])))
+    }).bind(this,
+        lookupSymbol.bind(this, memoize(synchronized(listSymbols))),
+        loadSymbol.bind(this, queue(loadQuotes, 100)),
+        loadPriceTable.bind(this, memoize(synchronized(function(url){
+            // FIXME be smarter about data yahoo don't have available
+            return promiseText(url).then(parseCSV).then(rows2objects);
+        })))
+    )
 });
 
 function loadSymbol(loadQuotes, data, symbol){
-    return loadQuotes({
+    return loadQuotes([{
         symbol: symbol,
         start: data.start,
         end: data.end,
         marketClosesAt: data.exchange.marketClosesAt
-    }).then(function(results) {
+    }]).then(function(results) {
         return results.filter(function(result){
             return result.symbol == symbol;
         });
+    }).then(function(results){
+        if (result.length) return results;
+        throw Error("Empty results for " + symbol);
     });
 }
 
@@ -171,7 +178,7 @@ function loadQuotes(queue) {
     });
 }
 
-function loadCSV(blacklist, data, symbol) {
+function loadPriceTable(loadCSV, data, symbol) {
     var from = data.start.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var to = data.end.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var url = [
@@ -180,14 +187,7 @@ function loadCSV(blacklist, data, symbol) {
         "&d=", parseInt(to[2], 10) - 1, "&e=", to[3], "&f=", to[1],
         "&g=d"
     ].join('');
-    if (blacklist[url])
-        return Promise.reject(blacklist[url]);
-    return promiseText(url).catch(function(reject){
-        if (reject.statusCode == 404) {
-            blacklist[url] = reject;
-        }
-        return Promise.reject(reject);
-    }).then(parseCSV).then(rows2objects).then(function(results){
+    return loadCSV(url).then(function(results){
         var m = data.exchange.marketClosesAt.match(/(\d+)(:\d+:\d+)/);
         var hour = parseInt(m[1], 10);
         var time = ' ' + Math.min(hour + 5,23) + m[2];
@@ -293,7 +293,7 @@ function parseJSON(text) {
 }
 
 function queue(func, batchSize) {
-    var context, timeout, promise = Promise.resolve();
+    var context, promise = Promise.resolve();
     var queue = [], listeners = [];
 
     return function(items) {
@@ -301,21 +301,18 @@ function queue(func, batchSize) {
         return new Promise(function(resolve, reject) {
             queue = queue.concat(items);
             listeners.push({resolve: resolve, reject: reject});
-            promise.then(function(){
-                if (timeout) clearTimeout(timeout);
-                timeout = setTimeout(function() {
-                    var taken = queue.splice(0, batchSize);
-                    var notifications = listeners.splice(0, batchSize);
-                    timeout = null;
-                    promise = func.call(context, taken).then(function(result) {
-                        for (var i=0; i<notifications.length; i++) {
-                            notifications[i].resolve(result);
-                        }
-                    }, function(error) {
-                        for (var i=0; i<notifications.length; i++) {
-                            notifications[i].reject(error);
-                        }
-                    });
+            promise = promise.then(function(){
+                var taken = queue.splice(0, batchSize);
+                var notifications = listeners.splice(0, batchSize);
+                if (!taken.length) return undefined;
+                return func.call(context, taken).then(function(result) {
+                    for (var i=0; i<notifications.length; i++) {
+                        notifications[i].resolve(result);
+                    }
+                }, function(error) {
+                    for (var i=0; i<notifications.length; i++) {
+                        notifications[i].reject(error);
+                    }
                 });
             });
         });
