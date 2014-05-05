@@ -64,13 +64,13 @@ function cache(indexedDB, name, maxage, func) {
         var now = Date.now();
         return readCacheEntry(indexedDB, name, key).then(function(entry){
             if (entry && entry.asof > now - maxage) {
-                if (!entry.rejected)
-                    return entry.resolved || entry.value;
+                if (entry.hasOwnProperty('resolved'))
+                    return entry.resolved;
                 return Promise.reject(entry.rejected);
             }
             return Promise.resolve(func.apply(this, args)).then(function(resolved){
                 return writeCacheEntry(indexedDB, name, {
-                    url: key,
+                    key: key,
                     asof: now,
                     resolved: resolved
                 }).then(function(){
@@ -78,7 +78,7 @@ function cache(indexedDB, name, maxage, func) {
                 });
             }, function(rejected){
                 return writeCacheEntry(indexedDB, name, {
-                    url: key,
+                    key: key,
                     asof: now,
                     rejected: rejected
                 }).then(function(){
@@ -89,11 +89,11 @@ function cache(indexedDB, name, maxage, func) {
     };
 }
 
-function readCacheEntry(indexedDB, name, url) {
+function readCacheEntry(indexedDB, name, key) {
     return new Promise(function(resolve, reject){
         return openCacheDatabase(indexedDB, name).then(function(db){
             var store = db.transaction(['cache']).objectStore('cache');
-            var request = store.get(url);
+            var request = store.get(key);
             request.onsuccess = resolve;
             request.onerror = reject;
         });
@@ -120,7 +120,7 @@ function openCacheDatabase(indexedDB, name) {
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             var db = event.target.result;
-            db.createObjectStore('cache', {keyPath: "url"});
+            db.createObjectStore('cache', {keyPath:'key'});
         };
     }).then(function(event){
         return event.target.result;
