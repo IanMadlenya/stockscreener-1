@@ -47,7 +47,8 @@ onmessage = dispatch.bind(this, {
         channel.port2.start();
         event.ports[0].postMessage({
             cmd: 'register',
-            service: 'quote'
+            service: 'quote',
+            name: 'morningstar-financials'
         }, [channel.port1]);
     },
 
@@ -63,7 +64,7 @@ onmessage = dispatch.bind(this, {
         }, {status: 'success'});
     },
 
-    quote: (function(loadCSV, event) {
+    quote: (function(loadCSV, lookupSymbol, event) {
         var exchange = event.data.exchange;
         var ticker = event.data.ticker;
         var interval = event.data.interval;
@@ -71,7 +72,11 @@ onmessage = dispatch.bind(this, {
         yearsAgo.setFullYear(yearsAgo.getFullYear() - 9);
         if (interval != 'm12' || new Date(event.data.end).valueOf() < yearsAgo.valueOf())
             return {status: 'success', result: []};
-        return loadCSV(exchange, ticker).then(asArray).then(function(result) {
+        var symbol = guessSymbol(exchange, ticker);
+        return encodeInURL(symbol).then(loadCSV).then(function(result){
+            if (result.length) return result;
+            return lookupSymbol(exchange, ticker).then(encodeInURL).then(loadCSV);
+        }).then(function(result) {
             return {
                 status: 'success',
                 exchange: event.data.exchange,
@@ -80,18 +85,14 @@ onmessage = dispatch.bind(this, {
                 result: result
             };
         });
-    }).bind(this, loadCSV.bind(this,
-        lookupSymbol.bind(this, memoize(synchronized(promiseText))),
-        blacklistEmpty.bind(this, synchronized(promiseText), [])
-    ))
+    }).bind(this,
+        synchronized(cache(indexedDB, 'morningstar-financials', 4 * 60 * 60 * 1000, loadCSV)),
+        lookupSymbol.bind(this, synchronized(cache(indexedDB, 'morningstar-symbols', 13 * 24 * 60 * 60 * 1000, promiseText)))
+    )
 });
 
-function loadCSV(lookupSymbol, promiseText, exchange, ticker) {
-    var symbol = guessSymbol(exchange, ticker);
-    return encodeInURL(symbol).then(promiseText).then(function(text){
-        if (text) return text;
-        return lookupSymbol(exchange, ticker).then(encodeInURL).then(promiseText);
-    }).then(parseCSV).then(function(rows){
+function loadCSV(url) {
+    return promiseText(url).then(parseCSV).then(function(rows){
         var suffix = '';
         var headers = [];
         var points = {};
@@ -113,15 +114,14 @@ function loadCSV(lookupSymbol, promiseText, exchange, ticker) {
             }
         });
         return points;
-    })
-}
-
-function blacklistEmpty(promiseText, blacklist, url) {
-    if (blacklist[url] !== undefined)
-        return Promise.reject(blacklist[url]);
-    return promiseText(url).then(function(text){
-        if (!text) blacklist[url] = text;
-        return text;
+    }).then(function(hash) {
+        var keys = [];
+        for (var key in hash) {
+            keys.push(key);
+        }
+        return keys.sort().map(function(key) {
+            return hash[key];
+        });
     });
 }
 
@@ -198,16 +198,6 @@ function asof(ym) {
 
 function pad(num) {
     return (num < 10 ? '0' : '') +  num;
-}
-
-function asArray(hash) {
-    var keys = [];
-    for (var key in hash) {
-        keys.push(key);
-    }
-    return keys.sort().map(function(key) {
-        return hash[key];
-    });
 }
 
 function isEmpty(obj) {
