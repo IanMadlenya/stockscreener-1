@@ -30,6 +30,7 @@
  */
 
 function parseCSV(text) {
+    if (!text) return [];
     return text.split(/\r?\n/).map(function(line) {
         if (line.indexOf(',') < 0) return [line];
         var m;
@@ -57,22 +58,31 @@ function rows2objects(rows) {
     }, []);
 }
 
-function cache(indexedDB, name, func) {
+function cache(indexedDB, name, maxage, func) {
     return function(key) {
         var args = arguments;
         var now = Date.now();
         return readCacheEntry(indexedDB, name, key).then(function(entry){
-            if (entry.asof > now - 11 * 24 * 60 * 60 * 1000)
-                return entry.value;
-            return Promise.reject();
-        }).catch(function(){
-            return Promise.resolve(func.apply(this, args)).then(function(value){
+            if (entry && entry.asof > now - maxage) {
+                if (!entry.rejected)
+                    return entry.resolved || entry.value;
+                return Promise.reject(entry.rejected);
+            }
+            return Promise.resolve(func.apply(this, args)).then(function(resolved){
                 return writeCacheEntry(indexedDB, name, {
                     url: key,
                     asof: now,
-                    value: value
+                    resolved: resolved
                 }).then(function(){
-                    return value;
+                    return resolved;
+                });
+            }, function(rejected){
+                return writeCacheEntry(indexedDB, name, {
+                    url: key,
+                    asof: now,
+                    rejected: rejected
+                }).then(function(){
+                    return Promise.reject(rejected);
                 });
             });
         });

@@ -55,7 +55,8 @@ onmessage = dispatch.bind(this, {
         channel.port2.start();
         event.ports[0].postMessage({
             cmd: 'register',
-            service: 'list'
+            service: 'list',
+            name: 'tmx-list'
         }, [channel.port1]);
     },
     'sector-list': function(event) {
@@ -113,7 +114,10 @@ onmessage = dispatch.bind(this, {
                 result: securities
             };
         });
-    }).bind(this, synchronized(cache(indexedDB, 'tmx-sectors', loadWorkbookSheetsAsObjects.bind(this, XLS))), memoize(synchronized(tickersForLetter)))
+    }).bind(this,
+        synchronized(cache(indexedDB, 'tmx-sectors', 13 * 24 * 60 * 60 * 1000, loadWorkbookSheetsAsObjects.bind(this, XLS))),
+        synchronized(cache(indexedDB, 'tmx-securities', 3 * 24 * 60 * 60 * 1000, tickersForLetter))
+    )
 });
 
 function decodeSymbol(pattern, symbol) {

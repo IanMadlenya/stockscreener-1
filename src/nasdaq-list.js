@@ -59,7 +59,8 @@ onmessage = dispatch.bind(this, {
         channel.port2.start();
         event.ports[0].postMessage({
             cmd: 'register',
-            service: 'list'
+            service: 'list',
+            name: 'nasdaq-list'
         }, [channel.port1]);
     },
     'sector-list': function(event) {
@@ -104,7 +105,7 @@ onmessage = dispatch.bind(this, {
                 result: securities
             };
         });
-    }).bind(this, synchronized(cache(indexedDB, 'nasdaq-sectors', function(url){
+    }).bind(this, synchronized(cache(indexedDB, 'nasdaq-sectors', 13 * 24 * 60 * 60 * 1000, function(url){
         return promiseText(url).then(parseCSV).then(rows2objects);
     })))
 });
