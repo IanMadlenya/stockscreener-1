@@ -112,7 +112,7 @@ function loadSymbol(loadQuotes, data, symbol){
             return result.symbol == symbol;
         });
     }).then(function(results){
-        if (result.length) return results;
+        if (results.length) return results;
         throw Error("Empty results for " + symbol);
     });
 }
