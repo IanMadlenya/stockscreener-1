@@ -252,7 +252,7 @@ function lookupSymbol(listSymbols, exchange, ticker) {
         if (!results.length) return undefined;
         return results[0].symbol;
     }).then(function(symbol){
-        if (symbol != ticker)
+        if (symbol && symbol != ticker)
             console.log("Using Yahoo! symbol " + symbol + " for security " + exchange.mic + ':' + ticker);
         return symbol;
     });
