@@ -217,28 +217,31 @@ function rejectNormalizedError(error) {
     if (error.status != 'error' || error.message) {
         console.log(error);
     }
-    if (error && error.status == 'error') {
-        return Promise.reject(error);
+    return Promise.reject(normalizedError(error));
+}
+
+function normalizedError(error) {
+    if (error && error.status && error.status != 'success') {
+        return error;
     } else if (error.target && error.target.errorCode){
-        return Promise.reject({
+        return {
             status: 'error',
             errorCode: error.target.errorCode
-        });
+        };
     } else if (error.message && error.stack) {
-        return Promise.reject({
+        return _.extend({
             status: 'error',
             message: error.message,
             stack: error.stack
-        });
+        }, _.omit(error, 'prototype', _.functions(error)));
     } else if (error.message) {
-        return Promise.reject({
-            status: 'error',
-            message: error.message
-        });
+        return _.extend({
+            status: 'error'
+        }, _.omit(error, 'prototype', _.functions(error)));
     } else {
-        return Promise.reject({
+        return {
             status: 'error',
             message: error
-        });
+        };
     }
 }
