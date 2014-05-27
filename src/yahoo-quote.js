@@ -102,6 +102,7 @@ onmessage = dispatch.bind(this, {
 });
 
 function loadSymbol(loadQuotes, data, symbol){
+    if (data.start > data.end) throw Error(data.start + " is after " + data.end);
     return loadQuotes([{
         symbol: symbol,
         start: data.start,

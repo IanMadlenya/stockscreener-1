@@ -168,7 +168,7 @@ function promiseBinaryString(url) {
             if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 203)) {
                 resolve(xhr.responseText);
             } else if (xhr.readyState == 4) {
-                reject({status: xhr.statusText, message: xhr.responseText, url: url});
+                reject({status: xhr.statusText, message: titleOf(xhr.responseText), url: url});
             }
         };
         xhr.open("GET", url, true);
@@ -184,12 +184,21 @@ function promiseText(url) {
             if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 203)) {
                 resolve(xhr.responseText);
             } else if (xhr.readyState == 4) {
-                reject({status: xhr.statusText, statusCode: xhr.status, message: xhr.responseText, url: url});
+                reject({status: xhr.statusText, statusCode: xhr.status, message: titleOf(xhr.responseText), url: url});
             }
         };
         xhr.open("GET", url, true);
         xhr.send();
     });
+}
+
+function titleOf(html) {
+    var lower = html.toLowerCase();
+    var start = lower.indexOf('<title');
+    var end = lower.indexOf('</title>');
+    if (start < 0 || end < 0) return html;
+    var text = html.substring(html.indexOf('>', start) + 1, end);
+    return text.replace('&lt;','<').replace('&gt;', '>').replace('&amp;', '&');
 }
 
 function dispatch(handler, event){
@@ -229,15 +238,16 @@ function normalizedError(error) {
             errorCode: error.target.errorCode
         };
     } else if (error.message && error.stack) {
-        return _.extend({
+        return {
             status: 'error',
             message: error.message,
             stack: error.stack
-        }, _.omit(error, 'prototype', _.functions(error)));
+        };
     } else if (error.message) {
-        return _.extend({
-            status: 'error'
-        }, _.omit(error, 'prototype', _.functions(error)));
+        return {
+            status: 'error',
+            message: error.message
+        };
     } else {
         return {
             status: 'error',
