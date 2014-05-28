@@ -62,25 +62,25 @@ onmessage = dispatch.bind(this, {
         }, {status: 'success'});
     },
 
-    quote: (function(lookupSymbol, loadSymbol, loadPriceTable, event) {
+    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, event) {
         var data = event.data;
         var interval = data.interval;
         if (data.interval != 'd1') return {status: 'success', result: []};
         var symbol = guessSymbol(data.exchange, data.ticker);
-        return loadSymbol(data, symbol).catch(function(error) {
-            return Promise.resolve().then(function(){
-                if (data.ticker.match(/^[A-Z]+$/))
-                    return symbol;
-                return lookupSymbol(data.exchange, data.ticker);
-            }).then(function(lookup){
-                if (!lookup) return [];
-                return Promise.resolve(lookup).then(function(lookup){
-                    if (symbol != lookup)
-                        return loadSymbol(data, lookup);
-                    return result;
-                }).catch(loadPriceTable.bind(this, data, lookup));
+        var mapped = symbolMap[symbol];
+        return loadSymbol(data, mapped || symbol).catch(function(error) {
+            if (mapped || data.ticker.match(/^[A-Z]+$/))
+                return Promise.reject(error);
+            return lookupSymbol(data.exchange, data.ticker).then(function(lookup){
+                if (!lookup || symbol == lookup)
+                    return Promise.reject(error);
+                symbolMap[symbol] = lookup;
+                console.log("Using Yahoo! symbol " + lookup + " for security " + data.exchange.mic + ':' + data.ticker);
+                return loadSymbol(data, lookup);
             });
-        }).then(function(result){
+        }).catch(
+            loadPriceTable.bind(this, data, symbolMap[symbol] || symbol)
+        ).then(function(result){
             return {
                 status: 'success',
                 exchange: data.exchange,
@@ -92,29 +92,40 @@ onmessage = dispatch.bind(this, {
             };
         });
     }).bind(this,
+        {},
         lookupSymbol.bind(this, memoize(synchronized(listSymbols))),
-        loadSymbol.bind(this, queue(loadQuotes, 100)),
-        loadPriceTable.bind(this, memoize(synchronized(function(url){
-            // FIXME be smarter about data yahoo don't have available
-            return promiseText(url).then(parseCSV).then(rows2objects);
-        })))
+        loadSymbol.bind(this,
+            queue(loadQuotes, 100),
+            readStartDate.bind(this, indexedDB),
+            deleteStartDateIfAfter.bind(this, indexedDB)
+        ),
+        loadPriceTable.bind(this,
+            synchronized(loadCSV),
+            recordStartDate.bind(this, indexedDB),
+            deleteStartDateIfAfter.bind(this, indexedDB)
+        )
     )
 });
 
-function loadSymbol(loadQuotes, data, symbol){
+function loadSymbol(loadQuotes, readStartDate, deleteStartDateIfAfter, data, symbol){
     if (data.start > data.end) throw Error(data.start + " is after " + data.end);
-    return loadQuotes([{
-        symbol: symbol,
-        start: data.start,
-        end: data.end,
-        marketClosesAt: data.exchange.marketClosesAt
-    }]).then(function(results) {
-        return results.filter(function(result){
-            return result.symbol == symbol;
+    return readStartDate(symbol).then(function(startDate){
+        if (data.end < startDate) return [];
+        return loadQuotes([{
+            symbol: symbol,
+            start: data.start,
+            end: data.end,
+            marketClosesAt: data.exchange.marketClosesAt
+        }]).then(function(results) {
+            return results.filter(function(result){
+                return result.symbol == symbol;
+            });
+        }).then(function(results){
+            if (results.length)
+                deleteStartDateIfAfter(symbol, results[results.length-1].Date);
+            if (results.length) return results;
+            throw Error("Empty results for " + symbol);
         });
-    }).then(function(results){
-        if (results.length) return results;
-        throw Error("Empty results for " + symbol);
     });
 }
 
@@ -180,16 +191,24 @@ function loadQuotes(queue) {
     }, Promise.resolve([]));
 }
 
-function loadPriceTable(loadCSV, data, symbol) {
-    var from = data.start.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
-    var to = data.end.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
+function loadPriceTable(loadCSV, recordStartDate, deleteStartDateIfAfter, data, symbol) {
+    var start = data.start.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
+    var end = data.end.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var url = [
         "http://ichart.finance.yahoo.com/table.csv?s=", encodeURIComponent(symbol),
-        "&a=", parseInt(from[2], 10) - 1, "&b=", from[3], "&c=", from[1],
-        "&d=", parseInt(to[2], 10) - 1, "&e=", to[3], "&f=", to[1],
+        "&a=", parseInt(start[2], 10) - 1, "&b=", start[3], "&c=", start[1],
+        "&d=", parseInt(end[2], 10) - 1, "&e=", end[3], "&f=", end[1],
         "&g=d"
     ].join('');
-    return loadCSV(url).then(function(results){
+    return loadCSV(url).catch(function(error){
+        if (error.statusCode == 404) {
+            recordStartDate(symbol, end[0]);
+            return [];
+        }
+        return Promise.reject(error);
+    }).then(function(results){
+        if (results.length)
+            deleteStartDateIfAfter(symbol, results[results.length-1].Date);
         var m = data.exchange.marketClosesAt.match(/(\d+)(:\d+:\d+)/);
         var hour = parseInt(m[1], 10);
         var time = ' ' + Math.min(hour + 5,23) + m[2];
@@ -252,10 +271,6 @@ function lookupSymbol(listSymbols, exchange, ticker) {
     }).then(function(results){
         if (!results.length) return undefined;
         return results[0].symbol;
-    }).then(function(symbol){
-        if (symbol && symbol != ticker)
-            console.log("Using Yahoo! symbol " + symbol + " for security " + exchange.mic + ':' + ticker);
-        return symbol;
     });
 }
 
@@ -319,4 +334,107 @@ function queue(func, batchSize) {
             });
         });
     };
+}
+
+function recordStartDate(indexedDB, symbol, date) {
+    var parsed = date.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
+    var year = parseInt(parsed[1], 10);
+    var month = parseInt(parsed[2], 10);
+    var day = parseInt(parsed[3], 10);
+    var start = new Date(year, month - 2, day);
+    var end = new Date(year, month, day);
+    var url = [
+        "http://ichart.finance.yahoo.com/table.csv?s=", encodeURIComponent(symbol),
+        "&a=", start.getMonth(), "&b=", start.getDate(), "&c=", start.getFullYear(),
+        "&d=", end.getMonth(), "&e=", end.getDate(), "&f=", end.getFullYear(),
+        "&g=d"
+    ].join('');
+    return loadCSV(url).then(function(rows){
+        var startDate = rows.length && rows[rows.length - 1].Date;
+        if (startDate && startDate > parsed[0]) {
+            // no data before startDate appears to be available
+            return writeStartDate(indexedDB, symbol, startDate);
+        } else {
+            // recent symbol data is not available, blacklist until tomorrow
+            var tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            return writeStartDate(indexedDB, symbol, formatDate(tomorrow));
+        }
+    }, function(error){
+        if (error.statusCode == 404 && end.valueOf() < Date.now()) {
+            // keep searching for startDate, one month at a time
+            return recordStartDate(symbol, formatDate(end));
+        } else if (error.statusCode == 404) {
+            // ignore any future requests for this symbol for one month
+            var nextMonth = new Date();
+            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            return writeStartDate(indexedDB, symbol, formatDate(nextMonth));
+        } else {
+            return Promise.reject(error);
+        }
+    });
+}
+
+function formatDate(date) {
+    return [date.getFullYear(), date.getMonth()+1, date.getDate()].join('-');
+}
+
+function writeStartDate(indexedDB, symbol, date) {
+    new Promise(function(resolve, reject){
+        return openStartDateDatabase(indexedDB).then(function(db){
+            var store = db.transaction(['startDate'], "readwrite").objectStore('startDate');
+            var request = store.put(date, symbol);
+            request.onsuccess = resolve;
+            request.onerror = reject;
+        });
+    });
+}
+
+function deleteStartDateIfAfter(indexedDB, symbol, date) {
+    return new Promise(function(resolve, reject){
+        return openStartDateDatabase(indexedDB).then(function(db){
+            var store = db.transaction(['startDate'], "readwrite").objectStore('startDate');
+            var request = store.get(symbol);
+            request.onerror = reject;
+            request.onsuccess = function(event){
+                var startDate = event.target.result;
+                if (date < startDate) {
+                    var request = store.delete(symbol);
+                    request.onerror = reject;
+                    request.onsuccess = resolve;
+                }
+            };
+        });
+    });
+}
+
+function readStartDate(indexedDB, symbol) {
+    return new Promise(function(resolve, reject){
+        return openStartDateDatabase(indexedDB).then(function(db){
+            var store = db.transaction(['startDate']).objectStore('startDate');
+            var request = store.get(symbol);
+            request.onsuccess = resolve;
+            request.onerror = reject;
+        });
+    }).then(function(event){
+        return event.target.result;
+    });
+}
+
+function openStartDateDatabase(indexedDB) {
+    return new Promise(function(resolve, reject) {
+        var request = indexedDB.open('yahoo-quote');
+        request.onsuccess = resolve;
+        request.onerror = reject;
+        request.onupgradeneeded = function(event) {
+            var db = event.target.result;
+            db.createObjectStore('startDate');
+        };
+    }).then(function(event){
+        return event.target.result;
+    });
+}
+
+function loadCSV(url){
+    return promiseText(url).then(parseCSV).then(rows2objects);
 }
