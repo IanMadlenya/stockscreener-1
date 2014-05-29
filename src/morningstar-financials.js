@@ -53,7 +53,7 @@ onmessage = dispatch.bind(this, {
     },
 
     validate: function(event) {
-        if ('m12' != event.data.interval)
+        if ('annual' != event.data.interval)
             return Promise.reject({status: 'error'});
         return event.data.fields.reduce(function(memo, field){
             if (['revenue', 'cogs', 'gross_margin', 'sg&a', 'r&d', 'other', 'operating_margin', 'net_int_inc_other', 'ebt_margin', 'tax_rate', 'net_margin', 'asset_turnover', 'return_on_assets', 'financial_leverage', 'return_on_equity', 'return_on_invested_capital', 'interest_coverage', 'year_over_year_revenue', '3-year_average_revenue', '5-year_average_revenue', '10-year_average_revenue', 'year_over_year_operating_income', '3-year_average_operating_income', '5-year_average_operating_income', '10-year_average_operating_income', 'year_over_year_net_income', '3-year_average_net_income', '5-year_average_net_income', '10-year_average_net_income', 'year_over_year_eps', '3-year_average_eps', '5-year_average_eps', '10-year_average_eps', 'operating_cash_flow_growth_yoy', 'free_cash_flow_growth_yoy', 'cap_ex_as_a_of_sales', 'free_cash_flow_to_sales', 'free_cash_flow_to_net_income', 'cash_short-term_investments', 'accounts_receivable', 'inventory', 'other_current_assets', 'total_current_assets', 'net_pp&e', 'intangibles', 'other_long-term_assets', 'total_assets', 'accounts_payable', 'short-term_debt', 'taxes_payable', 'accrued_liabilities', 'other_short-term_liabilities', 'total_current_liabilities', 'long-term_debt', 'other_long-term_liabilities', 'total_liabilities', 'total_stockholders_equity', 'total_liabilities_equity', 'current_ratio', 'quick_ratio', 'financial_leverage', 'debt_to_equity', 'days_sales_outstanding', 'days_inventory', 'payables_period', 'cash_conversion_cycle', 'receivables_turnover', 'inventory_turnover', 'fixed_assets_turnover', 'asset_turnover'].indexOf(field) >= 0)
@@ -70,7 +70,7 @@ onmessage = dispatch.bind(this, {
         var interval = event.data.interval;
         var yearsAgo = new Date();
         yearsAgo.setFullYear(yearsAgo.getFullYear() - 9);
-        if (interval != 'm12' || new Date(event.data.end).valueOf() < yearsAgo.valueOf())
+        if (interval != 'annual' || new Date(event.data.end).valueOf() < yearsAgo.valueOf())
             return {status: 'success', result: []};
         var symbol = guessSymbol(exchange, ticker);
         return encodeInURL(symbol).then(loadCSV).then(function(result){
