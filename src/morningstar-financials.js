@@ -53,29 +53,43 @@ onmessage = dispatch.bind(this, {
     },
 
     validate: function(event) {
-        if ('annual' != event.data.interval)
-            return Promise.reject({status: 'error'});
-        return event.data.fields.reduce(function(memo, field){
-            if (['revenue', 'cogs', 'gross_margin', 'sg&a', 'r&d', 'other', 'operating_margin', 'net_int_inc_other', 'ebt_margin', 'tax_rate', 'net_margin', 'asset_turnover', 'return_on_assets', 'financial_leverage', 'return_on_equity', 'return_on_invested_capital', 'interest_coverage', 'year_over_year_revenue', '3-year_average_revenue', '5-year_average_revenue', '10-year_average_revenue', 'year_over_year_operating_income', '3-year_average_operating_income', '5-year_average_operating_income', '10-year_average_operating_income', 'year_over_year_net_income', '3-year_average_net_income', '5-year_average_net_income', '10-year_average_net_income', 'year_over_year_eps', '3-year_average_eps', '5-year_average_eps', '10-year_average_eps', 'operating_cash_flow_growth_yoy', 'free_cash_flow_growth_yoy', 'cap_ex_as_a_of_sales', 'free_cash_flow_to_sales', 'free_cash_flow_to_net_income', 'cash_short-term_investments', 'accounts_receivable', 'inventory', 'other_current_assets', 'total_current_assets', 'net_pp&e', 'intangibles', 'other_long-term_assets', 'total_assets', 'accounts_payable', 'short-term_debt', 'taxes_payable', 'accrued_liabilities', 'other_short-term_liabilities', 'total_current_liabilities', 'long-term_debt', 'other_long-term_liabilities', 'total_liabilities', 'total_stockholders_equity', 'total_liabilities_equity', 'current_ratio', 'quick_ratio', 'financial_leverage', 'debt_to_equity', 'days_sales_outstanding', 'days_inventory', 'payables_period', 'cash_conversion_cycle', 'receivables_turnover', 'inventory_turnover', 'fixed_assets_turnover', 'asset_turnover'].indexOf(field) >= 0)
-                return memo;
-            if (['revenue_mil', 'gross_margin', 'operating_income_mil', 'operating_margin', 'net_income_mil', 'earnings_per_share', 'dividends', 'payout_ratio', 'shares_mil', 'book_value_per_share', 'operating_cash_flow_mil', 'cap_spending_mil', 'free_cash_flow_mil', 'free_cash_flow_per_share', 'working_capital_mil'].indexOf(field) >= 0)
-                return memo;
-            throw new Error("Unknown field: " + field);
-        }, {status: 'success'});
+        if ('annual' == event.data.interval)
+            return event.data.fields.reduce(function(memo, field){
+                if (['revenue', 'cogs', 'gross_margin', 'sg&a', 'r&d', 'other', 'operating_margin', 'net_int_inc_other', 'ebt_margin', 'tax_rate', 'net_margin', 'asset_turnover', 'return_on_assets', 'financial_leverage', 'return_on_equity', 'return_on_invested_capital', 'interest_coverage', 'year_over_year_revenue', '3-year_average_revenue', '5-year_average_revenue', '10-year_average_revenue', 'year_over_year_operating_income', '3-year_average_operating_income', '5-year_average_operating_income', '10-year_average_operating_income', 'year_over_year_net_income', '3-year_average_net_income', '5-year_average_net_income', '10-year_average_net_income', 'year_over_year_eps', '3-year_average_eps', '5-year_average_eps', '10-year_average_eps', 'operating_cash_flow_growth_yoy', 'free_cash_flow_growth_yoy', 'cap_ex_as_a_of_sales', 'free_cash_flow_to_sales', 'free_cash_flow_to_net_income', 'cash_short-term_investments', 'accounts_receivable', 'inventory', 'other_current_assets', 'total_current_assets', 'net_pp&e', 'intangibles', 'other_long-term_assets', 'total_assets', 'accounts_payable', 'short-term_debt', 'taxes_payable', 'accrued_liabilities', 'other_short-term_liabilities', 'total_current_liabilities', 'long-term_debt', 'other_long-term_liabilities', 'total_liabilities', 'total_stockholders_equity', 'total_liabilities_equity', 'current_ratio', 'quick_ratio', 'financial_leverage', 'debt_to_equity', 'days_sales_outstanding', 'days_inventory', 'payables_period', 'cash_conversion_cycle', 'receivables_turnover', 'inventory_turnover', 'fixed_assets_turnover', 'asset_turnover'].indexOf(field) >= 0)
+                    return memo;
+                if (['revenue_mil', 'gross_margin', 'operating_income_mil', 'operating_margin', 'net_income_mil', 'earnings_per_share', 'dividends', 'payout_ratio', 'shares_mil', 'book_value_per_share', 'operating_cash_flow_mil', 'cap_spending_mil', 'free_cash_flow_mil', 'free_cash_flow_per_share', 'working_capital_mil'].indexOf(field) >= 0)
+                    return memo;
+                throw new Error("Unknown field: " + field);
+            }, {status: 'success'});
+        else if ('quarter' == event.data.interval)
+            return event.data.fields.reduce(function(memo, field){
+                if (['revenue', 'cost_of_revenue', 'gross_profit', 'costs_and_expenses', 'sales,_general_and_administrative', 'interest_expense', 'other_operating_expenses', 'total_costs_and_expenses', 'income_before_income_taxes', 'provision_for_income_taxes', 'net_income_from_continuing_operations', 'net_income', 'basic_earnings_per_share', 'diluted_earnings_per_share', 'basic_weighted_average_shares_outstanding', 'diluted_weighted_average_shares_outstanding'].indexOf(field) >= 0)
+                    return memo;
+                throw new Error("Unknown field: " + field);
+            }, {status: 'success'});
+        else return Promise.reject({status: 'error'});
     },
 
     quote: (function(loadCSV, lookupSymbol, event) {
         var exchange = event.data.exchange;
         var ticker = event.data.ticker;
         var interval = event.data.interval;
-        var yearsAgo = new Date();
+        var prefix = interval == 'annual' ? "http://financials.morningstar.com/ajax/exportKR2CSV.html?t=" :
+            interval == 'quarter' ? "http://financials.morningstar.com/ajax/ReportProcess4CSV.html?reportType=is&period=3&dataType=A&number=3&t=" :
+            null;
+        if (!prefix) return {status: 'success', result: []};
+        var oneYearAgo = new Date();
+        var yearsAgo = new Date(oneYearAgo.valueOf());
+        oneYearAgo.setFullYear(yearsAgo.getFullYear() - 1);
         yearsAgo.setFullYear(yearsAgo.getFullYear() - 9);
-        if (interval != 'annual' || new Date(event.data.end).valueOf() < yearsAgo.valueOf())
+        if (interval == 'annual' && new Date(event.data.end).valueOf() < yearsAgo.valueOf())
+            return {status: 'success', result: []};
+        else if (interval == 'quarter' && new Date(event.data.end).valueOf() < oneYearAgo.valueOf())
             return {status: 'success', result: []};
         var symbol = guessSymbol(exchange, ticker);
-        return encodeInURL(symbol).then(loadCSV).then(function(result){
+        return encodeInURL(prefix, symbol).then(loadCSV).then(function(result){
             if (result.length) return result;
-            return lookupSymbol(exchange, ticker).then(encodeInURL).then(loadCSV);
+            return lookupSymbol(exchange, ticker).then(encodeInURL.bind(this, prefix)).then(loadCSV);
         }).then(function(result) {
             return {
                 status: 'success',
@@ -103,6 +117,9 @@ function loadCSV(url) {
             } else if (row.length == 1) {
                 suffix = ' ' + row[0];
             } else if (row.length == headers.length) {
+                if (cleanField(row[0]).indexOf(cleanField(suffix)) >= 0) {
+                    suffix = ''; // Total row
+                }
                 for (var i=1; i < row.length - 1; i++) {
                     if (row[i]) {
                         points[headers[i]] = points[headers[i]] || {dateTime: asof(headers[i])};
@@ -174,8 +191,8 @@ function lookupSymbol(promiseText, exchange, ticker) {
     });
 }
 
-function encodeInURL(symbol) {
-    return Promise.resolve("http://financials.morningstar.com/ajax/exportKR2CSV.html?t=" + encodeURIComponent(symbol));
+function encodeInURL(prefix, symbol) {
+    return Promise.resolve(prefix + encodeURIComponent(symbol));
 }
 
 function cleanField(field) {
