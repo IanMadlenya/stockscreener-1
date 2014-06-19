@@ -53,7 +53,7 @@ onmessage = dispatch.bind(this, {
     },
 
     validate: function(event) {
-        if ('d1' != event.data.interval)
+        if ('day' != event.data.period)
             return Promise.reject({status: 'error'});
         return event.data.fields.reduce(function(memo, field){
             if (['open','high','low','close','volume','adj_close'].indexOf(field) >= 0)
@@ -64,8 +64,8 @@ onmessage = dispatch.bind(this, {
 
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, event) {
         var data = event.data;
-        var interval = data.interval;
-        if (data.interval != 'd1') return {status: 'success', result: []};
+        var period = data.period;
+        if (period != 'day') return {status: 'success', result: []};
         var symbol = guessSymbol(data.exchange, data.ticker);
         var mapped = symbolMap[symbol];
         return loadSymbol(data, mapped || symbol).catch(function(error) {
@@ -85,7 +85,7 @@ onmessage = dispatch.bind(this, {
                 status: 'success',
                 exchange: data.exchange,
                 ticker: data.ticker,
-                interval: data.interval,
+                period: period,
                 start: data.start,
                 end: data.end,
                 result: result

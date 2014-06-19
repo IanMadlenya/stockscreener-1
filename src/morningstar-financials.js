@@ -53,7 +53,7 @@ onmessage = dispatch.bind(this, {
     },
 
     validate: function(event) {
-        if ('annual' == event.data.interval)
+        if ('annual' == event.data.period)
             return event.data.fields.reduce(function(memo, field){
                 if (['revenue', 'cogs', 'gross_margin', 'sg&a', 'r&d', 'other', 'operating_margin', 'net_int_inc_other', 'ebt_margin', 'tax_rate', 'net_margin', 'asset_turnover', 'return_on_assets', 'financial_leverage', 'return_on_equity', 'return_on_invested_capital', 'interest_coverage', 'year_over_year_revenue', '3-year_average_revenue', '5-year_average_revenue', '10-year_average_revenue', 'year_over_year_operating_income', '3-year_average_operating_income', '5-year_average_operating_income', '10-year_average_operating_income', 'year_over_year_net_income', '3-year_average_net_income', '5-year_average_net_income', '10-year_average_net_income', 'year_over_year_eps', '3-year_average_eps', '5-year_average_eps', '10-year_average_eps', 'operating_cash_flow_growth_yoy', 'free_cash_flow_growth_yoy', 'cap_ex_as_a_of_sales', 'free_cash_flow_to_sales', 'free_cash_flow_to_net_income', 'cash_short-term_investments', 'accounts_receivable', 'inventory', 'other_current_assets', 'total_current_assets', 'net_pp&e', 'intangibles', 'other_long-term_assets', 'total_assets', 'accounts_payable', 'short-term_debt', 'taxes_payable', 'accrued_liabilities', 'other_short-term_liabilities', 'total_current_liabilities', 'long-term_debt', 'other_long-term_liabilities', 'total_liabilities', 'total_stockholders_equity', 'total_liabilities_equity', 'current_ratio', 'quick_ratio', 'financial_leverage', 'debt_to_equity', 'days_sales_outstanding', 'days_inventory', 'payables_period', 'cash_conversion_cycle', 'receivables_turnover', 'inventory_turnover', 'fixed_assets_turnover', 'asset_turnover'].indexOf(field) >= 0)
                     return memo;
@@ -61,7 +61,7 @@ onmessage = dispatch.bind(this, {
                     return memo;
                 throw new Error("Unknown field: " + field);
             }, {status: 'success'});
-        else if ('quarter' == event.data.interval)
+        else if ('quarter' == event.data.period)
             return event.data.fields.reduce(function(memo, field){
                 if (['revenue', 'cost_of_revenue', 'gross_profit', 'costs_and_expenses', 'sales,_general_and_administrative', 'interest_expense', 'other_operating_expenses', 'total_costs_and_expenses', 'income_before_income_taxes', 'provision_for_income_taxes', 'net_income_from_continuing_operations', 'net_income', 'basic_earnings_per_share', 'diluted_earnings_per_share', 'basic_weighted_average_shares_outstanding', 'diluted_weighted_average_shares_outstanding'].indexOf(field) >= 0)
                     return memo;
@@ -73,18 +73,18 @@ onmessage = dispatch.bind(this, {
     quote: (function(loadCSV, lookupSymbol, event) {
         var exchange = event.data.exchange;
         var ticker = event.data.ticker;
-        var interval = event.data.interval;
-        var prefix = interval == 'annual' ? "http://financials.morningstar.com/ajax/exportKR2CSV.html?t=" :
-            interval == 'quarter' ? "http://financials.morningstar.com/ajax/ReportProcess4CSV.html?reportType=is&period=3&dataType=A&number=3&t=" :
+        var period = event.data.period;
+        var prefix = period == 'annual' ? "http://financials.morningstar.com/ajax/exportKR2CSV.html?t=" :
+            period == 'quarter' ? "http://financials.morningstar.com/ajax/ReportProcess4CSV.html?reportType=is&period=3&dataType=A&number=3&t=" :
             null;
         if (!prefix) return {status: 'success', result: []};
         var oneYearAgo = new Date();
         var yearsAgo = new Date(oneYearAgo.valueOf());
         oneYearAgo.setFullYear(yearsAgo.getFullYear() - 1);
         yearsAgo.setFullYear(yearsAgo.getFullYear() - 9);
-        if (interval == 'annual' && new Date(event.data.end).valueOf() < yearsAgo.valueOf())
+        if (period == 'annual' && new Date(event.data.end).valueOf() < yearsAgo.valueOf())
             return {status: 'success', result: []};
-        else if (interval == 'quarter' && new Date(event.data.end).valueOf() < oneYearAgo.valueOf())
+        else if (period == 'quarter' && new Date(event.data.end).valueOf() < oneYearAgo.valueOf())
             return {status: 'success', result: []};
         var symbol = guessSymbol(exchange, ticker);
         return encodeInURL(prefix, symbol).then(loadCSV).then(function(result){
@@ -95,7 +95,7 @@ onmessage = dispatch.bind(this, {
                 status: 'success',
                 exchange: event.data.exchange,
                 ticker: event.data.ticker,
-                interval: event.data.interval,
+                period: period,
                 result: result
             };
         });
