@@ -58,6 +58,12 @@ function rows2objects(rows) {
     }, []);
 }
 
+function clearCache(indexedDB, name) {
+    return openCacheDatabase(indexedDB, name).then(function(db){
+        db.transaction(['cache']).objectStore('cache').clear();
+    });
+}
+
 function cache(indexedDB, name, maxage, func) {
     return function(key) {
         var args = arguments;

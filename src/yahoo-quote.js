@@ -62,6 +62,16 @@ onmessage = dispatch.bind(this, {
         }, {status: 'success'});
     },
 
+    reset: function(event) {
+        return openStartDateDatabase(indexedDB).then(function(db){
+            db.transaction(['startDate'], "readwrite").objectStore('startDate').clear();
+        }).then(function(){
+            return {
+                status: 'success'
+            };
+        });
+    },
+
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, event) {
         var data = event.data;
         var period = data.period;

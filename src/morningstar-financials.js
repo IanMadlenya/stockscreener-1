@@ -70,6 +70,10 @@ onmessage = dispatch.bind(this, {
         else return Promise.reject({status: 'error'});
     },
 
+    reset: function(event) {
+        return {status: 'success'};
+    },
+
     quote: (function(loadCSV, lookupSymbol, event) {
         var exchange = event.data.exchange;
         var ticker = event.data.ticker;
