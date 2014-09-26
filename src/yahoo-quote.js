@@ -53,7 +53,7 @@ onmessage = dispatch.bind(this, {
     },
 
     validate: function(event) {
-        if ('day' != event.data.period)
+        if ('d1' != event.data.period)
             return Promise.reject({status: 'error'});
         return event.data.fields.reduce(function(memo, field){
             if (['open','high','low','close','volume','adj_close'].indexOf(field) >= 0)
@@ -75,7 +75,7 @@ onmessage = dispatch.bind(this, {
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, event) {
         var data = event.data;
         var period = data.period;
-        if (period != 'day') return {status: 'success', result: []};
+        if (period != 'd1') return {status: 'success', result: []};
         var symbol = guessSymbol(data.exchange, data.ticker);
         var mapped = symbolMap[symbol];
         return loadSymbol(data, mapped || symbol).catch(function(error) {
@@ -141,9 +141,7 @@ function loadSymbol(loadQuotes, readStartDate, deleteStartDateIfAfter, data, sym
 
 function loadQuotes(queue) {
     var time = queue.reduce(function(time, item) {
-        var m = item.marketClosesAt.match(/(\d+)(:\d+:\d+)/);
-        var hour = parseInt(m[1], 10);
-        time[item.symbol] = ' ' + Math.min(hour + 5,23) + m[2];
+        time[item.symbol] = ' ' + item.marketClosesAt;
         return time;
     }, {});
     var filters = [];
@@ -219,9 +217,7 @@ function loadPriceTable(loadCSV, recordStartDate, deleteStartDateIfAfter, data, 
     }).then(function(results){
         if (results.length)
             deleteStartDateIfAfter(symbol, results[results.length-1].Date);
-        var m = data.exchange.marketClosesAt.match(/(\d+)(:\d+:\d+)/);
-        var hour = parseInt(m[1], 10);
-        var time = ' ' + Math.min(hour + 5,23) + m[2];
+        var time = ' ' + data.exchange.marketClosesAt;
         return results.map(function(result){
             return {
                 symbol: symbol,
