@@ -118,9 +118,9 @@ onmessage = dispatch.bind(this, {
 });
 
 function loadSymbol(loadQuotes, readStartDate, deleteStartDateIfAfter, data, symbol){
-    if (data.start > data.end) throw Error(data.start + " is after " + data.end);
+    if (data.end && data.start > data.end) throw Error(data.start + " is after " + data.end);
     return readStartDate(symbol).then(function(startDate){
-        if (data.end < startDate) return [];
+        if (data.end && data.end < startDate) return [];
         return loadQuotes([{
             symbol: symbol,
             start: data.start,
@@ -146,9 +146,10 @@ function loadQuotes(queue) {
     }, {});
     var filters = [];
     var byFilter = queue.reduce(function(byFilter, item) {
+        var end = item.end || new Date().toISOString();
         var filter = [
-            'startDate="', item.start.substring(0, 10),
-            '" and endDate="', item.end.substring(0, 10), '"'
+            'startDate="', item.start.substring(0, 10), '"',
+            ' and endDate="', end.substring(0, 10), '"'
         ].join('');
         var ar = byFilter[filter];
         if (ar) {
@@ -201,7 +202,7 @@ function loadQuotes(queue) {
 
 function loadPriceTable(loadCSV, recordStartDate, deleteStartDateIfAfter, data, symbol) {
     var start = data.start.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
-    var end = data.end.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
+    var end = (data.end || new Date().toISOString()).match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var url = [
         "http://ichart.finance.yahoo.com/table.csv?s=", encodeURIComponent(symbol),
         "&a=", parseInt(start[2], 10) - 1, "&b=", start[3], "&c=", start[1],

@@ -86,9 +86,9 @@ onmessage = dispatch.bind(this, {
         var yearsAgo = new Date(oneYearAgo.valueOf());
         oneYearAgo.setFullYear(yearsAgo.getFullYear() - 1);
         yearsAgo.setFullYear(yearsAgo.getFullYear() - 9);
-        if (period == 'annual' && new Date(event.data.end).valueOf() < yearsAgo.valueOf())
+        if (period == 'annual' && event.data.end && new Date(event.data.end).valueOf() < yearsAgo.valueOf())
             return {status: 'success', result: []};
-        else if (period == 'quarter' && new Date(event.data.end).valueOf() < oneYearAgo.valueOf())
+        else if (period == 'quarter' && event.data.end && new Date(event.data.end).valueOf() < oneYearAgo.valueOf())
             return {status: 'success', result: []};
         var symbol = guessSymbol(exchange, ticker);
         return encodeInURL(prefix, symbol).then(loadCSV).then(function(result){
