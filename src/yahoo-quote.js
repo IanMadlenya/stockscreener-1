@@ -53,7 +53,7 @@ onmessage = dispatch.bind(this, {
     },
 
     validate: function(event) {
-        if ('d1' != event.data.period)
+        if ('d1' != event.data.interval)
             return Promise.reject({status: 'error'});
         return event.data.fields.reduce(function(memo, field){
             if (['open','high','low','close','volume','adj_close'].indexOf(field) >= 0)
@@ -74,8 +74,8 @@ onmessage = dispatch.bind(this, {
 
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, event) {
         var data = event.data;
-        var period = data.period;
-        if (period != 'd1') return {status: 'success', result: []};
+        var interval = data.interval;
+        if (interval != 'd1') return {status: 'success', result: []};
         var symbol = guessSymbol(data.exchange, data.ticker);
         var mapped = symbolMap[symbol];
         return loadSymbol(data, mapped || symbol).catch(function(error) {
@@ -95,7 +95,7 @@ onmessage = dispatch.bind(this, {
                 status: 'success',
                 exchange: data.exchange,
                 ticker: data.ticker,
-                period: period,
+                interval: interval,
                 start: data.start,
                 end: data.end,
                 result: result
@@ -182,7 +182,9 @@ function loadQuotes(queue) {
                 return [];
             }).then(function(results){
                 return results.map(function(result){
-                    return {
+                    if (isNaN(parseFloat(result.Close)) && isNaN(parseFloat(result.col6)))
+                        throw Error("Not a quote: " + JSON.stringify(result));
+                    if (result.Close) return {
                         symbol: result.Symbol,
                         dateTime: result.Date + time[result.Symbol],
                         open: parseFloat(result.Open),
@@ -191,6 +193,16 @@ function loadQuotes(queue) {
                         close: parseFloat(result.Close),
                         volume: parseFloat(result.Volume),
                         adj_close: parseFloat(result.Adj_Close)
+                    };
+                    else return {
+                        symbol: result.Symbol,
+                        dateTime: result.col0 + time[result.Symbol],
+                        open: parseFloat(result.col1),
+                        high: parseFloat(result.col2),
+                        low: parseFloat(result.col3),
+                        close: parseFloat(result.col4),
+                        volume: parseFloat(result.col5),
+                        adj_close: parseFloat(result.col6)
                     };
                 });
             }).then(function(results){

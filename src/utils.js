@@ -40,7 +40,8 @@ function parseCSV(text) {
             row.push('');
         }
         while (m = regex.exec(line)) {
-            row.push(m[1] || m[2]);
+            var string = m[1] || m[2] || '';
+            row.push(string.trim());
         }
         return row;
     });
