@@ -29,6 +29,8 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+"use strict";
+
 function parseCSV(text) {
     if (!text) return [];
     return text.split(/\r?\n/).map(function(line) {
@@ -208,24 +210,37 @@ function titleOf(html) {
     return text.replace('&lt;','<').replace('&gt;', '>').replace('&amp;', '&');
 }
 
-function dispatch(handler, event){
-    var cmd = event.data.cmd || event.data;
-    if (typeof cmd == 'string' && typeof handler[cmd] == 'function') {
-        Promise.resolve(event).then(handler[cmd]).then(function(result){
-            if (result !== undefined) {
-                event.ports[0].postMessage(result);
+function handle(handler, event){
+    var data = _.isObject(event.data) ? event.data : event.data ? {cmd: event.data} : toJSONObject(event);
+    var resolve = _.compose(
+        self.postMessage.bind(self),
+        _.extend.bind(_, _.omit(data, 'points', 'result'))
+    );
+    if (typeof data.cmd == 'string' && typeof handler[data.cmd] == 'function') {
+        Promise.resolve(data).then(handler[data.cmd]).then(function(result){
+            if (_.isObject(result) && result.status && _.isObject(event.data)) {
+                resolve(result);
+            } else if (result !== undefined) {
+                resolve({status: 'success', result: result});
             }
-        }).catch(rejectNormalizedError).catch(function(error){
-            event.ports[0].postMessage(error);
+        }).catch(function(error) {
+            if (error.status != 'error' || error.message) {
+                console.log(error);
+            }
+            return Promise.reject(normalizedError(error));
+        }).catch(function(error){
+            resolve(error);
         });
     } else if (event.ports && event.ports.length) {
-        console.log('Unknown command ' + cmd);
-        event.ports[0].postMessage({
+        console.log('Unknown command ' + data.cmd);
+        resolve({
             status: 'error',
-            message: 'Unknown command ' + cmd
+            message: 'Unknown command ' + data.cmd
         });
-    } else {
+    } else if (event.data) {
         console.log(event.data);
+    } else {
+        console.log(event);
     }
 }
 
@@ -239,26 +254,79 @@ function rejectNormalizedError(error) {
 function normalizedError(error) {
     if (error && error.status && error.status != 'success') {
         return error;
+    } else if (error.code || error.reason){ // WebSocket CloseEvent
+        return _.extend({
+            status: 'error',
+            code: error.code,
+            message: error.reason || 'WebSocket error',
+            wasClean: error.wasClean
+        }, toJSONObject(error));
     } else if (error.target && error.target.errorCode){
-        return {
+        return _.extend({
             status: 'error',
             errorCode: error.target.errorCode
-        };
+        }, toJSONObject(error));
     } else if (error.message && error.stack) {
-        return {
+        return _.extend({
             status: 'error',
             message: error.message,
             stack: error.stack
-        };
+        }, toJSONObject(error));
     } else if (error.message) {
+        return _.extend({
+            status: 'error'
+        }, toJSONObject(error));
+    } else if (error.srcElement && error.srcElement.error && error.srcElement.error.message) {
         return {
             status: 'error',
-            message: error.message
+            message: error.srcElement.error.message,
+            name: error.srcElement.transaction && error.srcElement.transaction.db && error.srcElement.transaction.db.name
+        };
+    } else if (error.target && error.target.transaction && error.target.transaction.error && error.target.transaction.error.message) {
+        return {
+            status: 'error',
+            message: error.target.transaction.error.message,
+            name: error.target.transaction.db && error.target.transaction.db.name
         };
     } else {
+        console.log("Unknown error type", error);
         return {
             status: 'error',
-            message: error
+            message: JSON.stringify(toJSONObject(error))
         };
+    }
+}
+
+function toJSONObject(value, omitObjects) {
+    var omit = omitObjects || [];
+    var type = typeof value;
+    var obj = value && type === 'object';
+    if (obj && omit.indexOf(value) >= 0) {
+        return undefined;
+    } else if (obj) {
+        omit.push(value);
+    }
+    if (type === 'string' || type === 'number' || type === 'null' || !value && type === 'object') {
+        return value;
+    } else if (obj && typeof value.toJSON === 'function') {
+        return value;
+    } else if (Object.prototype.toString.apply(value) === '[object Array]') {
+        var array = new Array(value.length);
+        for (var i=0; i<value.length; i++) {
+            array[i] = toJSONObject(value[i], omit);
+        }
+        return array;
+    } else if (obj) {
+        var object = {};
+        for (var k in value) {
+            if (k == 'prototype') continue;
+            var json = toJSONObject(value[k], omit);
+            if (json !== undefined) {
+                object[k] = json;
+            }
+        }
+        return object;
+    } else {
+        return undefined;
     }
 }

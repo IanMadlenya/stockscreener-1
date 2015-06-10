@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="icon" href="icons/favicon.png" />
+    <style type="text/css">
+        html,
+        body {
+          height: 100%;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+        }
+
+        body {
+          -webkit-box-orient: vertical;
+          display: -webkit-box;
+        }
+
+        #log {
+          -webkit-box-flex: 1;
+        }
+
+        #log,
+        #input {
+          display: block;
+        }
+    </style>
+    <script type="text/javascript">
+        function $(id) {
+          return document.getElementById(id);
+        }
+        function log(text) {
+          $('log').value += text + '\n';
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+          var address = window.location.href.replace('http', 'ws');
+          var ws = new WebSocket(address);
+          ws.addEventListener('open', function() {
+            log('Connected');
+          });
+          ws.addEventListener('close', function() {
+            log('Connection lost');
+            $('input').disabled = true;
+          });
+          ws.addEventListener('message', function(e) {
+            log(e.data);
+          });
+          $('input').addEventListener('keydown', function(e) {
+            if (ws) if (ws.readyState == 1) if (e.keyCode == 13) {
+              ws.send(this.value+'\n\n');
+              this.value = '';
+            }
+          });
+        });
+    </script>
+  </head>
+  <body>
+    <textarea id="log"></textarea>
+    <input type="text" id="input" placeholder="Type a request here" />
+  </body>
+</html>

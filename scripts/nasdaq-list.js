@@ -29,6 +29,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+importScripts('../assets/underscore.js');
 importScripts('utils.js');
 
 var industries = [
@@ -46,25 +47,18 @@ var industries = [
     "Transportation"
 ];
 
-onmessage = dispatch.bind(this, {
-    close: function() {
+onmessage = handle.bind(this, {
+    start: function() {
+        return "started";
+    },
+    stop: function() {
         self.close();
     },
     ping: function() {
         return 'pong';
     },
-    hello: function(event) {
-        var channel = new MessageChannel();
-        channel.port2.addEventListener('message', onmessage, false);
-        channel.port2.start();
-        event.ports[0].postMessage({
-            cmd: 'register',
-            service: 'list',
-            name: 'nasdaq-list'
-        }, [channel.port1]);
-    },
-    'sector-list': function(event) {
-        var exchange = event.data.exchange;
+    'sector-list': function(data) {
+        var exchange = data.exchange;
         if (['XNCM', 'XNMS', 'XNGS', 'XNYS', 'XASE'].indexOf(exchange.mic) < 0)
             return {status: 'success', result: []};
         return {
@@ -72,7 +66,7 @@ onmessage = dispatch.bind(this, {
             result: industries
         };
     },
-    'security-list': (function(downloadCSV, event) {
+    'security-list': (function(downloadCSV, data) {
         var market = {
             'XNCM': "&exchange=NASDAQ&market=NCM",
             'XNMS': "&exchange=NASDAQ&market=NGM",
@@ -80,19 +74,19 @@ onmessage = dispatch.bind(this, {
             'XNYS': "&exchange=NYSE",
             'XASE': "&exchange=AMEX"
         };
-        var exchange = event.data.exchange;
+        var exchange = data.exchange;
         if (!market[exchange.mic])
             return {status: 'success', result: []};
-        if (industries.indexOf(event.data.sector) < 0)
-            throw new Error('Unknown sector: ' + event.data.sector);
+        if (industries.indexOf(data.sector) < 0)
+            throw new Error('Unknown sector: ' + data.sector);
         var url = [
             "http://www.nasdaq.com/screening/companies-by-region.aspx?region=ALL&render=download",
             market[exchange.mic],
-            "&industry=", encodeURIComponent(event.data.sector)
+            "&industry=", encodeURIComponent(data.sector)
         ].join('');
         return downloadCSV(url).then(function(companies){
-            var mincap = event.data.mincap;
-            var maxcap = event.data.maxcap;
+            var mincap = data.mincap;
+            var maxcap = data.maxcap;
             return companies.filter(function(company){
                 var cap = parseInt(company.MarketCap, 10);
                 return (!mincap || cap >= mincap) && (!maxcap || cap < maxcap);

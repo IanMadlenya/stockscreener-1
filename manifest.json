@@ -2,22 +2,47 @@
     "manifest_version": 2,
     "name": "Probability Stock Screener",
     "short_name": "Screener",
-    "description": "Stock Screener for TSX, TSX-V, NASDAQ, NYSE, and AMEX exchanges.",
-    "version": "0.1",
+    "description": "Stock Screener for NASDAQ, NYSE, ARCX, and AMEX exchanges.",
+    "version": "0.0.0.1",
     "author": "James Leigh",
     "offline_enabled": false,
     "minimum_chrome_version": "33",
     "icons": {
-        "16": "favicon.png",
-        "48": "launcher.png",
-        "128": "logo.png"
+        "16": "icons/favicon.png",
+        "48": "icons/launcher.png",
+        "128": "icons/logo.png"
     },
-    "background": {
-        "page": "src/background.html",
-        "persistent": true
+    "app": {
+        "background": {
+            "scripts": [
+                "assets/sha1.js",
+                "assets/http.js",
+                "assets/underscore.js",
+                "scripts/utils.js",
+                "scripts/background.js",
+                "assets/moment-with-locales.js",
+                "scripts/moment-window.js",
+                "assets/moment-timezone-with-data-2010-2020.js",
+                "scripts/intervals.js",
+                "scripts/validate.js",
+                "scripts/conductor.js",
+                "scripts/dtn-quote.js"
+            ]
+        }
     },
-    "homepage_url": "http://localhost:8080/", 
+    "sockets": {
+        "tcp":{
+            "connect":[
+                "127.0.0.1:5009",
+                "127.0.0.1:9100",
+                "127.0.0.1:9200",
+                "127.0.0.1:9300"
+            ]
+        }
+    },
     "permissions": [
+        "storage",
+        {"socket": ["tcp-listen"]},
         "*://*.probabilitytrading.net/*",
         "http://d.yimg.com/*",
         "http://query.yahooapis.com/*",

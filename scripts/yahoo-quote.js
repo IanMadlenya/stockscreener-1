@@ -29,11 +29,15 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+importScripts('../assets/underscore.js');
 importScripts('utils.js');
 
-onmessage = dispatch.bind(this, {
+onmessage = handle.bind(this, {
+    start: function() {
+        return "started";
+    },
 
-    close: function() {
+    stop: function() {
         self.close();
     },
 
@@ -41,28 +45,17 @@ onmessage = dispatch.bind(this, {
         return 'pong';
     },
 
-    hello: function(event) {
-        var channel = new MessageChannel();
-        channel.port2.addEventListener('message', onmessage, false);
-        channel.port2.start();
-        event.ports[0].postMessage({
-            cmd: 'register',
-            service: 'quote',
-            name: 'yahoo-quote'
-        }, [channel.port1]);
-    },
-
-    validate: function(event) {
-        if ('d1' != event.data.interval)
+    validate: function(data) {
+        if ('d1' != data.interval)
             return Promise.reject({status: 'error'});
-        return event.data.fields.reduce(function(memo, field){
+        return data.fields.reduce(function(memo, field){
             if (['open','high','low','close','volume','adj_close'].indexOf(field) >= 0)
                 return memo;
             throw new Error("Unknown field: " + field);
         }, {status: 'success'});
     },
 
-    reset: function(event) {
+    reset: function(data) {
         return openStartDateDatabase(indexedDB).then(function(db){
             db.transaction(['startDate'], "readwrite").objectStore('startDate').clear();
         }).then(function(){
@@ -72,8 +65,7 @@ onmessage = dispatch.bind(this, {
         });
     },
 
-    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, event) {
-        var data = event.data;
+    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, data) {
         var interval = data.interval;
         if (interval != 'd1') return {status: 'success', result: []};
         var symbol = guessSymbol(data.exchange, data.ticker);
@@ -187,20 +179,20 @@ function loadQuotes(queue) {
                     if (result.Close) return {
                         symbol: result.Symbol,
                         dateTime: result.Date + time[result.Symbol],
-                        open: parseFloat(result.Open),
-                        high: parseFloat(result.High),
-                        low: parseFloat(result.Low),
-                        close: parseFloat(result.Close),
+                        open: parseCurrency(result.Open),
+                        high: parseCurrency(result.High),
+                        low: parseCurrency(result.Low),
+                        close: parseCurrency(result.Close),
                         volume: parseFloat(result.Volume),
                         adj_close: parseFloat(result.Adj_Close)
                     };
                     else return {
                         symbol: result.Symbol,
                         dateTime: result.col0 + time[result.Symbol],
-                        open: parseFloat(result.col1),
-                        high: parseFloat(result.col2),
-                        low: parseFloat(result.col3),
-                        close: parseFloat(result.col4),
+                        open: parseCurrency(result.col1),
+                        high: parseCurrency(result.col2),
+                        low: parseCurrency(result.col3),
+                        close: parseCurrency(result.col4),
                         volume: parseFloat(result.col5),
                         adj_close: parseFloat(result.col6)
                     };
@@ -235,15 +227,19 @@ function loadPriceTable(loadCSV, recordStartDate, deleteStartDateIfAfter, data, 
             return {
                 symbol: symbol,
                 dateTime: result.Date + time,
-                open: parseFloat(result.Open),
-                high: parseFloat(result.High),
-                low: parseFloat(result.Low),
-                close: parseFloat(result.Close),
+                open: parseCurrency(result.Open),
+                high: parseCurrency(result.High),
+                low: parseCurrency(result.Low),
+                close: parseCurrency(result.Close),
                 volume: parseFloat(result.Volume),
                 adj_close: parseFloat(result['Adj Close'])
             };
         });
     });
+}
+
+function parseCurrency(string) {
+    return Math.round(parseFloat(string) * 100) / 100;
 }
 
 function guessSymbol(exchange, ticker) {
