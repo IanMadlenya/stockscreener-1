@@ -13,9 +13,12 @@ document.addEventListener("DOMContentLoaded", function(){
     document.getElementById("form").addEventListener("submit", function(event) {
         event.preventDefault();
         var items = inputs.reduce(function(items, input){
-            items[input.name] = input.value;
+            if (input.value && (input.checked || input.type != "checkbox" && input.type != "radio"))
+                items[input.name] = input.value;
             return items;
         }, {});
-        chrome.storage.local.set(items);
+        chrome.storage.local.set(items, function(){
+            window.close();
+        });
     });
 });

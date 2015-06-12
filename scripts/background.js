@@ -29,24 +29,29 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
+chrome.runtime.onInstalled.addListener(checkEula);
+
+function checkEula(){
+    chrome.storage.local.get(["age", "usage", "eula"], function(items) {
+        if (!_.isEmpty(items)) console.log(JSON.stringify(items));
+        if (!items.age || !items.usage || !items.eula) {
+            chrome.app.window.create("pages/eula.html", {
+                id: "pages/eula.html"
+            }, function(createdWindow){
+                createdWindow.onClosed.addListener(checkEula);
+            });
+        }
+    });
+}
+
 var services = {list: [], quote: [], mentat: []};
 
 function dispatch(handler) {
-    var port = 1880;
-    var homepage_url = "http://probabilitytrading.net/";
-    var extensionTypes = {
-        'css': 'text/css',
-        'html': 'text/html',
-        'htm': 'text/html',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'js': 'text/javascript',
-        'png': 'image/png',
-        'svg': 'image/svg+xml',
-        'txt': 'text/plain'
-    };
+    var availablePort = Promise.resolve(1880).then(searchForAvailablePort);
     chrome.app.runtime.onLaunched.addListener(function(){
-        window.open("http://localhost:" + port + "/");
+        availablePort.then(function(port){
+            chrome.browser.openTab({url:"http://localhost:" + port + "/"});
+        }).catch(console.error.bind(console));
     });
     initialize();
     chrome.runtime.onSuspend.addListener(function() {
@@ -56,6 +61,26 @@ function dispatch(handler) {
         services = {list: [], quote: [], mentat: []};
     });
     chrome.runtime.onSuspendCanceled.addListener(initialize);
+
+    function searchForAvailablePort(port) {
+        return new Promise(function(callback) {
+            chrome.sockets.tcpServer.create({}, callback);
+        }).then(function(createInfo){
+            return new Promise(function(callback){
+                chrome.sockets.tcpServer.listen(createInfo.socketId, "127.0.0.1", port, callback);
+            }).then(function(result){
+                if (result < 0) return Promise.reject(result);
+                else return new Promise(function(callback){
+                    chrome.sockets.tcpServer.close(createInfo.socketId, callback);
+                });
+            });
+        }).then(function(){
+            return port;
+        }, function(result){
+            if (port % 10 < 9) return searchForAvailablePort(port + 1);
+            else return Promise.reject(Error("No TCP port available " + result));
+        });
+    }
 
     function initialize() {
         _.map(createWorkers(), function(workers, service) {
@@ -68,100 +93,135 @@ function dispatch(handler) {
                 });
             })
         });
-        var server = new http.Server();
-        var wsServer = new http.WebSocketServer(server);
-        server.listen(port);
-        server.addEventListener('request', function(req) {
-            if (req.headers.url == '/') {
-                var host = req.headers.host || ('localhost:' + port);
-                req.writeHead(302, {
-                    'Location': homepage_url + '#app=http://' + host + '/'
-                });
-                req.end();
-            } else {
-                var url;
-                if (req.headers.url.indexOf('?') > 0) {
-                    url  = req.headers.url.substr(0, req.headers.url.indexOf('?'));
-                } else {
-                    url  = req.headers.url;
-                }
-                var xhr = new XMLHttpRequest();
-                xhr.onloadend = function() {
-                  var type = 'text/plain';
-                  if (this.getResponseHeader('Content-Type')) {
-                    type = this.getResponseHeader('Content-Type');
-                  } else if (url.indexOf('.') != -1) {
-                    var extension = url.substr(url.lastIndexOf('.') + 1);
-                    type = extensionTypes[extension] || type;
-                  }
-                  console.log('Served ' + url);
-                  var contentLength = this.getResponseHeader('Content-Length');
-                  if (xhr.status == 200)
-                    contentLength = (this.response && this.response.byteLength) || 0;
-                  req.writeHead(this.status, {
-                    'Content-Type': type,
-                    'Content-Length': contentLength});
-                  req.end(this.response);
-                };
-                xhr.open('GET', url, true);
-                xhr.responseType = 'arraybuffer';
-                xhr.send();
-            }
-            return true;
-        });
+        availablePort.then(function(port){
+            var server = new http.Server();
+            var wsServer = new http.WebSocketServer(server);
+            server.listen(port);
+            chrome.identity.getProfileUserInfo(function(userInfo){
+                server.addEventListener('request', handleWebRequest.bind(this,
+                    "http://probabilitytrading.net/screener/launch", {
+                    'css': 'text/css',
+                    'html': 'text/html',
+                    'htm': 'text/html',
+                    'jpg': 'image/jpeg',
+                    'jpeg': 'image/jpeg',
+                    'js': 'text/javascript',
+                    'png': 'image/png',
+                    'svg': 'image/svg+xml',
+                    'txt': 'text/plain'
+                }, port, userInfo.email));
+            });
+            wsServer.addEventListener('request', handleSocketRequest);
+            return port;
+        }).then(function(port){
+            console.log("Listening on http://localhost:" + port + "/");
+        }, console.error.bind(console));
+    }
 
-        wsServer.addEventListener('request', function(req) {
-            console.log('Client connected');
-            var socket = req.accept();
-            var buffer = '';
-            socket.addEventListener('message', function(event) {
-                buffer = buffer ? buffer + event.data : event.data;
-                while (buffer.indexOf('\n\n') > 0) {
-                    var idx = buffer.indexOf('\n\n') + 2;
-                    var json = buffer.substring(0, idx);
-                    buffer = buffer.substring(idx);
-                    Promise.resolve(json).then(JSON.parse.bind(JSON)).then(function(data) {
-                        return _.isObject(data) ? data : {cmd: data};
-                    }).then(function(data){
-                        return Promise.resolve(data).then(function(data) {
-                            if (typeof data.cmd == 'string') {
-                                return data;
-                            } else {
-                                throw Error("Unknown message: " + data);
-                            }
-                        }).then(function(data){
-                            if (typeof handler[data.cmd] == 'function') {
-                                return handler[data.cmd](data);
-                            } else {
-                                throw Error("Unknown command: " + data.cmd);
-                            }
-                        }).then(function(result){
-                            if (_.isObject(result) && result.status) {
-                                return result;
-                            } else if (result !== undefined) {
-                                return {status: 'success', result: result};
-                            }
-                        }).catch(function(error){
-                            if (error.status != 'error' || error.message) {
-                                console.log(error);
-                            }
-                            return normalizedError(error);
-                        }).then(function(result){
-                            return _.extend(_.omit(data, 'points', 'result'), result);
-                        }).then(function(result){
-                            socket.send(JSON.stringify(result) + '\n\n');
-                        });
-                    }).catch(function(error){
-                        console.log(error);
-                        socket.send(JSON.stringify(normalizedError(error)) + '\n\n');
-                    });
-                }
+    function handleWebRequest(launch_url, extensionTypes, port, email, req) {
+        if (req.headers.url == '/') {
+            var host = req.headers.host || ('localhost:' + port);
+            req.writeHead(302, {
+                'Location': launch_url +
+                    "?version=" + chrome.runtime.getManifest().version +
+                    "&email=" + encodeURIComponent(email) +
+                    "#socket=ws://" + host + "/"
             });
-            socket.addEventListener('close', function() {
-                console.log('Client disconnected');
-            });
-            return true;
+            req.end();
+        } else {
+            var url;
+            if (req.headers.url.indexOf('?') > 0) {
+                url  = req.headers.url.substr(0, req.headers.url.indexOf('?'));
+            } else {
+                url  = req.headers.url;
+            }
+            var xhr = new XMLHttpRequest();
+            xhr.onloadend = function() {
+              var type = 'text/plain';
+              if (this.getResponseHeader('Content-Type')) {
+                type = this.getResponseHeader('Content-Type');
+              } else if (url.indexOf('.') != -1) {
+                var extension = url.substr(url.lastIndexOf('.') + 1);
+                type = extensionTypes[extension] || type;
+              }
+              console.log('Served ' + url);
+              var contentLength = this.getResponseHeader('Content-Length');
+              if (xhr.status == 200)
+                contentLength = (this.response && this.response.byteLength) || 0;
+              req.writeHead(this.status, {
+                'Content-Type': type,
+                'Content-Length': contentLength});
+              req.end(this.response);
+            };
+            xhr.open('GET', url, true);
+            xhr.responseType = 'arraybuffer';
+            xhr.send();
+        }
+        return true;
+    }
+
+    function handleSocketRequest(req) {
+        console.log('Client connected');
+        var socket = req.accept();
+        socket.addEventListener('message', handleSocketMessage.bind(this, socket, []));
+        socket.addEventListener('close', function() {
+            console.log('Client disconnected');
         });
+        return true;
+    }
+
+    function handleSocketMessage(socket, buffer, event) {
+        var json;
+        buffer.push(event.data);
+        while (_.some(buffer, containsEOT)) {
+            if (buffer[0].length > 2 && buffer[0].indexOf('\n\n') + 2 == buffer[0].length) {
+                json = buffer.shift();
+            } else {
+                var buf = buffer.join('');
+                var idx = buf.indexOf('\n\n') + 2;
+                buffer.splice(0, buffer.length, buf.substirng(idx));
+                json = buf.substring(0, idx);
+            }
+            Promise.resolve(json).then(JSON.parse.bind(JSON)).then(function(data) {
+                return _.isObject(data) ? data : {cmd: data};
+            }).then(function(data){
+                return Promise.resolve(data).then(function(data) {
+                    if (typeof data.cmd == 'string') {
+                        return data;
+                    } else {
+                        throw Error("Unknown message: " + data);
+                    }
+                }).then(function(data){
+                    if (typeof handler[data.cmd] == 'function') {
+                        return handler[data.cmd](data);
+                    } else {
+                        throw Error("Unknown command: " + data.cmd);
+                    }
+                }).then(function(result){
+                    if (_.isObject(result) && result.status) {
+                        return result;
+                    } else if (result !== undefined) {
+                        return {status: 'success', result: result};
+                    }
+                }).catch(function(error){
+                    if (error.status != 'error' || error.message) {
+                        console.log(error);
+                    }
+                    return normalizedError(error);
+                }).then(function(result){
+                    return _.extend(_.omit(data, 'points', 'result'), result);
+                }).then(function(result){
+                    socket.send(JSON.stringify(result) + '\n\n');
+                });
+            }).catch(function(error){
+                console.log(error);
+                socket.send(JSON.stringify(normalizedError(error)) + '\n\n');
+            });
+        }
+    }
+
+    function containsEOT(buf) {
+        return buf.indexOf('\n\n') >= 0;
     }
 
     function createWorkers() {
@@ -191,7 +251,8 @@ function dispatch(handler) {
             script: script,
             port: port,
             promiseMessage: function(data) {
-                var id = data.id && data.id < outstandingCounter && !outstandingCommands[data.id] ? data.id : ++outstandingCounter;
+                var id = data.id && !outstandingCommands[data.id] ? data.id : ++outstandingCounter;
+                outstandingCounter = Math.max(outstandingCounter, id);
                 var timeout;
                 return new Promise(function(resolve, reject){
                     timeout = setTimeout(function(){
