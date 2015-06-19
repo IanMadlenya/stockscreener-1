@@ -96,6 +96,20 @@ dispatch({
 
     'security-list': serviceMessage.bind(this, services, 'list'),
 
+    lookup: function(data) {
+        validate(data.exchange, 'data.exchange', isExchange);
+        validate(data.symbol, 'data.symbol', _.isString);
+        return serviceMessage(services, 'quote', data).then(function(resp){
+            return _.extend(resp, {
+                result: resp.result.map(function(security){
+                    return _.extend(security, {
+                        iri: data.exchange.iri + '/' + encodeURI(security.ticker)
+                    });
+                })
+            });
+        });
+    },
+
     load: (function(services, data) {
         validate(data.exchange, 'data.exchange', isExchange);
         var worker = getWorker(services.mentat, data.security);

@@ -41,7 +41,7 @@ var exchanges = [
     "marketLang": "en-US",
     "mic": "ARCX",
     "morningstarCode": "XNYS",
-    "exch": "NYQ",
+    "exch": "PCX",
     "yahooSuffix": null,
     "dtnPrefix": null
   },

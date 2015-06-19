@@ -75,6 +75,10 @@ onmessage = handle.bind(this, {
         return {status: 'success'};
     },
 
+    lookup: function(data) {
+        return {status: 'success', result: []};
+    },
+
     quote: (function(loadCSV, lookupSymbol, data) {
         var exchange = data.exchange;
         var ticker = data.ticker;

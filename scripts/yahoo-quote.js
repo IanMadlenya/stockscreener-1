@@ -65,6 +65,21 @@ onmessage = handle.bind(this, {
         });
     },
 
+    lookup: (function(lookupSymbol, data) {
+        var suffix = data.exchange.yahooSuffix || '';
+        return lookupSymbol(data.exchange, data.symbol).then(function(results){
+            return results.map(function(result){
+                var idx = result.symbol.length - suffix.length;
+                var endsWith = suffix && result.symbol.lastIndexOf(suffix) == idx;
+                return {
+                    ticker: endsWith ? result.symbol.substring(0, idx) : result.symbol,
+                    name: result.name,
+                    type: result.typeDisp.toUpperCase()
+                };
+            });
+        });
+    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols)))),
+
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, data) {
         var interval = data.interval;
         if (interval != 'd1') return {status: 'success', result: []};
@@ -73,7 +88,10 @@ onmessage = handle.bind(this, {
         return loadSymbol(data, mapped || symbol).catch(function(error) {
             if (mapped || data.ticker.match(/^[A-Z]+$/))
                 return Promise.reject(error);
-            return lookupSymbol(data.exchange, data.ticker).then(function(lookup){
+            return lookupSymbol(data.exchange, data.ticker).then(function(results){
+                if (!results.length) return undefined;
+                return results[0].symbol;
+            }).then(function(lookup){
                 if (!lookup || symbol == lookup)
                     return Promise.reject(error);
                 symbolMap[symbol] = lookup;
@@ -265,7 +283,7 @@ function lookupSymbol(listSymbols, exchange, ticker) {
     }).then(function(results){
         if (results.length < 2) return results;
         var last = ticker.charAt(ticker.length - 1);
-        var regex = new RegExp(ticker.replace(/\W/g, '.*'));
+        var regex = new RegExp('\\b' + ticker.replace(/\W/g, '.*') + '\\b');
         return results.sort(function(a, b){
             if (a.symbol == ticker) return -1;
             if (b.symbol == ticker) return 1;
@@ -273,6 +291,10 @@ function lookupSymbol(listSymbols, exchange, ticker) {
             var mb = b.symbol.match(regex);
             if (ma && !mb) return -1;
             if (!ma && mb) return 1;
+            var sa = a.symbol.indexOf(ticker) === 0;
+            var sb = b.symbol.indexOf(ticker) === 0;
+            if (sa && !sb) return -1;
+            if (!sa && sb) return 1;
             var lasta = a.symbol.charAt(a.symbol.length - 1);
             var lastb = b.symbol.charAt(b.symbol.length - 1);
             if (last == lasta && last != lastb) return -1;
@@ -283,9 +305,6 @@ function lookupSymbol(listSymbols, exchange, ticker) {
             if (a.symbol > b.symbol) return 1;
             return 0;
         });
-    }).then(function(results){
-        if (!results.length) return undefined;
-        return results[0].symbol;
     });
 }
 
@@ -294,11 +313,6 @@ function listSymbols(url, root) {
         return jsonp.replace(/^\s*YAHOO.util.ScriptNodeDataSource.callbacks\((.*)\)\s*$/, '$1');
     }).then(parseJSON).then(function(json) {
         return json.ResultSet.Result;
-    }).then(function(results){
-        var regex = new RegExp('\\b' + root + '\\b');
-        return results.filter(function(result){
-            return result.symbol.match(regex);
-        });
     });
 }
 
