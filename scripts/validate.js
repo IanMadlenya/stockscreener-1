@@ -44,14 +44,14 @@ function isScreen(screen, path) {
     return _.isObject(screen);
 }
 
-function isWatchList(watchList, path) {
-    return validate(watchList, path, _.isObject) &&
-        validate(watchList, path, isExchange, 'exchange') &&
-        validate(watchList, path, _.isArray, 'includes') &&
-        validate(watchList.includes, [path, 'includes'], isArrayOf(_.isString)) &&
-        validate(watchList.includes, [path, 'includes'], isArrayOf(function(iri){
-            return iri.indexOf(watchList.exchange.iri) == 0 ||
-                "must start with " + watchList.exchange.iri + " not " + iri;
+function isSecurityClass(securityClass, path) {
+    return validate(securityClass, path, _.isObject) &&
+        validate(securityClass, path, isExchange, 'exchange') &&
+        validate(securityClass, path, _.isArray, 'includes') &&
+        validate(securityClass.includes, [path, 'includes'], isArrayOf(_.isString)) &&
+        validate(securityClass.includes, [path, 'includes'], isArrayOf(function(iri){
+            return iri.indexOf(securityClass.exchange.iri) == 0 ||
+                "must start with " + securityClass.exchange.iri + " not " + iri;
         }));
 }
 

@@ -125,19 +125,19 @@ dispatch({
     }).bind(this, services),
 
     screen: function(data) {
-        validate(data.watchLists, 'data.watchLists', isArrayOf(isWatchList));
+        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
         validate(data.screens, 'data.screens', isArrayOf(isScreen));
-        return screenSecurities(services, data.watchLists, data.screens, data.begin, data.end, data.load);
+        return screenSecurities(services, data.securityClasses, data.screens, data.begin, data.end, data.load);
     },
 
     signal: function(data){
-        validate(data.watchLists, 'data.watchLists', isArrayOf(isWatchList));
-        return signal(services, intervals, data.watchLists, data.entry, data.exit, data.begin, data.end);
+        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
+        return signal(services, intervals, data.securityClasses, data.entry, data.exit, data.begin, data.end);
     },
 
     performance: function(data){
-        validate(data.watchLists, 'data.watchLists', isArrayOf(isWatchList));
-        return signal(services, intervals, data.watchLists, data.entry, data.exit, data.begin, data.end).then(function(data){
+        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
+        return signal(services, intervals, data.securityClasses, data.entry, data.exit, data.begin, data.end).then(function(data){
             return data.result;
         }).then(function(signals){
             var returns = _.reduce(_.groupBy(signals, 'security'), function(returns, signals, security){
@@ -179,11 +179,11 @@ function sum(numbers) {
     }, 0);
 }
 
-function signal(services, intervals, watchLists, entry, exit, begin, end) {
-    var byExchange = _.groupBy(watchLists, _.compose(_.property('iri'), _.property('exchange')));
-    return Promise.all(_.map(byExchange, function(watchLists) {
-        var exchange = watchLists[0].exchange;
-        return listSecurities(services, watchLists).then(function(securities){
+function signal(services, intervals, securityClasses, entry, exit, begin, end) {
+    var byExchange = _.groupBy(securityClasses, _.compose(_.property('iri'), _.property('exchange')));
+    return Promise.all(_.map(byExchange, function(securityClasses) {
+        var exchange = securityClasses[0].exchange;
+        return listSecurities(services, securityClasses).then(function(securities){
             return Promise.all(securities.map(function(security){
                 return findSignals(services, exchange, security, entry, exit, begin, end);
             }));
@@ -227,12 +227,12 @@ function findSignals(services, exchange, security, entry, exit, begin, end) {
     });
 }
 
-function screenSecurities(services, watchLists, screens, begin, end, load) {
-    var byExchange = _.groupBy(watchLists, _.compose(_.property('iri'), _.property('exchange')));
-    return Promise.all(_.map(byExchange, function(watchLists) {
-        var exchange = watchLists[0].exchange;
+function screenSecurities(services, securityClasses, screens, begin, end, load) {
+    var byExchange = _.groupBy(securityClasses, _.compose(_.property('iri'), _.property('exchange')));
+    return Promise.all(_.map(byExchange, function(securityClasses) {
+        var exchange = securityClasses[0].exchange;
         var filter = filterSecurity.bind(this, services, screens, begin, end, load, exchange);
-        return listSecurities(services, watchLists).then(function(securities) {
+        return listSecurities(services, securityClasses).then(function(securities) {
             return Promise.all(securities.map(filter));
         });
     })).then(_.flatten).then(function(result) {
@@ -251,23 +251,23 @@ function screenSecurities(services, watchLists, screens, begin, end, load) {
     });
 }
 
-function listSecurities(services, watchLists) {
-    return Promise.all(watchLists.map(function(watchList){
-        return Promise.resolve(watchList).then(function(watchList){
-            if (!watchList.includeSectors)
+function listSecurities(services, securityClasses) {
+    return Promise.all(securityClasses.map(function(securityClass){
+        return Promise.resolve(securityClass).then(function(securityClass){
+            if (!securityClass.includeSectors)
                 return [];
-            return Promise.all(watchList.includeSectors.map(function(sector){
+            return Promise.all(securityClass.includeSectors.map(function(sector){
                 return serviceMessage(services, 'list', {
                     cmd: 'security-list',
-                    exchange: watchList.exchange,
+                    exchange: securityClass.exchange,
                     sector: sector,
-                    mincap: watchList.mincap,
-                    maxcap: watchList.maxcap
+                    mincap: securityClass.mincap,
+                    maxcap: securityClass.maxcap
                 }).then(_.property('result'));
             }));
         }).then(_.flatten).then(function(result){
-            var includes = watchList.includes || [];
-            var excludes = watchList.excludes || [];
+            var includes = securityClass.includes || [];
+            var excludes = securityClass.excludes || [];
             return includes.concat(_.difference(result, excludes));
         });
     })).then(_.flatten).then(_.uniq);
