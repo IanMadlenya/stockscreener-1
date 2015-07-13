@@ -150,10 +150,6 @@ function loadSymbol(loadQuotes, readStartDate, deleteStartDateIfAfter, data, sym
 }
 
 function loadQuotes(queue) {
-    var time = queue.reduce(function(time, item) {
-        time[item.symbol] = ' ' + item.marketClosesAt;
-        return time;
-    }, {});
     var filters = [];
     var byFilter = queue.reduce(function(byFilter, item) {
         var end = item.end || new Date().toISOString();
@@ -191,12 +187,16 @@ function loadQuotes(queue) {
                     return result.query.results.quote;
                 return [];
             }).then(function(results){
+                if (_.isArray(results)) return results;
+                else if (_.isObject(results)) return [results];
+                else return [];
+            }).then(function(results){
                 return results.map(function(result){
                     if (isNaN(parseFloat(result.Close)) && isNaN(parseFloat(result.col6)))
                         throw Error("Not a quote: " + JSON.stringify(result));
                     if (result.Close) return {
                         symbol: result.Symbol,
-                        dateTime: result.Date + time[result.Symbol],
+                        date: result.Date,
                         open: parseCurrency(result.Open),
                         high: parseCurrency(result.High),
                         low: parseCurrency(result.Low),
@@ -206,7 +206,7 @@ function loadQuotes(queue) {
                     };
                     else return {
                         symbol: result.Symbol,
-                        dateTime: result.col0 + time[result.Symbol],
+                        date: result.col0,
                         open: parseCurrency(result.col1),
                         high: parseCurrency(result.col2),
                         low: parseCurrency(result.col3),
@@ -240,11 +240,10 @@ function loadPriceTable(loadCSV, recordStartDate, deleteStartDateIfAfter, data, 
     }).then(function(results){
         if (results.length)
             deleteStartDateIfAfter(symbol, results[results.length-1].Date);
-        var time = ' ' + data.exchange.marketClosesAt;
         return results.map(function(result){
             return {
                 symbol: symbol,
-                dateTime: result.Date + time,
+                date: result.Date,
                 open: parseCurrency(result.Open),
                 high: parseCurrency(result.High),
                 low: parseCurrency(result.Low),

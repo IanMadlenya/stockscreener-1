@@ -95,21 +95,19 @@ describe("calculations", function(){
                 [90.65,91.05018,1.5491617342,94.1485034683,87.9518565317,6.8057492436]
             ];
             var SMA = parseCalculation(undefined, 'SMA(20,close)').getValue;
-            var SD = parseCalculation(undefined, 'SD(20,close)').getValue;
-            var UpperBB = parseCalculation(undefined, 'KELT(SMA(20,close),2,SD(20,close))').getValue;
-            var LowerBB = parseCalculation(undefined, 'KELT(SMA(20,close),-2,SD(20,close))').getValue;
-            var BandWidth = parseCalculation(undefined, 'BBWidth(SMA(20,close),2,SD(20,close))').getValue;
+            var STDEV = parseCalculation(undefined, 'STDEV(20,close)').getValue;
+            var BandWidth = parseCalculation(undefined, 'BBWidth(SMA(20,close),2,STDEV(20,close))').getValue;
             data.forEach(function(datum,i,data){
                 if (!datum[1]) return;
                 var points = data.slice(0, i+1).map(function(datum){
                     return {
                         close: datum[0]
                     };
-                });
+                }).slice(-20);
                 expect(SMA(points)).toBeCloseTo(datum[1]);
-                expect(SD(points)).toBeCloseTo(datum[2]);
-                expect(UpperBB(points)).toBeCloseTo(datum[3]);
-                expect(LowerBB(points)).toBeCloseTo(datum[4]);
+                expect(STDEV(points)).toBeCloseTo(datum[2]);
+                expect(SMA(points) + STDEV(points) * 2).toBeCloseTo(datum[3],0);
+                expect(SMA(points) - STDEV(points) * 2).toBeCloseTo(datum[4],0);
                 expect(BandWidth(points)).toBeCloseTo(datum[5]);
             });
         });
@@ -360,6 +358,63 @@ describe("calculations", function(){
                 });
                 if (atr) {
                     expect(ATR(points)).toBeCloseTo(atr);
+                }
+            });
+        });
+    });
+    describe("POCO", function() {
+        it("LOW_VALUE", function() {
+            var data = [
+                [48.7,47.79,48.16],
+                [48.72,48.14,48.61],
+                [48.9,48.39,48.75],
+                [48.87,48.37,48.63],
+                [48.82,48.24,48.74],
+                [49.05,48.635,49.03],
+                [49.2,48.94,49.07],
+                [49.35,48.86,49.32],
+                [49.92,49.5,49.91],
+                [50.19,49.87,50.13],
+
+                [50.12,49.2,49.53,87],
+                [49.66,48.9,49.5,84],
+                [49.88,49.43,49.75,61],
+                [50.19,49.725,50.03,71],
+                [50.36,49.26,50.31,99],
+                [50.57,50.09,50.52,100],
+                [50.65,50.3,50.41,94],
+                [50.43,49.21,49.34,15],
+                [49.63,48.98,49.37,18],
+                [50.33,49.61,50.23,88],
+
+                [50.29,49.2,49.2375,8],
+                [50.17,49.43,49.93,62],
+                [49.32,48.08,48.43,2],
+                [48.5,47.64,48.18,4],
+                [48.3201,41.55,46.57,18],
+                [46.8,44.2833,45.41,15],
+                [47.8,47.31,47.77,28],
+                [48.39,47.2,47.72,42],
+                [48.66,47.9,48.62,65],
+                [48.79,47.7301,47.85,41]
+            ];
+            var ptpoc = parseCalculation(undefined, 'POCO(10,1,1)').getValue;
+            var poc = parseCalculation(undefined, 'POC(10)').getValue;
+            data.forEach(function(datum,i,data){
+                var points = data.slice(Math.max(i+1-10,0), i+1).map(function(datum){
+                    return {
+                        high: datum[0],
+                        low: datum[1],
+                        close: datum[2]
+                    };
+                });
+                if (i >= 10) {
+                    expect(ptpoc(points)).toBeCloseTo(datum[3], 0);
+                    if (datum[2] < poc(points)) {
+                        expect(ptpoc(points)).toBeLessThan(50);
+                    } else if (datum[2] > poc(points)) {
+                        expect(ptpoc(points)).toBeGreaterThan(50);
+                    }
                 }
             });
         });

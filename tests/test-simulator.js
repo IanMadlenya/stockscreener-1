@@ -57,13 +57,13 @@ describe("screener", function(){
                     lower: "100000"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(20,close),-2,SD(20,close)))",
+                        expression: "DATR(14,KELT(SMA(20,close),-2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     lower: "0"
                 }, {
                     indicator: {
-                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     upper: "0"
@@ -85,7 +85,7 @@ describe("screener", function(){
                     lower:"0"
                 },{
                     indicator: {
-                        expression: "MIN(4,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                        expression: "MIN(4,DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     lower: "0"
@@ -129,13 +129,13 @@ describe("screener", function(){
                     lower: "100000"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(20,close),2,SD(20,close)))",
+                        expression: "DATR(14,KELT(SMA(20,close),2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     upper: "0"
                 }, {
                     indicator: {
-                        expression: "MAX(2,DATR(14,KELT(SMA(20,close),2,SD(20,close))))",
+                        expression: "MAX(2,DATR(14,KELT(SMA(20,close),2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     lower: "0"
@@ -151,7 +151,7 @@ describe("screener", function(){
                     upper:"0"
                 },{
                     indicator: {
-                        expression: "MAX(4,DATR(14,KELT(SMA(20,close),2,SD(20,close))))",
+                        expression: "MAX(4,DATR(14,KELT(SMA(20,close),2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     upper: "0"
@@ -201,13 +201,13 @@ describe("screener", function(){
                     lower: "90"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(20,close),-2,SD(20,close)))",
+                        expression: "DATR(14,KELT(SMA(20,close),-2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     upper: "0"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(150,POC(6)),-2,SD(150,POC(6))))",
+                        expression: "DATR(14,KELT(SMA(150,POC(6)),-2,STDEV(150,POC(6))))",
                         interval: "m60"
                     },
                     lower: "0"
@@ -239,7 +239,7 @@ describe("screener", function(){
                     lower: "0"
                 },{
                     indicator: {
-                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     lower: "0"
@@ -306,13 +306,13 @@ describe("screener", function(){
                     lower: "100000"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(20,close),2,SD(20,close)))",
+                        expression: "DATR(14,KELT(SMA(20,close),2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     lower: "0"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(150,POC(6)),2,SD(150,POC(6))))",
+                        expression: "DATR(14,KELT(SMA(150,POC(6)),2,STDEV(150,POC(6))))",
                         interval: "m60"
                     },
                     upper: "0"
@@ -322,7 +322,7 @@ describe("screener", function(){
                 signal: 'buy',
                 filters:[{
                     indicator: {
-                        expression: "MAX(2,DATR(14,KELT(SMA(20,close),2,SD(20,close))))",
+                        expression: "MAX(2,DATR(14,KELT(SMA(20,close),2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     upper: "0"
@@ -491,13 +491,13 @@ describe("screener", function(){
                     lower: "100000"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(20,close),-2,SD(20,close)))",
+                        expression: "DATR(14,KELT(SMA(20,close),-2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     lower: "0"
                 }, {
                     indicator: {
-                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     upper: "0"
@@ -509,7 +509,7 @@ describe("screener", function(){
                     lower: "90"
                 }, {
                     indicator: {
-                        expression: "MAX(3,PercentB(SMA(20,close),2,SD(20,close)))",
+                        expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     upper: "25"
@@ -524,7 +524,7 @@ describe("screener", function(){
                     lower:"0"
                 },{
                     indicator: {
-                        expression: "MIN(4,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                        expression: "MIN(4,DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     lower: "0"
@@ -533,7 +533,7 @@ describe("screener", function(){
                 signal: 'sell',
                 filters:[{
                     indicator: {
-                        expression: "MAX(10,PCO(1,SIGN(DATR(14,KELT(SMA(20,close),-2,SD(20,close))))))",
+                        expression: "MAX(10,PCO(1,SIGN(DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))))",
                         interval: "d1"
                     },
                     upper: "0"
@@ -966,13 +966,13 @@ describe("screener", function(){
                     lower: "100000"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(20,close),-2,SD(20,close)))",
+                        expression: "DATR(14,KELT(SMA(20,close),-2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     lower: "0"
                 }, {
                     indicator: {
-                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     upper: "0"
@@ -984,7 +984,7 @@ describe("screener", function(){
                     lower: "90"
                 }, {
                     indicator: {
-                        expression: "MAX(3,PercentB(SMA(20,close),2,SD(20,close)))",
+                        expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
                         interval: "d1"
                     },
                     upper: "25"
@@ -999,7 +999,7 @@ describe("screener", function(){
                     lower:"0"
                 },{
                     indicator: {
-                        expression: "MIN(4,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                        expression: "MIN(4,DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))",
                         interval: "d1"
                     },
                     lower: "0"
@@ -1008,7 +1008,7 @@ describe("screener", function(){
                 signal: 'sell',
                 filters:[{
                     indicator: {
-                        expression: "MAX(10,PCO(1,SIGN(DATR(14,KELT(SMA(20,close),-2,SD(20,close))))))",
+                        expression: "MAX(10,PCO(1,SIGN(DATR(14,KELT(SMA(20,close),-2,STDEV(20,close))))))",
                         interval: "d1"
                     },
                     upper: "0"
@@ -1022,7 +1022,7 @@ describe("screener", function(){
         it("Pullback Consumer Services one year", function(done){
             screener.signal([{
                 ofExchange: "New York Stock Exchange",
-                includeSectors:["Consumer Services"],
+                includeSectors:"Consumer Services",
                 mincap: 250000000
             }],[{
                 signal: 'buy',

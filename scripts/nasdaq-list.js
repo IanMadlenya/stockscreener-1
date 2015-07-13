@@ -32,7 +32,7 @@
 importScripts('../assets/underscore.js');
 importScripts('utils.js');
 
-var industries = [
+var sectors = [
     "Basic Industries",
     "Capital Goods",
     "Consumer Durables",
@@ -47,6 +47,46 @@ var industries = [
     "Transportation"
 ];
 
+var listCompanies = (function(downloadCSV, data){
+    var market = {
+        'XNCM': "&exchange=NASDAQ&market=NCM",
+        'XNMS': "&exchange=NASDAQ&market=NGM",
+        'XNGS': "&exchange=NASDAQ&market=NGS",
+        'XNYS': "&exchange=NYSE",
+        'XASE': "&exchange=AMEX"
+    };
+    if (!market[data.exchange.mic])
+        return Promise.resolve([]);
+    if (sectors.indexOf(data.sector) < 0)
+        throw new Error('Unknown sector: ' + data.sector);
+    var url = [
+        "http://www.nasdaq.com/screening/companies-by-region.aspx?region=ALL&render=download",
+        market[data.exchange.mic],
+        "&industry=", encodeURIComponent(data.sector)
+    ].join('');
+    return downloadCSV(url).then(function(companies){
+        if (_.isEmpty(data.industries)) return companies;
+        else return companies.filter(function(company){
+            return data.industries.indexOf(company.Industry) >= 0;
+        });
+    }).then(function(companies){
+        if (_.isEmpty(data.countries)) return companies;
+        else return companies.filter(function(company){
+            return data.countries.indexOf(company.Country) >= 0;
+        });
+    }).then(function(companies){
+        var mincap = data.mincap;
+        var maxcap = data.maxcap;
+        if (!mincap && !maxcap) return companies;
+        else return companies.filter(function(company){
+            var cap = parseInt(company.MarketCap, 10);
+            return (!mincap || cap >= mincap) && (!maxcap || cap < maxcap);
+        });
+    });
+}).bind(this, synchronized(cache(indexedDB, 'nasdaq-sectors', 13 * 24 * 60 * 60 * 1000, function(url){
+    return promiseText(url).then(parseCSV).then(rows2objects);
+})));
+
 onmessage = handle.bind(this, {
     start: function() {
         return "started";
@@ -58,40 +98,31 @@ onmessage = handle.bind(this, {
         return 'pong';
     },
     'sector-list': function(data) {
-        var exchange = data.exchange;
-        if (['XNCM', 'XNMS', 'XNGS', 'XNYS', 'XASE'].indexOf(exchange.mic) < 0)
+        if (['XNCM', 'XNMS', 'XNGS', 'XNYS', 'XASE'].indexOf(data.exchange.mic) < 0)
             return {status: 'success', result: []};
         return {
             status: 'success',
-            result: industries
+            result: sectors
         };
     },
-    'security-list': (function(downloadCSV, data) {
-        var market = {
-            'XNCM': "&exchange=NASDAQ&market=NCM",
-            'XNMS': "&exchange=NASDAQ&market=NGM",
-            'XNGS': "&exchange=NASDAQ&market=NGS",
-            'XNYS': "&exchange=NYSE",
-            'XASE': "&exchange=AMEX"
-        };
-        var exchange = data.exchange;
-        if (!market[exchange.mic])
-            return {status: 'success', result: []};
-        if (industries.indexOf(data.sector) < 0)
-            throw new Error('Unknown sector: ' + data.sector);
-        var url = [
-            "http://www.nasdaq.com/screening/companies-by-region.aspx?region=ALL&render=download",
-            market[exchange.mic],
-            "&industry=", encodeURIComponent(data.sector)
-        ].join('');
-        return downloadCSV(url).then(function(companies){
-            var mincap = data.mincap;
-            var maxcap = data.maxcap;
-            return companies.filter(function(company){
-                var cap = parseInt(company.MarketCap, 10);
-                return (!mincap || cap >= mincap) && (!maxcap || cap < maxcap);
-            }).map(function(company){
-                return exchange.iri + '/' + encodeURI(company.Symbol);
+    'industry-list': function(data) {
+        return listCompanies(data).then(function(companies){
+            return _.uniq(companies.map(function(company){
+                return company.Industry;
+            }));
+        });
+    },
+    'country-list': function(data) {
+        return listCompanies(data).then(function(companies){
+            return _.uniq(companies.map(function(company){
+                return company.Country;
+            }));
+        });
+    },
+    'security-list': function(data) {
+        return listCompanies(data).then(function(companies){
+            return companies.map(function(company){
+                return data.exchange.iri + '/' + encodeURI(company.Symbol);
             });
         }).then(function(securities){
             return {
@@ -99,7 +130,5 @@ onmessage = handle.bind(this, {
                 result: securities
             };
         });
-    }).bind(this, synchronized(cache(indexedDB, 'nasdaq-sectors', 13 * 24 * 60 * 60 * 1000, function(url){
-        return promiseText(url).then(parseCSV).then(rows2objects);
-    })))
+    }
 });

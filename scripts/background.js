@@ -97,20 +97,27 @@ function dispatch(handler) {
             var server = new http.Server();
             var wsServer = new http.WebSocketServer(server);
             server.listen(port);
-            chrome.identity.getProfileUserInfo(function(userInfo){
-                server.addEventListener('request', handleWebRequest.bind(this,
-                    "http://probabilitytrading.net/screener/launch", {
-                    'css': 'text/css',
-                    'html': 'text/html',
-                    'htm': 'text/html',
-                    'jpg': 'image/jpeg',
-                    'jpeg': 'image/jpeg',
-                    'js': 'text/javascript',
-                    'png': 'image/png',
-                    'svg': 'image/svg+xml',
-                    'txt': 'text/plain'
-                }, port, userInfo.email));
-            });
+            var xhr = new XMLHttpRequest();
+            xhr.onloadend = function() {
+                var launch = xhr.status == 200 ? xhr.responseText :
+                    "http://localhost:" + port + "/pages/launch.html";
+                chrome.identity.getProfileUserInfo(function(userInfo){
+                    server.addEventListener('request', handleWebRequest.bind(this,
+                        launch, {
+                        'css': 'text/css',
+                        'html': 'text/html',
+                        'htm': 'text/html',
+                        'jpg': 'image/jpeg',
+                        'jpeg': 'image/jpeg',
+                        'js': 'text/javascript',
+                        'png': 'image/png',
+                        'svg': 'image/svg+xml',
+                        'txt': 'text/plain'
+                    }, port, userInfo.email));
+                });
+            };
+            xhr.open('GET', "launch.uri", true);
+            xhr.send();
             wsServer.addEventListener('request', handleSocketRequest);
             return port;
         }).then(function(port){
@@ -119,15 +126,23 @@ function dispatch(handler) {
     }
 
     function handleWebRequest(launch_url, extensionTypes, port, email, req) {
+        var xhr = new XMLHttpRequest();
         if (req.headers.url == '/') {
             var host = req.headers.host || ('localhost:' + port);
-            req.writeHead(302, {
-                'Location': launch_url +
-                    "?version=" + chrome.runtime.getManifest().version +
-                    "&email=" + encodeURIComponent(email) +
-                    "#socket=ws://" + host + "/"
-            });
-            req.end();
+            xhr.onloadend = function() {
+                var redirect = xhr.status < 200 || xhr.status >= 400 ?
+                    "http://localhost:" + port + "/pages/launch.html" :
+                    launch_url +
+                        "?version=" + chrome.runtime.getManifest().version +
+                        "&email=" + encodeURIComponent(email) +
+                        "#socket=ws://" + host + "/";
+                req.writeHead(302, {
+                    'Location': redirect
+                });
+                req.end();
+            };
+            xhr.open('GET', launch_url, true);
+            xhr.send();
         } else {
             var url;
             if (req.headers.url.indexOf('?') > 0) {
@@ -135,7 +150,6 @@ function dispatch(handler) {
             } else {
                 url  = req.headers.url;
             }
-            var xhr = new XMLHttpRequest();
             xhr.onloadend = function() {
               var type = 'text/plain';
               if (this.getResponseHeader('Content-Type')) {
@@ -210,6 +224,9 @@ function dispatch(handler) {
                     return normalizedError(error);
                 }).then(function(result){
                     return _.extend(_.omit(data, 'points', 'result'), result);
+                }).then(function(result){
+                    if (data.id !== undefined) return _.extend(result, {id: data.id});
+                    else return result;
                 }).then(function(result){
                     socket.send(JSON.stringify(result) + '\n\n');
                 });
@@ -288,11 +305,11 @@ function dispatch(handler) {
             var data = event.data;
             var id = data && data.id;
             var pending = outstandingCommands[id];
-            if (pending.id !== undefined) {
-                // restore client id
-                data.id = pending.id;
-            }
             if (id && pending) {
+                if (pending.id !== undefined) {
+                    // restore client id
+                    data.id = pending.id;
+                }
                 if (!data || data.status == 'success' || data.status === undefined) {
                     pending.resolve(data);
                 } else {

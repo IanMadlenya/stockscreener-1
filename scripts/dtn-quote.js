@@ -138,10 +138,6 @@ function openHIT(blacklist){
         if (options == 'close') {
             return promiseLookupSocketId().then(function(socketId){
                 chrome.sockets.tcp.close(socketId);
-            }, console.error.bind(console)).then(function(){
-                return promiseAdminSocketId();
-            }).then(function(socketId){
-                chrome.sockets.tcp.close(socketId);
             }, console.error.bind(console));
         } else if (options == 'open') {
             return promiseLookupSocketId().catch(console.error.bind(console));
@@ -189,7 +185,14 @@ function openHIT(blacklist){
         });
     };
     function promiseLookupSocketId() {
-        return lookupSocketIdPromise = lookupSocketIdPromise.catch(function(){
+        return lookupSocketIdPromise = lookupSocketIdPromise.then(function(socketId){
+            return new Promise(function(callback){
+                chrome.sockets.tcp.getInfo(socketId, callback);
+            }).then(function(socketInfo) {
+                if (socketInfo.connected) return socketInfo.socketId;
+                else throw Error("Socket not connected");
+            });
+        }).catch(function(){
             console.log("Opening TCP Socket", 9100);
             return promiseAdminSocketId().catch(console.error.bind(console)).then(function(){
                 return new Promise(function(oncreate) {

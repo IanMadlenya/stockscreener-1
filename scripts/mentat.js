@@ -74,8 +74,8 @@ onmessage = handle.bind(this, {
         return data.exchanges.reduce(function(memo, exchange){
             var period = createPeriod(intervals, data.interval, exchange);
             var next = period.inc(data.asof, data.increment || 1);
-            if (memo && memo.valueOf() < next.valueOf()) return memo;
-            return next.toDate();
+            if (memo && ltDate(memo, next)) return memo;
+            return next;
         }, null);
     },
 
@@ -102,77 +102,147 @@ onmessage = handle.bind(this, {
             data.length, data.lower, data.upper, period, data.expressions
         );
     },
-    screen: function(data){
-        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, data.screens, data.begin, data.end);
-        var periods = screenPeriods(intervals, data.exchange, data.screens);
-        return screenSecurity(periods, load, data.security, data.screens, {}, data.begin, data.end);
+    signals: function(data){
+        var filters = _.compact([].concat(data.screen.watch, data.screen.hold));
+        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, filters, data.begin, data.end);
+        var periods = screenPeriods(intervals, data.exchange, filters);
+        var hold = data.screen.hold || [];
+        var watch = addChangeReference(data.screen.watch, filters);
+        var stop = (_.isEmpty(hold) && watch || hold).filter(function(filter){
+            return _.isFinite(filter.lower) || _.isFinite(filter.upper);
+        });
+        return findSignals(periods, load, data.security, watch, hold, stop, data.begin, data.end);
     },
-    signal: function(data){
-        var screens = [].concat(data.entry, data.exit);
-        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, screens, data.begin, data.end);
-        var periods = screenPeriods(intervals, data.exchange, screens);
-        var entry = addChangeReference(data.entry, data.exit);
-        var exit = addChangeReference(data.exit, data.entry);
-        return findSignals(periods, load, data.security, entry, exit, {}, data.begin, data.end);
+    screen: function(data){
+        var filters = _.compact([].concat(data.screen.watch, data.screen.hold, data.screen.stop));
+        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, filters, data.begin, data.end);
+        var periods = screenPeriods(intervals, data.exchange, filters);
+        var hold = data.screen.hold || [];
+        var watch = addChangeReference(data.screen.watch, filters);
+        var stop = (_.isEmpty(hold) && watch || hold).filter(function(filter){
+            return _.isFinite(filter.lower) || _.isFinite(filter.upper);
+        });
+        return findSignals(periods, load, data.security, watch, hold, stop, data.begin, data.end).then(function(data){
+            if (_.isEmpty(data.result)) return data;
+            var watch;
+            var duration = Date.parse(data.end) - Date.parse(data.begin);
+            var exposure = data.result.reduce(function(exposure, signal, i, signals){
+                if (signal.signal == 'watch') {
+                    watch = signal;
+                }
+                if (signal.signal == 'stop' || i == signals.length-1) {
+                    return exposure + Date.parse(signal.asof) - Date.parse(watch.asof);
+                } else return exposure;
+            }, 0);
+            var performance = data.result.reduce(function(performance, signal, i, signals){
+                if (signal.signal == 'watch') {
+                    watch = signal;
+                }
+                if (signal.signal == 'stop' || i == signals.length-1) {
+                    performance.push(100 * (signal.price - watch.price) / watch.price);
+                }
+                return performance;
+            }, []);
+            var drawup = data.result.reduce(function(drawup, item){
+                if (item.signal == 'watch') {
+                    watch = item;
+                }
+                var high = Math.max.apply(Math, _.compact(_.values(_.pick(item,_.keys(intervals))).map(function(point){
+                    return point.high;
+                }).concat(item.price)));
+                return Math.max((high - watch.price) / watch.price * 100, drawup);
+            }, 0);
+            var drawdown = data.result.reduce(function(drawdown, item){
+                if (item.signal == 'watch') {
+                    watch = item;
+                }
+                var low = Math.min.apply(Math, _.compact(_.values(_.pick(item,_.keys(intervals))).map(function(point){
+                    return point.low;
+                }).concat(item.price)));
+                return Math.min((low - watch.price) / watch.price * 100, drawdown);
+            }, 0);
+            var growth = performance.reduce(function(profit, ret){
+                return profit + profit * ret / 100;
+            }, 1) * 100 - 100;
+            var risk_adjusted = Math.pow(performance.reduce(function(profit, ret){
+                return profit + profit * ret / 100;
+            }, 1), 365 * 24 * 60 * 60 * 1000 / exposure) - 1;
+            return _.extend(data, {
+                result: _.extend(_.last(data.result), {
+                    positive_excursion: drawup,
+                    negative_excursion: drawdown,
+                    performance: performance,
+                    growth: growth,
+                    exposure: exposure / duration,
+                    risk_adjusted: risk_adjusted * 100
+                })
+            });
+        });
     }
 });
 
-function addChangeReference(entry, exit) {
-    var references = _.compact(_.flatten(exit.map(function(screen){
-        return screen.filters.map(function(filter){
-            return filter.changeReference && {
-                indicator: filter.changeReference
-            };
-        });
-    })));
-    if (!references.length) return entry;
-    return entry.map(function(screen){
-        return {
-            signal: screen.signal,
-            filters: screen.filters.concat(references)
-        };
-    });
+function sum(numbers) {
+    return numbers.reduce(function(sum, num){
+        return sum + num;
+    }, 0);
 }
 
-function pointLoad(parseCalculation, open, failfast, security, screens, lower, upper) {
+function addChangeReference(filters, changes) {
+    return _.compact([].concat(filters, changes.map(function(filter){
+        return filter.difference && {
+            indicator: filter.difference
+        };
+    }), changes.map(function(filter){
+        return filter.percentOf && {
+            indicator: filter.percentOf
+        };
+    })));
+}
+
+function pointLoad(parseCalculation, open, failfast, security, filters, lower, upper) {
     var datasets = {};
-    var exprs = screens.reduce(function(exprs, screen){
-        return screen.filters.reduce(function(exprs, filter){
-            var expr = filter.indicator.expression;
-            var interval = filter.indicator.interval;
-            if (!exprs[interval]) exprs[interval] = [];
-            if (exprs[interval].indexOf(expr) < 0) exprs[interval].push(expr);
-            if (!filter.changeReference) return exprs;
-            expr = filter.changeReference.expression;
-            interval = filter.changeReference.interval;
-            if (!exprs[interval]) exprs[interval] = [];
-            if (exprs[interval].indexOf(expr) < 0) exprs[interval].push(expr);
-            return exprs;
-        }, exprs);
+    var exprs = _.compact(_.flatten(filters.map(function(filter){
+        return [filter.indicator, filter.difference, filter.percentOf];
+    }))).reduce(function(exprs, indicator){
+        var expr = indicator.expression;
+        var interval = indicator.interval;
+        if (!exprs[interval]) exprs[interval] = [];
+        if (exprs[interval].indexOf(expr) < 0) exprs[interval].push(expr);
+        return exprs;
     }, {});
-    return function(asof, period) {
+    return function(period, after, asof, until) {
         if (!datasets[period.interval]) {
             datasets[period.interval] = loadData(parseCalculation, open, failfast, security,
-                1, lower, upper, period, exprs[period.interval]);
+                1, asof, period.inc(upper, 1), period, exprs[period.interval]);
         }
         return datasets[period.interval].then(function(data){
             var idx = _.sortedIndex(data.result, {
                 asof: toISOString(asof)
             }, 'asof');
-            var i = !idx || data.result[idx] && ltDate(data.result[idx].asof, asof, true) ? idx : idx - 1;
+            var i = Math.max(_.sortedIndex(data.result, {
+                asof: toISOString(after)
+            }, 'asof'), data.result[idx] && ltDate(data.result[idx].asof, asof, true) && idx, idx - 1);
+            if (!data.result[i] || ltDate(until, data.result[i].asof)) return Promise.reject(_.extend(data, {
+                status: 'error',
+                message: "No results for interval: " + period.interval,
+                interval: period.interval
+            }));
             return _.extend({}, data, {
-                result: _.clone(data.result[i])
+                result: _.clone(data.result[i]),
+                until: i+1 < data.result.length ? data.result[i+1].asof : period.inc(asof, 1)
             });
         });
     };
 }
 
-function screenPeriods(intervals, exchange, screens) {
-    var used = _.sortBy(_.uniq(_.flatten(screens.map(function(screen) {
-        return _.uniq(screen.filters.map(function(filter){
-            return filter.indicator.interval;
-        }));
-    }))), function(interval) {
+function screenPeriods(intervals, exchange, filters) {
+    var used = _.sortBy(_.compact(_.uniq(_.flatten(filters.map(function(filter){
+            return [
+                filter.indicator.interval,
+                filter.difference && filter.difference.interval,
+                filter.percentOf && filter.percentOf.interval
+            ];
+    })))), function(interval) {
         if (!intervals[interval]) throw Error("Unknown interval: " + interval);
         return intervals[interval].millis * -1;
     });
@@ -182,141 +252,170 @@ function screenPeriods(intervals, exchange, screens) {
     }, {});
 }
 
-function findSignals(periods, load, security, entry, exit, reference, begin, end) {
-    return screenSecurity(periods, load, security, entry, reference, begin, end).then(function(first){
+function findSignals(periods, load, security, watch, hold, stop, begin, end) {
+    return screenSignals(periods, load, security, watch, hold, stop, begin, end).then(function(signals){
+        return _.extend(signals, {
+            begin: begin,
+            end: end
+        });
+    });
+}
+
+function screenSignals(periods, load, security, watch, hold, stop, begin, end) {
+    var screen = screenSecurity.bind(this, periods, load, security);
+    return screen('watch', watch, {}, begin, end).then(function(ws){
+        if (!ws.result) return _.extend(ws, {
+            result: []
+        });
+        return screen('stop', stop, ws.result, ws.result.asof, end).then(function(ss){
+            var stopped = ss.result ? ss.result.asof : end;
+            return holdSecurity(screen, hold, ws.result, ws.result.asof, stopped).then(function(hs) {
+                if (_.isEmpty(hs.result) && _.isEmpty(ss.result)) return combineResult([ws]);
+                else if (_.isEmpty(hs.result)) return combineResult([ws, ss]);
+                else if (_.isEmpty(ss.result)) return combineResult([ws, hs]);
+                _.last(hs.result).signal = ss.result.signal;
+                return combineResult([ws, hs]);
+            });
+        });
+    }).then(function(first){
+        if (_.isEmpty(first.result) || _.last(first.result).signal != 'stop') return first;
+        return screenSignals(periods, load, security, watch, hold, stop, first.until, end).then(function(rest){
+            if (_.isEmpty(rest.result)) return first;
+            return combineResult([first, rest]);
+        });
+    });
+}
+
+function holdSecurity(screen, filters, watching, begin, end) {
+    return screen('hold', filters, watching, begin, end).then(function(first) {
         if (!first.result) return _.extend(first, {
             result: []
         });
-        else if (first.result && ltDate(first.result.asof, begin))
-            return findSignals(periods, load, security, entry, exit, reference, first.until, end);
-        else return findSignals(periods, load, security, exit, entry, first.result, first.until, end).then(function(rest){
+        if (ltDate(end, first.until)) return _.extend(first, {
+            result: [first.result]
+        });
+        return holdSecurity(screen, filters, watching, first.until, end).then(function(rest) {
             rest.result.unshift(first.result);
-            return _.extend(rest, {
-                status: first.status == rest.status ? first.status : 'warning',
-                message: first.message || rest.message,
-                quote: first.quote && rest.quote ? first.quote.concat(rest.quote) : first.quote || rest.quote,
-                begin: begin,
-                end: end
-            });
+            return rest;
         });
     });
 }
 
-function screenSecurity(periods, load, security, screens, reference, begin, end){
-    return screens.reduce(function(promise, screen){
-        return promise.then(function(alt){
-            if (!screen.filters.length) return alt || {
-                status: 'success',
-                result: {
-                    security: security,
-                    signal: screen.signal
-                }
-            };
-            var getInterval = _.compose(_.property('interval'), _.property('indicator'));
-            var byInterval = _.groupBy(screen.filters, getInterval);
-            var sorted = _.sortBy(_.keys(byInterval), function(interval) {
-                if (!periods[interval]) throw Error("Unknown interval: " + interval);
-                return periods[interval].millis * -1;
-            });
-            return filterSecurityByPeriods(load, reference, sorted.map(function(interval) {
-                return {
-                    period: periods[interval],
-                    filters: byInterval[interval]
-                };
-            }), begin, begin, end).then(function(data){
-                if (!data) return alt;
-                else if (alt && alt.result.asof && ltDate(alt.result.asof, data.result.asof)) return alt
-                else return _.extend(data, {
-                    result: _.extend(data.result, {
-                        security: security,
-                        signal: screen.signal
-                    })
-                });
-            });
+function screenSecurity(periods, load, security, signal, filters, watching, begin, end){
+    if (!filters.length) return Promise.resolve({status: 'success'});
+    var getInterval = _.compose(_.property('interval'), _.property('indicator'));
+    var byInterval = _.groupBy(filters, getInterval);
+    var sorted = _.sortBy(_.keys(byInterval), function(interval) {
+        if (!periods[interval]) throw Error("Unknown interval: " + interval);
+        return periods[interval].millis * -1;
+    });
+    var pass = signal == 'watch';
+    return filterSecurityByPeriods(load, signal, watching, sorted.map(function(interval) {
+        return {
+            period: periods[interval],
+            filters: byInterval[interval]
+        };
+    }), new Date(0), begin, begin, end).then(function(data){
+        if (ltDate(data.result.asof, begin) && ltDate(data.until, end))
+            return screenSecurity(periods, load, security, signal, filters, watching, data.until, end);
+        else if (signal == 'watch' && data.status != 'success' ||
+                signal == 'stop' && data.status == 'success')
+            return {status: 'success'};
+        else return _.extend(data, {
+            status: 'success',
+            result: _.extend(data.result, {
+                security: security,
+                signal: signal
+            })
         });
-    }, Promise.resolve()).then(function(data){
-        return data || {status: 'success'};
     });
 }
 
-function filterSecurityByPeriods(load, reference, periodsAndFilters, lower, begin, upper) {
-    var first = _.first(periodsAndFilters);
+function filterSecurityByPeriods(load, signal, watching, periodsAndFilters, after, lower, begin, upper) {
     var rest = _.rest(periodsAndFilters);
-    if (first.period.ceil(upper).valueOf() < first.period.floor(begin).valueOf())
-        return Promise.resolve(null);
-    return findNextActiveFilter(load, first.period, first.filters, reference, begin, upper).then(function(data){
-        if (!data || ltDate(upper, data.result.asof)) return null;
-        else if (!rest.length) return {
+    var period = _.first(periodsAndFilters).period;
+    var filters = _.first(periodsAndFilters).filters;
+    return findNextSignal(load, signal, !rest.length, period, filters, watching, after, begin, upper).then(function(data){
+        if (data.status != 'success' || !rest.length) return {
             status: data.status,
             quote: data.quote,
-            result: _.object([first.period.interval, 'price', 'asof'], [data.result, data.result.close, data.result.asof]),
+            result: _.object([period.interval, 'price', 'asof'], [data.result, data.result.close, data.result.asof]),
             until: data.until
         };
+        var reference = watching[period.interval] ? watching :
+            _.extend(_.object([period.interval],[data.result]), watching);
         var start = maxDate(lower, data.result.asof);
-        return filterSecurityByPeriods(load, reference, rest, start, start, minDate(upper, data.until)).then(function(child){
-            if (child) return {
-                status: !data.status || data.status == child.status ? child.status : 'warning',
+        return filterSecurityByPeriods(load, signal, reference, rest, data.result.asof, start, start, minDate(upper, data.until)).then(function(child){
+            if (ltDate(upper, data.until) ||
+                    signal == 'watch' && child.status == 'success' ||
+                    signal == 'stop' && child.status != 'success' ||
+                    signal == 'hold') return {
+                status: child.status,
                 quote: _.compact(_.flatten([data.quote, child.quote])),
-                result: _.extend(_.object([first.period.interval], [data.result]), child.result),
+                result: _.extend(_.object([period.interval], [data.result]), child.result),
                 until:  child.until
             };
-            var inc = first.period.inc(maxDate(begin, data.result.asof), 1);
-            return filterSecurityByPeriods(load, reference, periodsAndFilters, lower, inc, upper);
+            return filterSecurityByPeriods(load, signal, watching, periodsAndFilters, after, lower, data.until, upper);
         });
     });
 }
 
-function findNextActiveFilter(load, period, filters, reference, begin, until) {
-    if (period.ceil(until).valueOf() < period.floor(begin).valueOf())
-        return Promise.resolve(null);
-    return loadFilteredPoint(load, period, filters, reference, minDate(begin,until)).then(function(data){
-        var inc = period.inc(begin, 1);
-        if (data.status == 'failure')
-            return findNextActiveFilter(load, period, filters, reference, inc, until);
-        else return loadFilteredPoint(load, period, filters, reference, inc).then(function(data){
-            return data.result.asof;
-        }).then(function(next){
-            return _.extend(data, {
-                until: ltDate(next, begin, true) ? inc : next
-            });
-        });
+function findNextSignal(load, signal, leaf, period, filters, watching, after, begin, until) {
+    if (signal == 'watch')
+        return findNextActiveFilter(true, load, period, filters, watching, after, begin, until);
+    else if (signal == 'stop' && leaf)
+        return findNextActiveFilter(false, load, period, filters, watching, after, begin, until);
+    else if (signal == 'stop')
+        return loadFilteredPoint(load, period, filters, watching, after, begin, until);
+    else if (signal == 'hold')
+        return load(period, after, minDate(begin,until));
+    else throw Error("Unknown signal: " + signal);
+}
+
+function findNextActiveFilter(pass, load, period, filters, watching, after, begin, until) {
+    return loadFilteredPoint(load, period, filters, watching, after, begin, until).then(function(data){
+        if (pass != (data.status == 'success') && ltDate(data.until, until, true))
+            return findNextActiveFilter(pass, load, period, filters, watching, after, data.until, until);
+        else return data;
     });
 }
 
-function loadFilteredPoint(load, period, filters, reference, asof) {
-    var expressions = _.map(filters,  _.compose(_.property('expression'), _.property('indicator')));
-    return load(asof, period, expressions).then(function(data){
-        if (!data.result) return Promise.reject(_.extend(data, {
-            status: 'error',
-            message: "No results for interval: " + period.interval,
-            interval: period.interval
-        }));
-        return data;
-    }).then(function(data){
+function loadFilteredPoint(load, period, filters, watching, after, begin, until) {
+    return load(period, after, minDate(begin,until), until).then(function(data){
         var pass =_.reduce(filters, function(pass, filter) {
             if (!pass) return false;
-            var cr = filter.changeReference;
-            var ref = cr && reference[cr.interval] && reference[cr.interval][cr.expression];
-            var x = data.result[filter.indicator.expression];
-            var value = ref ? (x - ref) * 100 / (ref === 0 ? 1 : Math.abs(ref)) : x;
-            if (filter.lower || filter.lower === 0) {
-                if (isNaN(value) || value < +filter.lower)
+            var reference = watching[period.interval] ? watching :
+                _.extend(_.object([period.interval],[data.result]), watching);
+            var diff = valueOf(filter.difference, reference);
+            var of = valueOf(filter.percentOf, reference);
+            var x = data.result[filter.indicator.expression] - diff;
+            var value = of ? x * 100 / Math.abs(of) : x;
+            if (_.isFinite(filter.lower)) {
+                if (value < +filter.lower)
                     return false;
             }
-            if (filter.upper || filter.upper === 0) {
-                if (isNaN(value) || +filter.upper < value)
+            if (_.isFinite(filter.upper)) {
+                if (+filter.upper < value)
                     return false;
             }
             return pass;
         }, true);
         if (pass) {
-            return data;
+            return _.extend(data, {
+                status: 'success'
+            });
         } else {
             return _.extend(data, {
                 status: 'failure'
             });
         }
     });
+}
+
+function valueOf(indicator, watching) {
+    var int = indicator && indicator.interval;
+    if (!int || !watching[int]) return 0;
+    return watching[int][indicator.expression];
 }
 
 function loadData(parseCalculation, open, failfast, security, length, lower, upper, period, expressions) {
@@ -392,11 +491,11 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
 
 function collectAggregateRange(open, failfast, security, period, length, lower, upper) {
     var ceil = period.ceil;
-    var end = ceil(upper).valueOf() == upper.valueOf() ? upper : period.floor(upper);
+    var end = ltDate(ceil(upper), upper, true) ? upper : period.floor(upper);
     var size = period.aggregate * length + 1;
     return collectRawRange(open, failfast, security, period.derivedFrom, size, lower, end).then(function(data){
         if (!data.result.length) return data;
-        var upper, count, discard = ceil(data.result[0].asof).valueOf();
+        var upper, count, discard = ceil(data.result[0].asof);
         var result = data.result.reduce(function(result, point){
             if (ltDate(point.asof, discard, true)) return result;
             var preceding = result[result.length-1];
@@ -430,7 +529,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
         var conclude = failfast ? Promise.reject.bind(Promise) : Promise.resolve.bind(Promise);
         var next = result.length ? period.inc(result[result.length - 1].asof, 1) : null;
         var below = lengthBelow(result, lower);
-        if (below >= length && next && (next.valueOf() > upper.valueOf() || next.valueOf() > Date.now())) {
+        if (below >= length && next && (ltDate(upper, next) || ltDate(new Date(), next))) {
             // result complete
             return {
                 status: 'success',
@@ -464,7 +563,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                 start: period.format(period.dec(earliest, 2 * (length - below))),
                 end: period.format(result[0].asof)
             }];
-            if (next.valueOf() < upper.valueOf()) {
+            if (ltDate(next, upper)) {
                 quote.push({
                     security: security,
                     interval: period.interval,
@@ -482,7 +581,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
             return open(security, period, 'readonly', nextItem.bind(this, null)).then(function(earliest){
                 var d1 = period.dec(lower, length);
                 var d2 = earliest ? moment(earliest.asof) : d1;
-                var start = d1.valueOf() < d2.valueOf() ? d1 : d2;
+                var start = ltDate(d1, d2) ? d1 : d2;
                 return Promise.reject({
                     status: 'error',
                     message: 'No data points available',
@@ -693,16 +792,16 @@ function createPeriod(intervals, interval, exchange) {
         marketClosesAt: exchange.marketClosesAt,
         derivedFrom: period.derivedFrom && createPeriod(intervals, period.derivedFrom.storeName, exchange),
         floor: function(date) {
-            return period.floor(exchange, date).toDate();
+            return period.floor(exchange, date).toISOString();
         },
         ceil: function(date) {
-            return period.ceil(exchange, date).toDate();
+            return period.ceil(exchange, date).toISOString();
         },
         inc: function(date, n) {
-            return period.inc(exchange, date, n).toDate();
+            return period.inc(exchange, date, n).toISOString();
         },
         dec: function(date, n) {
-            return period.dec(exchange, date, n).toDate();
+            return period.dec(exchange, date, n).toISOString();
         },
         format: function(date) {
             return moment.tz(date, exchange.tz).format();

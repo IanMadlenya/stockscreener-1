@@ -65,22 +65,21 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        date: function(asof) {
+        finite: function(number) {
             return {
                 getErrorMessage: function() {
-                    if (!_.isString(asof) || !asof.match(/^[0-9a-z_\-&]+$/))
-                        return "Must be a field: " + asof;
+                    if (!_.isFinite(number))
+                        return "Must be a number: " + number;
                     return null;
                 },
-                getFields: function(){
-                    return [asof];
+                getFields: function() {
+                    return [];
                 },
                 getDataLength: function() {
                     return 1;
                 },
                 getValue: function(points) {
-                    var date = new Date(points[0][asof]);
-                    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                    return +number;
                 }
             };
         },
@@ -173,6 +172,44 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Addition */
+        ADD: function(number, field) {
+            var n = getCalculation(n);
+            var d = getCalculation(field, arguments, 2);
+            return {
+                getErrorMessage: function() {
+                    return n.getErrorMessage() || d.getErrorMessage();
+                },
+                getFields: function() {
+                    return n.getFields().concat(d.getFields());
+                },
+                getDataLength: function() {
+                    return Math.max(n.getDataLength(), d.getDataLength());
+                },
+                getValue: function(points) {
+                    return getValue(n, points) + getValue(d, points);
+                }
+            };
+        },
+        /* Multiplication */
+        MULTIPLY: function(number, field) {
+            var n = getCalculation(n);
+            var d = getCalculation(field, arguments, 2);
+            return {
+                getErrorMessage: function() {
+                    return n.getErrorMessage() || d.getErrorMessage();
+                },
+                getFields: function() {
+                    return n.getFields().concat(d.getFields());
+                },
+                getDataLength: function() {
+                    return Math.max(n.getDataLength(), d.getDataLength());
+                },
+                getValue: function(points) {
+                    return getValue(n, points) * getValue(d, points);
+                }
+            };
+        },
         /* Percent ratio */
         Percent: function(numerator, denominator) {
             var n = getCalculation(numerator);
@@ -256,7 +293,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Percentage Maximum Oscillator */
+        /* Percentage Maximum Oscillator @deprecaded */
         PMO: function(n, field) {
             var calc = getCalculation(field, arguments, 2);
             return {
@@ -282,7 +319,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Percentage above Low */
+        /* Percentage above Low @deprecaded */
         PLOW: function(n, field) {
             var calc = getCalculation(field, arguments, 2);
             return {
@@ -452,6 +489,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Average True Range */
         ATR: function(n) {
             return {
                 getErrorMessage: function() {
@@ -482,7 +520,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Difference over ATR */
+        /* Difference over ATR @deprecaded */
         DATR: function(n, field) {
             var ATR = getCalculation('ATR', arguments, 0);
             var calc = getCalculation(field, arguments, 2);
@@ -505,7 +543,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Standard Deviation */
-        SD: function(n, field) {
+        STDEV: function(n, field) {
             var calc = getCalculation(field, arguments, 2);
             return {
                 getErrorMessage: function() {
@@ -530,30 +568,28 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Keltner Channel */
-        KELT: function(centre, multiplier, unit) {
+        /* Keltner Channel @deprecaded */
+        KELT: function(centre, unit) {
             var ATR = getCalculation(unit, arguments, 3);
             var calc = getCalculation(centre);
             return {
                 getErrorMessage: function() {
-                    if (!_.isNumber(multiplier) || multiplier != Math.round(multiplier))
-                        return "Must be an integer: " + multiplier;
                     return ATR.getErrorMessage() || calc.getErrorMessage();
                 },
                 getFields: function() {
                     return ['close'].concat(ATR.getFields(), calc.getFields());
                 },
                 getDataLength: function() {
-                    return Math.max(ATR.getDataLength(), calc.getDataLength());
+                    return Math.max(1, ATR.getDataLength(), calc.getDataLength());
                 },
                 getValue: function(points) {
                     var value = getValue(calc, points);
                     var atr = getValue(ATR, points);
-                    return value + multiplier * atr;
+                    return (_.last(points).close - value) * 100 / atr;
                 }
             };
         },
-        /* Bollinger BandWidth */
+        /* Bollinger BandWidth @deprecaded */
         BBWidth: function(centre, multiplier, unit) {
             var ATR = getCalculation(unit, arguments, 3);
             var calc = getCalculation(centre);
@@ -579,7 +615,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* %B */
+        /* %B @deprecaded */
         PercentB: function(centre, multiplier, unit) {
             var ATR = getCalculation(unit, arguments, 3);
             var calc = getCalculation(centre);
@@ -817,6 +853,68 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Point of Control Oscillator @deprecaded */
+        POCO: function(n, s1, s2) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    if (!isPositiveInteger(s1))
+                        return "Must be a positive integer: " + s1;
+                    if (!isPositiveInteger(s2))
+                        return "Must be a positive integer: " + s2;
+                    return null;
+                },
+                getFields: function() {
+                    return ['high','low','close'];
+                },
+                getDataLength: function() {
+                    return n + s1 - 1 + s2 - 1;
+                },
+                getValue: function(points) {
+                    var p2 = _.range(s2).map(function(i) {
+                        var p1 = _.range(s1).map(function(j){
+                            var end = points.length - i - j;
+                            var start = Math.max(end - n, 0);
+                            var sliced = points.slice(start, Math.max(end,start+1));
+                            var tpos = getTPOCount(sliced);
+                            var poc = getPointOfControl(tpos);
+                            var target = _.last(sliced).close;
+                            if (target == poc) return 50;
+                            var step = 0.01;
+                            var above = _.range(poc+step, tpos[tpos.length-1].price+step, step).reduce(function(above, price){
+                                return above + tpoCount(tpos, decimal(price));
+                            }, 0);
+                            var below = _.range(poc-step, tpos[0].price-step, -step).reduce(function(below, price){
+                                return below + tpoCount(tpos, decimal(price));
+                            }, 0);
+                            var value = tpoCount(tpos, poc);
+                            var total = value + above + below;
+                            var max = poc, min = poc;
+                            while (value < total && (target < min || max < target)) {
+                                var up = tpoCount(tpos, decimal(max + step));
+                                var down = tpoCount(tpos, decimal(min - step));
+                                if (up >= down) {
+                                    max = decimal(max + step);
+                                    if (min < target && target < max) break;
+                                    value += up;
+                                }
+                                if (down >= up) {
+                                    min = decimal(min - step);
+                                    if (min < target && target < max) break;
+                                    value += down;
+                                }
+                            }
+                            if (target > poc) return 50 + 50 * value / total;
+                            else return 50 - 50 * value / total;
+                        });
+                        return sum(p1) / p1.length;
+                    });
+                    return sum(p2) / p2.length;
+                }
+            };
+        },
+        /* @deprecaded */
         HIGH_VALUE: function(n) {
             return {
                 getErrorMessage: function() {
@@ -837,6 +935,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* @deprecaded */
         LOW_VALUE: function(n) {
             return {
                 getErrorMessage: function() {
@@ -1012,6 +1111,7 @@ var parseCalculation = (function(_) {
             return below + tpoCount(tpos, decimal(price));
         }, 0);
         var value = tpoCount(tpos, poc);
+        var total = value + above + below;
         var target = 0.7 * (value + above + below);
         var max = poc, min = poc;
         while (value < target) {
@@ -1096,7 +1196,8 @@ var parseCalculation = (function(_) {
         var shifted = slice ? Array.prototype.slice.call(args, slice, args.length) : args;
         return calculations[field] ?
             calculations[field].apply(this, shifted) :
-            typeof field == 'string' ? calculations.identity(field) :
+            _.isFinite(field) ? calculations.finite(field) :
+            _.isString(field) ? calculations.identity(field) :
             getCalculation(_.first(field), _.rest(field));
     }
 

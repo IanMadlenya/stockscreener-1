@@ -86,14 +86,13 @@ describe("Micro", function(){
         ], loadQuotes);
     });
 
-    describe("MMM", function(){
-        it("reversion", function(done){
-            screener.signal([{
+    describe("MMM reversion", function(){
+        it("signals", function(done){
+            screener.signals([{
                 exchange: getExchange("New York Stock Exchange"),
                 includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-            }],[{
-                signal: 'buy',
-                filters:[{
+            }],{
+                watch:[{
                     indicator: {
                         expression: "F-Score()",
                         interval: "annual"
@@ -113,62 +112,218 @@ describe("Micro", function(){
                     lower: "100000"
                 }, {
                     indicator: {
-                        expression: "Percent(close,SMA(20,close))",
+                        expression: "close",
                         interval: "d1"
                     },
-                    lower: "90"
-                }, {
-                    indicator: {
-                        expression: "DATR(14,KELT(SMA(20,close),-2,SD(20,close)))",
+                    difference: {
+                        expression: "SMA(20,close)",
                         interval: "d1"
                     },
-                    upper: "0"
+                    percentOf: {
+                        expression: "STDEV(20,close)",
+                        interval: "d1"
+                    },
+                    upper: "-200"
                 }, {
                     indicator: {
-                        expression: "DATR(14,KELT(SMA(150,POC(6)),-2,SD(150,POC(6))))",
+                        expression: "close",
+                        interval: "d1"
+                    },
+                    difference: {
+                        expression: "SMA(20,close)",
+                        interval: "d1"
+                    },
+                    percentOf : {
+                        expression: "SMA(20,close)",
+                        interval: "d1"
+                    },
+                    upper: "-4"
+                }, {
+                    indicator: {
+                        expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
+                        interval: "d1"
+                    },
+                    upper: "25"
+                }, {
+                    indicator: {
+                        expression: "POC(6)",
                         interval: "m60"
                     },
-                    lower: "0"
-                }, {
-                    indicator: {
-                        expression: "DATR(14,POC(12))",
-                        interval: "m30"
-                    },
-                    upper: "0"
-                }]
-            }],[{
-                signal: 'sell',
-                filters:[{
-                    indicator: {
-                        expression: "MIN(2,DATR(14,KELT(SMA(20,close),-2,SD(20,close))))",
+                    difference: {
+                        expression: "SMA(20,close)",
                         interval: "d1"
                     },
-                    lower: "0"
+                    percentOf: {
+                        expression: "STDEV(20,close)",
+                        interval: "d1"
+                    },
+                    lower: "-200"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: "m10"
+                    },
+                    difference: {
+                        expression: "POC(6)",
+                        interval: "m60"
+                    },
+                    upper: "0"
+                }],
+                hold:[{
+                    indicator: {
+                        expression: "WORKDAY(asof,0)",
+                        interval: "d1"
+                    },
+                    difference: {
+                        expression:"WORKDAY(asof,10)",
+                        interval: "d1"
+                    },
+                    upper: "0"
                 },{
                     indicator:{
                         expression:"close",
-                        interval: "m60"
+                        interval: "d1"
                     },
-                    changeReference:{
+                    difference:{
                         expression:"SMA(20,close)",
                         interval: "d1"
                     },
-                    lower:"0"
+                    percentOf:{
+                        expression:"SMA(20,close)",
+                        interval: "d1"
+                    },
+                    upper:"0",
+                    lower: "-15"
                 }]
-            },{
-                signal: 'sell',
-                filters:[{
+            }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+                expect(result).toContain(jasmine.objectContaining({
+                    signal: 'watch',
+                    price: 132.93,
+                    asof: '2014-10-13T20:00:00.000Z'
+                }));
+                expect(result).toContain(jasmine.objectContaining({
+                    signal: 'stop',
+                    price: 140.93,
+                    asof: '2014-10-21T20:00:00.000Z'
+                }));
+            }).then(done, unexpected(done));
+        });
+        it("screen", function(done){
+            screener.screen([{
+                exchange: getExchange("New York Stock Exchange"),
+                includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
+            }],{
+                watch:[{
                     indicator: {
-                        expression: "MAX(10,PCO(1,SIGN(DATR(14,KELT(SMA(20,close),-2,SD(20,close))))))",
+                        expression: "F-Score()",
+                        interval: "annual"
+                    },
+                    lower: "5"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: "d5"
+                    },
+                    lower: "5"
+                }, {
+                    indicator: {
+                        expression: "volume",
+                        interval: "d5"
+                    },
+                    lower: "100000"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: "d1"
+                    },
+                    difference: {
+                        expression: "SMA(20,close)",
+                        interval: "d1"
+                    },
+                    percentOf: {
+                        expression: "STDEV(20,close)",
+                        interval: "d1"
+                    },
+                    upper: "-200"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: "d1"
+                    },
+                    difference: {
+                        expression: "SMA(20,close)",
+                        interval: "d1"
+                    },
+                    percentOf: {
+                        expression: "SMA(20,close)",
+                        interval: "d1"
+                    },
+                    upper: "-4"
+                }, {
+                    indicator: {
+                        expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
+                        interval: "d1"
+                    },
+                    upper: "25"
+                }, {
+                    indicator: {
+                        expression: "POC(6)",
+                        interval: "m60"
+                    },
+                    difference: {
+                        expression: "SMA(20,close)",
+                        interval: "d1"
+                    },
+                    percentOf: {
+                        expression: "STDEV(20,close)",
+                        interval: "d1"
+                    },
+                    lower: "-200"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: "m10"
+                    },
+                    difference: {
+                        expression: "POC(6)",
+                        interval: "m60"
+                    },
+                    upper: "0"
+                }],
+                hold:[{
+                    indicator: {
+                        expression: "WORKDAY(asof,0)",
+                        interval: "d1"
+                    },
+                    difference:{
+                        expression:"WORKDAY(asof,10)",
                         interval: "d1"
                     },
                     upper: "0"
+                },{
+                    indicator:{
+                        expression:"close",
+                        interval: "d1"
+                    },
+                    difference:{
+                        expression:"SMA(20,close)",
+                        interval: "d1"
+                    },
+                    percentOf:{
+                        expression:"SMA(20,close)",
+                        interval: "d1"
+                    },
+                    upper:"0",
+                    lower: "-15"
                 }]
-            }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+            }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
-                    signal: 'sell',
-                    price: 139.61,
+                    price: 140.93,
+                    asof: '2014-10-21T20:00:00.000Z'
                 }));
+                expect(result[0].growth).toBeCloseTo(6,0);
+                expect(result[0].performance.length).toBe(1);
+                expect(result[0].performance[0]).toBeCloseTo(6,0);
             }).then(done, unexpected(done));
         });
     });

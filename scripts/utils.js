@@ -244,6 +244,26 @@ function handle(handler, event){
     }
 }
 
+function combineResult(results){
+    if (_.isEmpty(results)) return {status: 'error', result: [], message: "no results"};
+    var errors = results.filter(function(result) {
+        return 'success' != result.status;
+    });
+    return _.reduce(results, function(memo, msg) {
+        var result = msg.result ? memo.result.concat(msg.result) : memo.result;
+        return _.extend(memo, msg, {
+            status: memo.status != msg.status ? 'warning' : memo.status,
+            result: result
+        });
+    }, {
+        status: results[0].status,
+        result: [],
+        message: _.uniq(_.pluck(results, 'message').sort(), true).join('\n') || undefined,
+        error: _.isEmpty(errors) ? undefined : errors,
+        quote: _.isEmpty(errors) ? undefined : _.flatten(_.pluck(errors, 'quote'))
+    });
+}
+
 function rejectNormalizedError(error) {
     if (error.status != 'error' || error.message) {
         console.log(error);

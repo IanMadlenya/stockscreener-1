@@ -188,14 +188,14 @@ var screener = {
                 });
             },
 
-            screen: function(securityClasses, screens, asof, until, load) {
+            screen: function(securityClasses, screen, asof, until, load) {
                 return postDispatchMessage({
                     cmd: 'screen',
                     begin: asof,
                     end: until,
                     load: load,
                     securityClasses: securityClasses,
-                    screens: screens
+                    screen: screen
                 }).catch(function(data){
                     if (load !== false && data.status == 'warning')
                         return data.result;
@@ -203,30 +203,20 @@ var screener = {
                 });
             },
 
-            signal: function(securityClasses, entry, exit, begin, end) {
+            signals: function(securityClasses, screen, asof, until, load) {
                 return postDispatchMessage({
-                    cmd: 'signal',
-                    begin: begin,
-                    end: end,
+                    cmd: 'signals',
+                    begin: asof,
+                    end: until,
+                    load: load,
                     securityClasses: securityClasses,
-                    entry: entry,
-                    exit: exit
+                    screen: screen
                 }).catch(function(data){
-                    if (data.status == 'warning') return data.result;
+                    if (load !== false && data.status == 'warning')
+                        return data.result;
                     else return Promise.reject(data);
                 });
-            },
-
-            performance: function(securityClasses, entry, exit, begin, end) {
-                return postDispatchMessage({
-                    cmd: 'performance',
-                    begin: begin,
-                    end: end,
-                    securityClasses: securityClasses,
-                    entry: entry,
-                    exit: exit
-                });
-            },
+            }
 };
 
     function getExchange(iri) {
@@ -455,7 +445,7 @@ function loadQuotes(mic, ticker, expressions, length, interval, asof, rows) {
     };
 }
 
-function screenCheck(securityClasses, screens, asof, points) {
+function signalsCheck(securityClasses, screen, begin, end, points) {
     return function(done) {screener.listExchanges().then(_.values).then(function(result){
             expect(result.length).not.toBe(0);
             return result;
@@ -472,7 +462,7 @@ function screenCheck(securityClasses, screens, asof, points) {
                     })
                 });
             });
-            return screener.screen(lists, screens, asof, asof).then(function(result){
+            return screener.signals(lists, screen, begin, end).then(function(result){
                 var expected = points.map(function(point){
                     var symbol = point.symbol;
                     var mic = symbol.substring(0, symbol.indexOf(':'));
@@ -530,14 +520,14 @@ function screenIterator(exchange, ticker, expressions, length, interval, asof, r
 function these(message, list, func) {
     _.each(list, function(value) {
         var call = _.isArray(value) ? 'apply' : 'call';
-        it(message + ' ' + JSON.stringify(value), func[call](this, value));
+        it(message, func[call](this, value));
     });
 }
 
 function xthese(message, list, func) {
     _.each(list, function(value) {
         var call = _.isArray(value) ? 'apply' : 'call';
-        xit(message + ' ' + JSON.stringify(value), func[call](this, value));
+        xit(message, func[call](this, value));
     });
 }
 

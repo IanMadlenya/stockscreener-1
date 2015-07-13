@@ -30,49 +30,93 @@
  */
 
 function isArrayOf(func) {
-    return function(array, path) {
-        if (!_.isArray(array)) return false;
-        for (var i=0; i<array.length; i++) {
-            var ret = func(array[i], path);
+    return function(object, path) {
+        if (!_.isArray(object)) return false;
+        for (var i=0; i<object.length; i++) {
+            var ret = func(object[i], path);
             if (ret !== true) return ret;
         }
         return true;
     };
 }
 
-function isScreen(screen, path) {
-    return _.isObject(screen);
+function isScreen(object, path) {
+    return validate(object, path, _.isObject) &&
+        validate(object, path, isArrayOf(isFilter), 'watch') &&
+        validate(object, path, _.isUndefined, 'monitor') &&
+        validate(object, path, _.isUndefined, 'stop') &&
+        validate(object, path, optional(isArrayOf(isFilter)), 'hold');
 }
 
-function isSecurityClass(securityClass, path) {
-    return validate(securityClass, path, _.isObject) &&
-        validate(securityClass, path, isExchange, 'exchange') &&
-        validate(securityClass, path, _.isArray, 'includes') &&
-        validate(securityClass.includes, [path, 'includes'], isArrayOf(_.isString)) &&
-        validate(securityClass.includes, [path, 'includes'], isArrayOf(function(iri){
-            return iri.indexOf(securityClass.exchange.iri) == 0 ||
-                "must start with " + securityClass.exchange.iri + " not " + iri;
-        }));
+function isFilter(object, path) {
+    return validate(object, path, _.isObject) &&
+        validate(object, path, isIndicator, 'indicator') &&
+        validate(object, path, _.isUndefined, 'changeReference') &&
+        validate(object, path, optional(isIndicator), 'difference') &&
+        validate(object, path, optional(isIndicator), 'percentOf') &&
+        validate(object, path, optional(_.isNumber, _.isString), 'upper') &&
+        validate(object, path, optional(_.isNumber, _.isString), 'lower');
 }
 
-function isExchange(exchange, path) {
-    return validate(exchange, path, _.isObject) &&
-        validate(exchange, path, _.isString, 'iri') &&
-        validate(exchange, path, _.isString, 'tz') &&
-        validate(exchange, path, _.isString, 'mic') &&
-        validate(exchange, path, _.isString, 'marketOpensAt') &&
-        validate(exchange, path, _.isString, 'marketClosesAt') &&
-        //validate(exchange, path, _.isString, 'yahooSuffix') &&
-        //validate(exchange, path, _.isString, 'dtnPrefix') &&
-        validate(exchange, path, _.isString, 'marketLang') &&
-        validate(exchange, path, _.isString, 'exch') &&
-        validate(exchange, path, _.isString, 'morningstarCode');
+function isIndicator(object, path) {
+    return validate(object, path, _.isObject) &&
+        validate(object, path, _.isString, 'expression') &&
+        validate(object, path, isInterval, 'interval');
+}
+
+function isInterval(object, path) {
+    return ['m1', 'm5', 'm10', 'm30', 'm60', 'm120', 'd1', 'd5', 'quarter', 'annual'].indexOf(object) >= 0;
+}
+
+function isSecurityClass(object, path) {
+    return validate(object, path, _.isObject) &&
+        validate(object, path, isExchange, 'exchange') &&
+        validate(object, path, isArrayOf(_.isString), 'includes') &&
+        validate(object, path, isArrayOf(function(iri){
+            return iri.indexOf(object.exchange.iri) == 0 ||
+                "must start with " + object.exchange.iri + " not " + iri;
+        }), 'includes');
+}
+
+function isExchange(object, path) {
+    return validate(object, path, _.isObject) &&
+        validate(object, path, _.isString, 'iri') &&
+        validate(object, path, _.isString, 'tz') &&
+        validate(object, path, _.isString, 'mic') &&
+        validate(object, path, _.isString, 'marketOpensAt') &&
+        validate(object, path, _.isString, 'marketClosesAt') &&
+        validate(object, path, optional(_.isString), 'yahooSuffix') &&
+        validate(object, path, optional(_.isString), 'dtnPrefix') &&
+        validate(object, path, _.isString, 'marketLang') &&
+        validate(object, path, _.isString, 'exch') &&
+        validate(object, path, _.isString, 'morningstarCode');
+}
+
+function isISOString(object, path) {
+    return validate(object, path, _.isString) &&
+        object.match(/^\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+Z$/) &&
+        new Date(object).getFullYear() > 1900;
+}
+
+function optional(/* func.. */) {
+    return oneOf.apply(this, [_.isUndefined, _.isNull].concat(_.toArray(arguments)));
+}
+
+function oneOf(/* func.. */) {
+    var functions = _.toArray(arguments);
+    return function(object, path) {
+        return functions.reduce(function(ret, func) {
+            if (ret === true) return ret;
+            else return func(object, path);
+        }, false);
+    };
 }
 
 function validate(object, path, func, property) {
     var flatten = _.compact(_.flatten([path, property]));
-    var ret = func(property ? object[property] : object, flatten);
+    var value = property ? object[property] : object;
+    var ret = func(value, flatten);
     if (ret === true) return ret;
-    var msg = _.isString(ret) ? ret : "NOT " + (func.name || 'valid');
+    var msg = _.isString(ret) ? ret : "NOT " + (func.name || 'valid') + ' ' + value;
     throw Error(flatten.join('.') + " " + msg);
 }

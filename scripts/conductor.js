@@ -94,6 +94,10 @@ dispatch({
 
     'sector-list': serviceMessage.bind(this, services, 'list'),
 
+    'industry-list': serviceMessage.bind(this, services, 'list'),
+
+    'country-list': serviceMessage.bind(this, services, 'list'),
+
     'security-list': serviceMessage.bind(this, services, 'list'),
 
     lookup: function(data) {
@@ -124,143 +128,81 @@ dispatch({
         return Promise.all([m, q]).then(combineResult);
     }).bind(this, services),
 
+    signals: function(data) {
+        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
+        validate(data.screen, 'data.screen', isScreen);
+        validate(data.begin, 'data.begin', isISOString);
+        validate(data.begin, 'data.end', isISOString);
+        return promiseSecurities(services, data.securityClasses, function(exchange, security) {
+            var worker = services.mentat[getWorker(services.mentat, security)];
+            return retryAfterImport(services, {
+                cmd: 'signals',
+                begin: data.begin,
+                end: data.end,
+                screen: data.screen,
+                exchange: exchange,
+                security: security
+            }, worker, data.load).catch(function(error){
+                console.log("Could not load", security, error.status, error);
+                return normalizedError(error);
+            });
+        }).then(combineResult).then(function(data){
+            if (data.status != 'error' && data.result) return data;
+            return Promise.reject(data);
+        });
+    },
+
     screen: function(data) {
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
-        validate(data.screens, 'data.screens', isArrayOf(isScreen));
-        return screenSecurities(services, data.securityClasses, data.screens, data.begin, data.end, data.load);
-    },
-
-    signal: function(data){
-        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
-        return signal(services, intervals, data.securityClasses, data.entry, data.exit, data.begin, data.end);
-    },
-
-    performance: function(data){
-        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
-        return signal(services, intervals, data.securityClasses, data.entry, data.exit, data.begin, data.end).then(function(data){
-            return data.result;
-        }).then(function(signals){
-            var returns = _.reduce(_.groupBy(signals, 'security'), function(returns, signals, security){
-                var entry = null;
-                return signals.reduce(function(returns, exit, i, signals){
-                    if (!entry && (exit.signal == 'buy' || exit.signal == 'sell')) {
-                        entry = exit;
-                    } else if (entry.signal == 'sell' && exit.signal == 'buy') {
-                        returns.push((entry.price - exit.price) / entry.price);
-                        entry = null;
-                    } else if (entry.signal == 'buy' && exit.signal == 'sell') {
-                        returns.push((exit.price - entry.price) / entry.price);
-                        entry = null;
-                    }
-                    return returns;
-                }, returns);
-            }, []);
-            var rate = sum(returns);
-            var avg = rate / returns.length;
-            var sd = Math.sqrt(sum(returns.map(function(num){
-                var diff = num - avg;
-                return diff * diff;
-            })) / Math.max(returns.length-1,1));
-            return {
-                status: 'success',
-                result: {
-                    rate: rate,
-                    sd: sd === 0 ? 1 : sd,
-                    amount: returns.length
-                }
-            };
+        validate(data.screen, 'data.screen', isScreen);
+        validate(data.begin, 'data.begin', isISOString);
+        validate(data.begin, 'data.end', isISOString);
+        return promiseSecurities(services, data.securityClasses, function(exchange, security) {
+            var worker = services.mentat[getWorker(services.mentat, security)];
+            return retryAfterImport(services, {
+                cmd: 'screen',
+                begin: data.begin,
+                end: data.end,
+                screen: data.screen,
+                exchange: exchange,
+                security: security
+            }, worker, data.load).catch(function(error){
+                console.log("Could not load", security, error.status, error);
+                return normalizedError(error);
+            });
+        }).then(combineResult).then(function(data){
+            if (data.status != 'error' && data.result) return data;
+            return Promise.reject(data);
         });
     }
 });
 
-function sum(numbers) {
-    return numbers.reduce(function(sum, num){
-        return sum + num;
-    }, 0);
-}
-
-function signal(services, intervals, securityClasses, entry, exit, begin, end) {
+function promiseSecurities(services, securityClasses, iteratee) {
     var byExchange = _.groupBy(securityClasses, _.compose(_.property('iri'), _.property('exchange')));
     return Promise.all(_.map(byExchange, function(securityClasses) {
         var exchange = securityClasses[0].exchange;
-        return listSecurities(services, securityClasses).then(function(securities){
+        return listSecurities(services, securityClasses).then(function(securities) {
             return Promise.all(securities.map(function(security){
-                return findSignals(services, exchange, security, entry, exit, begin, end);
+                return iteratee(exchange, security);
             }));
         });
-    })).then(_.flatten).then(function(signals){
-        var error = signals.filter(_.property('status'));
-        var result = signals.filter(_.property('signal'));
-        if (!error.length) return {
-            status: 'success',
-            result: result
-        };
-        else if (!result.length) return Promise.reject({
-            status: 'error',
-            message: _.uniq(_.pluck(error, 'message').sort(), true).join('\n'),
-            error: error
-        });
-        else return {
-            status: 'warning',
-            result: result,
-            message: _.uniq(_.pluck(error, 'message').sort(), true).join('\n'),
-            error: error
-        };
-    });
-}
-
-function findSignals(services, exchange, security, entry, exit, begin, end) {
-    var worker = getWorker(services.mentat, security);
-    return retryAfterImport(services, {
-        cmd: 'signal',
-        begin: begin,
-        end: end,
-        entry: entry,
-        exit: exit,
-        exchange: exchange,
-        security: security
-    }, services.mentat[worker]).then(function(data){
-        return data.result;
-    }).catch(function(error){
-        console.log("Could not load", security, error.status, error);
-        return normalizedError(error);
-    });
-}
-
-function screenSecurities(services, securityClasses, screens, begin, end, load) {
-    var byExchange = _.groupBy(securityClasses, _.compose(_.property('iri'), _.property('exchange')));
-    return Promise.all(_.map(byExchange, function(securityClasses) {
-        var exchange = securityClasses[0].exchange;
-        var filter = filterSecurity.bind(this, services, screens, begin, end, load, exchange);
-        return listSecurities(services, securityClasses).then(function(securities) {
-            return Promise.all(securities.map(filter));
-        });
-    })).then(_.flatten).then(function(result) {
-        var groups = _.groupBy(_.compact(result), function(obj){
-            return obj.status && obj.status != 'success' ? 'error' : 'result';
-        });
-        var success = _.keys(groups).indexOf('error') < 0;
-        var warning =  groups.result && groups.error;
-        return _.extend({
-            status: success ? 'success' : warning ? 'warning' : 'error',
-            message: groups.error && _.uniq(_.pluck(groups.error, 'message').sort(), true).join('\n')
-        }, success ? {result: []} : {}, groups);
-    }).then(function(data){
-        if (data.status != 'error' && data.result) return data;
-        return Promise.reject(data);
+    })).then(function(results){
+        return _.flatten(results, true);
     });
 }
 
 function listSecurities(services, securityClasses) {
     return Promise.all(securityClasses.map(function(securityClass){
         return Promise.resolve(securityClass).then(function(securityClass){
-            if (!securityClass.includeSectors)
+            if (!securityClass.sectors)
                 return [];
-            return Promise.all(securityClass.includeSectors.map(function(sector){
+            return Promise.all(securityClass.sectors.map(function(sector){
                 return serviceMessage(services, 'list', {
                     cmd: 'security-list',
                     exchange: securityClass.exchange,
                     sector: sector,
+                    industries: securityClass.industries,
+                    countries: securityClass.countries,
                     mincap: securityClass.mincap,
                     maxcap: securityClass.maxcap
                 }).then(_.property('result'));
@@ -271,23 +213,6 @@ function listSecurities(services, securityClasses) {
             return includes.concat(_.difference(result, excludes));
         });
     })).then(_.flatten).then(_.uniq);
-}
-
-function filterSecurity(services, screens, begin, end, load, exchange, security){
-    var worker = getWorker(services.mentat, security);
-    return retryAfterImport(services, {
-        cmd: 'screen',
-        begin: begin,
-        end: end,
-        screens: screens,
-        exchange: exchange,
-        security: security
-    }, services.mentat[worker], load).then(function(data){
-        return data.result;
-    }).catch(function(error){
-        console.log("Could not load", security, error.status, error);
-        return normalizedError(error);
-    });
 }
 
 function retryAfterImport(services, data, port, load) {
@@ -356,17 +281,11 @@ function serviceMessage(services, name, data) {
     })).then(combineResult);
 }
 
-function combineResult(results){
-    return _.reduce(results, function(memo, msg) {
-        var result = msg.result.concat(memo.result);
-        return _.extend(memo, msg, {result: result});
-    }, {result: []});
-}
-
 var throttledLog = _.throttle(console.log.bind(console), 1000);
 function getWorker(workers, string) {
     var keys = _.keys(workers);
     var mod = keys.length;
+    if (!mod) throw Error("No workers");
     var w = (hashCode(string) % mod + mod) % mod;
     var key = keys[w];
     throttledLog("Called worker ", key);
