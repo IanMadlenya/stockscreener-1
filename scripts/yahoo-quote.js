@@ -48,11 +48,11 @@ onmessage = handle.bind(this, {
     validate: function(data) {
         if ('d1' != data.interval)
             return Promise.reject({status: 'error'});
-        return data.fields.reduce(function(memo, field){
+        return (data.fields || []).reduce(function(memo, field){
             if (['open','high','low','close','volume','adj_close'].indexOf(field) >= 0)
                 return memo;
             throw new Error("Unknown field: " + field);
-        }, {status: 'success'});
+        }, {status: 'success', interval: data.interval, fields: data.fields});
     },
 
     reset: function(data) {

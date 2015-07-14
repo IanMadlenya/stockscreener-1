@@ -70,9 +70,9 @@ onmessage = handle.bind(this, {
         return validateExpressions(parseCalculation.bind(this, data.exchange), intervals, data);
     },
     increment: function(data) {
-        if (!intervals[interval]) throw Error("Unknown interval: " + data.interval);
+        if (!intervals[data.interval.value]) throw Error("Unknown interval: " + data.interval.value);
         return data.exchanges.reduce(function(memo, exchange){
-            var period = createPeriod(intervals, data.interval, exchange);
+            var period = createPeriod(intervals, data.interval.value, exchange);
             var next = period.inc(data.asof, data.increment || 1);
             if (memo && ltDate(memo, next)) return memo;
             return next;
@@ -96,8 +96,8 @@ onmessage = handle.bind(this, {
         });
     },
     load: function(data) {
-        var period = createPeriod(intervals, data.interval, data.exchange);
-        if (!period) throw Error("Unknown interval: " + data.interval);
+        var period = createPeriod(intervals, data.interval.value, data.exchange);
+        if (!period) throw Error("Unknown interval: " + data.interval.value);
         return loadData(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security,
             data.length, data.lower, data.upper, period, data.expressions
         );
@@ -205,17 +205,17 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
         return [filter.indicator, filter.difference, filter.percentOf];
     }))).reduce(function(exprs, indicator){
         var expr = indicator.expression;
-        var interval = indicator.interval;
+        var interval = indicator.interval.value;
         if (!exprs[interval]) exprs[interval] = [];
         if (exprs[interval].indexOf(expr) < 0) exprs[interval].push(expr);
         return exprs;
     }, {});
     return function(period, after, asof, until) {
-        if (!datasets[period.interval]) {
-            datasets[period.interval] = loadData(parseCalculation, open, failfast, security,
-                1, asof, period.inc(upper, 1), period, exprs[period.interval]);
+        if (!datasets[period.value]) {
+            datasets[period.value] = loadData(parseCalculation, open, failfast, security,
+                1, asof, period.inc(upper, 1), period, exprs[period.value]);
         }
-        return datasets[period.interval].then(function(data){
+        return datasets[period.value].then(function(data){
             var idx = _.sortedIndex(data.result, {
                 asof: toISOString(asof)
             }, 'asof');
@@ -224,8 +224,8 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
             }, 'asof'), data.result[idx] && ltDate(data.result[idx].asof, asof, true) && idx, idx - 1);
             if (!data.result[i] || ltDate(until, data.result[i].asof)) return Promise.reject(_.extend(data, {
                 status: 'error',
-                message: "No results for interval: " + period.interval,
-                interval: period.interval
+                message: "No results for interval: " + period.value,
+                interval: period.value
             }));
             return _.extend({}, data, {
                 result: _.clone(data.result[i]),
@@ -238,9 +238,9 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
 function screenPeriods(intervals, exchange, filters) {
     var used = _.sortBy(_.compact(_.uniq(_.flatten(filters.map(function(filter){
             return [
-                filter.indicator.interval,
-                filter.difference && filter.difference.interval,
-                filter.percentOf && filter.percentOf.interval
+                filter.indicator.interval.value,
+                filter.difference && filter.difference.interval.value,
+                filter.percentOf && filter.percentOf.interval.value
             ];
     })))), function(interval) {
         if (!intervals[interval]) throw Error("Unknown interval: " + interval);
@@ -303,7 +303,7 @@ function holdSecurity(screen, filters, watching, begin, end) {
 
 function screenSecurity(periods, load, security, signal, filters, watching, begin, end){
     if (!filters.length) return Promise.resolve({status: 'success'});
-    var getInterval = _.compose(_.property('interval'), _.property('indicator'));
+    var getInterval = _.compose(_.property('value'), _.property('interval'), _.property('indicator'));
     var byInterval = _.groupBy(filters, getInterval);
     var sorted = _.sortBy(_.keys(byInterval), function(interval) {
         if (!periods[interval]) throw Error("Unknown interval: " + interval);
@@ -339,11 +339,11 @@ function filterSecurityByPeriods(load, signal, watching, periodsAndFilters, afte
         if (data.status != 'success' || !rest.length) return {
             status: data.status,
             quote: data.quote,
-            result: _.object([period.interval, 'price', 'asof'], [data.result, data.result.close, data.result.asof]),
+            result: _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof]),
             until: data.until
         };
-        var reference = watching[period.interval] ? watching :
-            _.extend(_.object([period.interval],[data.result]), watching);
+        var reference = watching[period.value] ? watching :
+            _.extend(_.object([period.value],[data.result]), watching);
         var start = maxDate(lower, data.result.asof);
         return filterSecurityByPeriods(load, signal, reference, rest, data.result.asof, start, start, minDate(upper, data.until)).then(function(child){
             if (ltDate(upper, data.until) ||
@@ -352,7 +352,7 @@ function filterSecurityByPeriods(load, signal, watching, periodsAndFilters, afte
                     signal == 'hold') return {
                 status: child.status,
                 quote: _.compact(_.flatten([data.quote, child.quote])),
-                result: _.extend(_.object([period.interval], [data.result]), child.result),
+                result: _.extend(_.object([period.value], [data.result]), child.result),
                 until:  child.until
             };
             return filterSecurityByPeriods(load, signal, watching, periodsAndFilters, after, lower, data.until, upper);
@@ -384,8 +384,8 @@ function loadFilteredPoint(load, period, filters, watching, after, begin, until)
     return load(period, after, minDate(begin,until), until).then(function(data){
         var pass =_.reduce(filters, function(pass, filter) {
             if (!pass) return false;
-            var reference = watching[period.interval] ? watching :
-                _.extend(_.object([period.interval],[data.result]), watching);
+            var reference = watching[period.value] ? watching :
+                _.extend(_.object([period.value],[data.result]), watching);
             var diff = valueOf(filter.difference, reference);
             var of = valueOf(filter.percentOf, reference);
             var x = data.result[filter.indicator.expression] - diff;
@@ -413,7 +413,7 @@ function loadFilteredPoint(load, period, filters, watching, after, begin, until)
 }
 
 function valueOf(indicator, watching) {
-    var int = indicator && indicator.interval;
+    var int = indicator && indicator.interval.value;
     if (!int || !watching[int]) return 0;
     return watching[int][indicator.expression];
 }
@@ -511,7 +511,7 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
                     total_volume: point.total_volume,
                     high: Math.max(preceding.high, point.high),
                     low: Math.min(preceding.low, point.low),
-                    volume: period.interval.charAt(0) == 'd' ?
+                    volume: period.value.charAt(0) == 'd' ?
                         Math.round((preceding.volume * count + point.volume) / (++count)) :
                         (preceding.volume + point.volume)
                 };
@@ -548,7 +548,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                     result: result,
                     quote: [{
                         security: security,
-                        interval: period.interval,
+                        interval: period.value,
                         result: result,
                         start: period.format(result[result.length - 1].asof)
                     }]
@@ -559,14 +559,14 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
             // need more historic data
             var quote = [{
                 security: security,
-                interval: period.interval,
+                interval: period.value,
                 start: period.format(period.dec(earliest, 2 * (length - below))),
                 end: period.format(result[0].asof)
             }];
             if (ltDate(next, upper)) {
                 quote.push({
                     security: security,
-                    interval: period.interval,
+                    interval: period.value,
                     start: period.format(result[result.length - 1].asof)
                 });
             }
@@ -587,7 +587,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                     message: 'No data points available',
                     quote: [{
                         security: security,
-                        interval: period.interval,
+                        interval: period.value,
                         start: period.format(start),
                         end: earliest && period.format(earliest.asof)
                     }]
@@ -626,7 +626,7 @@ function importData(open, period, security, result) {
 
 function storeData(open, security, period, data) {
     if (!data.length) return Promise.resolve(data);
-    console.log("Storing", data.length, period.interval, security, data[data.length-1]);
+    console.log("Storing", data.length, period.value, security, data[data.length-1]);
     return open(security, period, "readwrite", function(store, resolve, reject){
         var counter = 0;
         var onsuccess = function(){
@@ -767,12 +767,12 @@ function validateExpressions(parseCalculation, intervals, data) {
     var errorMessage = calc.getErrorMessage();
     if (errorMessage) {
         throw new Error(errorMessage);
-    } else if (!data.interval || intervals[data.interval]) {
+    } else if (!data.interval || intervals[data.interval.value]) {
         return {
             status: 'success'
         };
     } else {
-        throw new Error("Invalid interval: " + data.interval);
+        throw new Error("Invalid interval: " + data.interval.value);
     }
 }
 
@@ -787,7 +787,7 @@ function createPeriod(intervals, interval, exchange) {
     var period = intervals[interval];
     var self = {};
     return period && _.extend(self, period, {
-        interval: period.storeName,
+        value: period.value,
         tz: exchange.tz,
         marketClosesAt: exchange.marketClosesAt,
         derivedFrom: period.derivedFrom && createPeriod(intervals, period.derivedFrom.storeName, exchange),

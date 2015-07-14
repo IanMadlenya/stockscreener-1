@@ -43,11 +43,11 @@ var handler = {
     validate: function(data) {
         if ('m1' != data.interval && 'm10' != data.interval && 'm60' != data.interval)
             return Promise.reject({status: 'error'});
-        return data.fields.reduce(function(memo, field){
+        return (data.fields || []).reduce(function(memo, field){
             if (['open','high','low','close','volume','total_volume'].indexOf(field) >= 0)
                 return memo;
             throw new Error("Unknown field: " + field);
-        }, {status: 'success'});
+        }, {status: 'success', interval: data.interval, fields: data.fields});
     },
 
     reset: function(data) {
@@ -120,6 +120,8 @@ function registerDtnQuote() {
                     return Promise.resolve(handler[data.cmd || data](data));
                 }
             });
+        }, function(){
+            console.log("Intraday data is not available");
         });
     }
 }
@@ -133,59 +135,64 @@ chrome.runtime.onSuspendCanceled.addListener(registerDtnQuote);
 function openHIT(blacklist){
     var seq = 0;
     var pending = {};
-    var lookupSocketIdPromise = Promise.reject();
+    var lookupSocketIdPromise;
     return function(options) {
-        if (options == 'close') {
+        return Promise.resolve(options).then(function(options){
+            if (options == 'close') {
+                return promiseLookupSocketId().then(function(socketId){
+                    chrome.sockets.tcp.close(socketId);
+                });
+            } else if (options == 'open') {
+                return promiseLookupSocketId();
+            }
+            if (!options || !options.symbol)
+                throw Error("Missing symbol in " + JSON.stringify(options));
             return promiseLookupSocketId().then(function(socketId){
-                chrome.sockets.tcp.close(socketId);
-            }, console.error.bind(console));
-        } else if (options == 'open') {
-            return promiseLookupSocketId().catch(console.error.bind(console));
-        }
-        if (!options || !options.symbol)
-            throw Error("Missing symbol in " + JSON.stringify(options));
-        return promiseLookupSocketId().then(function(socketId){
-            return new Promise(function(callback, onerror){
-                if (blacklist[options.symbol])
-                    throw Error(blacklist[options.symbol] + ": " + options.symbol);
-                var id = ++seq;
-                var cmd = ["HIT"];
-                cmd.push(options.symbol);
-                cmd.push(options.seconds);
-                cmd.push(options.begin);
-                cmd.push(options.end || '');
-                cmd.push(options.maxDatapoints || '');
-                cmd.push(options.beginFilterTime || '');
-                cmd.push(options.endFilterTime || '');
-                cmd.push(options.dataDirection || '0');
-                cmd.push(id);
-                cmd.push(options.datapointsPerSend || '');
-                cmd.push('s');
-                var msg = cmd.join(',');
-                pending[id] = {
-                    symbol: options.symbol,
-                    cmd: msg,
-                    buffer:[],
-                    callback: function(result) {
-                        delete pending[id];
-                        return callback(result);
-                    },
-                    error: function(e) {
-                        delete pending[id];
-                        return onerror(e);
-                    }
-                };
-                console.log(msg);
-                chrome.sockets.tcp.send(socketId, str2ab(msg + '\r\n'), function(sendInfo) {
-                    if (sendInfo.resultCode < 0) {
-                        console.error(sendInfo);
-                    }
+                return new Promise(function(callback, onerror){
+                    if (blacklist[options.symbol])
+                        throw Error(blacklist[options.symbol] + ": " + options.symbol);
+                    var id = ++seq;
+                    var cmd = ["HIT"];
+                    cmd.push(options.symbol);
+                    cmd.push(options.seconds);
+                    cmd.push(options.begin);
+                    cmd.push(options.end || '');
+                    cmd.push(options.maxDatapoints || '');
+                    cmd.push(options.beginFilterTime || '');
+                    cmd.push(options.endFilterTime || '');
+                    cmd.push(options.dataDirection || '0');
+                    cmd.push(id);
+                    cmd.push(options.datapointsPerSend || '');
+                    cmd.push('s');
+                    var msg = cmd.join(',');
+                    pending[id] = {
+                        symbol: options.symbol,
+                        cmd: msg,
+                        buffer:[],
+                        callback: function(result) {
+                            delete pending[id];
+                            return callback(result);
+                        },
+                        error: function(e) {
+                            delete pending[id];
+                            return onerror(e);
+                        }
+                    };
+                    console.log(msg);
+                    chrome.sockets.tcp.send(socketId, str2ab(msg + '\r\n'), function(sendInfo) {
+                        if (sendInfo.resultCode < 0) {
+                            console.error(sendInfo);
+                        }
+                    });
                 });
             });
         });
     };
     function promiseLookupSocketId() {
-        return lookupSocketIdPromise = lookupSocketIdPromise.then(function(socketId){
+        if (!_.some(_.compose(_.property('connect'), _.property('tcp'))(chrome.runtime.getManifest().sockets), function(connect){
+            return connect && connect.indexOf(":9100") >= 0;
+        })) return Promise.reject();
+        return lookupSocketIdPromise = (lookupSocketIdPromise || Promise.reject()).then(function(socketId){
             return new Promise(function(callback){
                 chrome.sockets.tcp.getInfo(socketId, callback);
             }).then(function(socketInfo) {
@@ -193,9 +200,9 @@ function openHIT(blacklist){
                 else throw Error("Socket not connected");
             });
         }).catch(function(){
-            console.log("Opening TCP Socket", 9100);
             return promiseAdminSocketId().catch(console.error.bind(console)).then(function(){
                 return new Promise(function(oncreate) {
+                    console.log("Opening TCP Socket", 9100);
                     chrome.sockets.tcp.create({}, oncreate);
                 });
             }).then(function(createInfo) {
@@ -258,8 +265,8 @@ function openHIT(blacklist){
     }
 
     function promiseAdminSocketId() {
-        console.log("Opening TCP Socket", 9300);
         return new Promise(function(callback) {
+            console.log("Opening TCP Socket", 9300);
             chrome.sockets.tcp.create({}, callback);
         }).then(function(createInfo) {
             return createInfo.socketId;

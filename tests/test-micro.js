@@ -95,102 +95,102 @@ describe("Micro", function(){
                 watch:[{
                     indicator: {
                         expression: "F-Score()",
-                        interval: "annual"
+                        interval: {value: 'annual'}
                     },
                     lower: "5"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "d5"
+                        interval: {value: 'd5'}
                     },
                     lower: "5"
                 }, {
                     indicator: {
                         expression: "volume",
-                        interval: "d5"
+                        interval: {value: 'd5'}
                     },
                     lower: "100000"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference: {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf: {
                         expression: "STDEV(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "-200"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference: {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf : {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "-4"
                 }, {
                     indicator: {
                         expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "25"
                 }, {
                     indicator: {
                         expression: "POC(6)",
-                        interval: "m60"
+                        interval: {value: 'm60'}
                     },
                     difference: {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf: {
                         expression: "STDEV(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     lower: "-200"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "m10"
+                        interval: {value: 'm10'}
                     },
                     difference: {
                         expression: "POC(6)",
-                        interval: "m60"
+                        interval: {value: 'm60'}
                     },
                     upper: "0"
                 }],
                 hold:[{
                     indicator: {
                         expression: "WORKDAY(asof,0)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference: {
                         expression:"WORKDAY(asof,10)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "0"
                 },{
                     indicator:{
                         expression:"close",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference:{
                         expression:"SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf:{
                         expression:"SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper:"0",
                     lower: "-15"
@@ -216,102 +216,102 @@ describe("Micro", function(){
                 watch:[{
                     indicator: {
                         expression: "F-Score()",
-                        interval: "annual"
+                        interval: {value: 'annual'}
                     },
                     lower: "5"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "d5"
+                        interval: {value: 'd5'}
                     },
                     lower: "5"
                 }, {
                     indicator: {
                         expression: "volume",
-                        interval: "d5"
+                        interval: {value: 'd5'}
                     },
                     lower: "100000"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference: {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf: {
                         expression: "STDEV(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "-200"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference: {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf: {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "-4"
                 }, {
                     indicator: {
                         expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "25"
                 }, {
                     indicator: {
                         expression: "POC(6)",
-                        interval: "m60"
+                        interval: {value: 'm60'}
                     },
                     difference: {
                         expression: "SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf: {
                         expression: "STDEV(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     lower: "-200"
                 }, {
                     indicator: {
                         expression: "close",
-                        interval: "m10"
+                        interval: {value: 'm10'}
                     },
                     difference: {
                         expression: "POC(6)",
-                        interval: "m60"
+                        interval: {value: 'm60'}
                     },
                     upper: "0"
                 }],
                 hold:[{
                     indicator: {
                         expression: "WORKDAY(asof,0)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference:{
                         expression:"WORKDAY(asof,10)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper: "0"
                 },{
                     indicator:{
                         expression:"close",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     difference:{
                         expression:"SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     percentOf:{
                         expression:"SMA(20,close)",
-                        interval: "d1"
+                        interval: {value: 'd1'}
                     },
                     upper:"0",
                     lower: "-15"

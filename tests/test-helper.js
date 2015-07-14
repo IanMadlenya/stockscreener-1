@@ -143,7 +143,7 @@ var screener = {
                 return postDispatchMessage({
                     cmd: 'validate',
                     expression: expression,
-                    interval: int
+                    interval: {value: int}
                 });
             },
             listExchanges: function() {
@@ -180,7 +180,7 @@ var screener = {
                         exchange: exchange,
                         security: security,
                         expressions: expressions,
-                        interval: int,
+                        interval: {value: int},
                         length: length,
                         lower: lower,
                         upper: upper || lower
@@ -498,7 +498,7 @@ function screenIterator(exchange, ticker, expressions, length, interval, asof, r
                 return {
                     indicator:{
                         expression: expression,
-                        interval: interval
+                        interval: {value: interval}
                     }
                 };
             })

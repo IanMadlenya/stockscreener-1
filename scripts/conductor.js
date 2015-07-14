@@ -55,18 +55,23 @@ dispatch({
     },
 
     validate: (function(services, data){
-        var interval = data.interval;
-        var key = getWorker(services.mentat, data.expression);
-        return services.mentat[key].promiseMessage({
-            cmd: 'fields',
-            expressions: [data.expression]
-        }).then(function(data){
-            return data.result;
+        validate(data.interval, 'data.interval', isInterval);
+        var derivedFrom = intervals[data.interval.value].derivedFrom;
+        var interval = derivedFrom ? derivedFrom : data.interval;
+        return Promise.resolve(data).then(function(data){
+            if (!data.expression) return [];
+            var key = getWorker(services.mentat, data.expression);
+            return services.mentat[key].promiseMessage({
+                cmd: 'fields',
+                expressions: [data.expression]
+            }).then(function(data){
+                return data.result;
+            });
         }).then(function(fields){
             return Promise.all(_.map(services.quote, function(quote, key){
                 return quote.promiseMessage({
                     cmd: 'validate',
-                    interval: interval,
+                    interval: interval.value,
                     fields: _.without(fields, 'asof')
                 }).catch(Promise.resolve.bind(Promise));
             }));
@@ -75,7 +80,7 @@ dispatch({
                 return result.status == 'success' || result.message;
             });
         }).then(function(results){
-            if (!results.length) throw new Error("Unknown interval: " + data.interval);
+            if (!results.length) throw new Error("Unknown interval: " + data.interval.value);
             return results;
         }).then(function(results){
             if (_.every(results, function(result){
@@ -90,6 +95,28 @@ dispatch({
     increment: function(data) {
         var worker = getWorker(services.mentat, data.asof.toString());
         return services.mentat[worker].promiseMessage(data);
+    },
+
+    'indicator-list': function() {
+        return Promise.all(_.values(intervals).map(function(interval){
+            return Promise.all(_.map(services.quote, function(quote, key){
+                return quote.promiseMessage({
+                    cmd: 'validate',
+                    interval: interval.value
+                }).catch(Promise.resolve.bind(Promise));
+            }));
+        })).then(_.flatten).then(function(results){
+            return _.pluck(results.filter(function(result){
+                return result.status == 'success';
+            }), 'interval');
+        }).then(_.uniq).then(_.compact).then(function(result){
+            return _.sortBy(_.keys(intervals).filter(function(interval){
+                var derivedFrom = intervals[interval].derivedFrom;
+                return _.contains(result, interval) || derivedFrom && _.contains(result, derivedFrom.value);
+            }), function(interval){
+                return intervals[interval].millis;
+            });
+        });
     },
 
     'sector-list': serviceMessage.bind(this, services, 'list'),
@@ -116,6 +143,11 @@ dispatch({
 
     load: (function(services, data) {
         validate(data.exchange, 'data.exchange', isExchange);
+        validate(data.security, 'data.security', _.isString);
+        validate(data.interval, 'data.interval', isInterval);
+        validate(data.length, 'data.length', _.isFinite);
+        validate(data.lower, 'data.lower', isISOString);
+        validate(data.upper, 'data.upper', isISOString);
         var worker = getWorker(services.mentat, data.security);
         return retryAfterImport(services, data, services.mentat[worker]).then(function(data){
             return data.result;

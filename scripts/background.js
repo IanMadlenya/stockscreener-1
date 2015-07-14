@@ -99,7 +99,7 @@ function dispatch(handler) {
             server.listen(port);
             var xhr = new XMLHttpRequest();
             xhr.onloadend = function() {
-                var launch = xhr.status == 200 ? xhr.responseText :
+                var launch = xhr.status == 200 ? xhr.responseText.replace(/\s+$/,'') :
                     "http://localhost:" + port + "/pages/launch.html";
                 chrome.identity.getProfileUserInfo(function(userInfo){
                     server.addEventListener('request', handleWebRequest.bind(this,
@@ -136,6 +136,7 @@ function dispatch(handler) {
                         "?version=" + chrome.runtime.getManifest().version +
                         "&email=" + encodeURIComponent(email) +
                         "#socket=ws://" + host + "/";
+                console.log('Redirected ' + redirect);
                 req.writeHead(302, {
                     'Location': redirect
                 });

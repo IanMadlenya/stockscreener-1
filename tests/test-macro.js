@@ -173,7 +173,7 @@ describe("Macro", function(){
                     watch:[{
                         indicator: {
                             expression: 'volume',
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         lower: 415800
                     }]
@@ -190,7 +190,7 @@ describe("Macro", function(){
                 watch:[{
                     indicator:{
                         expression:"F-Score()",
-                        interval: "annual"
+                        interval: {value: 'annual'}
                     }
                 }]
             },new Date(2015, 0, 1),new Date(2015, 3, 4)).then(function(result){
@@ -210,22 +210,22 @@ describe("Macro", function(){
                     watch:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         upper: "135.00"
                     }],
                     hold:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         difference: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         percentOf: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         upper: "4"
                     }]
@@ -248,22 +248,22 @@ describe("Macro", function(){
                     watch:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         upper: "135.00"
                     }],
                     hold:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         difference: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         percentOf: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         upper: "4"
                     }]
@@ -291,14 +291,14 @@ describe("Macro", function(){
                     watch:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         lower: "140.00"
                     }],
                     hold:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         lower: "140.00"
                     }]
@@ -330,30 +330,30 @@ describe("Macro", function(){
                     watch:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         difference: {
                             expression: "close",
-                            interval: 'd5'
+                            interval: {value: 'd5'}
                         },
                         percentOf: {
                             expression: "close",
-                            interval: 'd5'
+                            interval: {value: 'd5'}
                         },
                         upper: "-4"
                     }],
                     hold:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         difference: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         percentOf: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         upper: "4",
                         lower: "-4"
@@ -379,14 +379,14 @@ describe("Macro", function(){
                     watch:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         lower: "140.00"
                     }],
                     hold:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         },
                         lower: "140.00"
                     }]
@@ -403,7 +403,7 @@ describe("Macro", function(){
                     watch:[{
                         indicator: {
                             expression: "close",
-                            interval: 'd1'
+                            interval: {value: 'd1'}
                         }
                     }]
                 }, new Date('2014-10-10'),new Date('2014-10-11')).then(function(result){

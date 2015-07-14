@@ -31,6 +31,7 @@
 
 var intervals = (function(_, moment) {
     var m1 = {
+        value: 'm1',
         storeName: 'm1',
         millis: 60 * 1000,
         floor: function(exchange, dateTime, amount) {
@@ -85,6 +86,7 @@ var intervals = (function(_, moment) {
     };
     var m5 = {
         derivedFrom: m1,
+        value: 'm5',
         storeName: 'm5',
         aggregate: 5,
         millis: 5 * 60 * 1000,
@@ -102,6 +104,7 @@ var intervals = (function(_, moment) {
         }
     };
     var m10 = {
+        value: 'm10',
         storeName: 'm10',
         millis: 10 * 60 * 1000,
         floor: function(exchange, dateTime) {
@@ -119,6 +122,7 @@ var intervals = (function(_, moment) {
     };
     var m30 = {
         derivedFrom: m10,
+        value: 'm30',
         storeName: 'm30',
         aggregate: 3,
         millis: 30 * 60 * 1000,
@@ -136,6 +140,7 @@ var intervals = (function(_, moment) {
         }
     };
     var m60 = {
+        value: 'm60',
         storeName: 'm60',
         millis: 60 * 60 * 1000,
         floor: function(exchange, dateTime) {
@@ -156,6 +161,7 @@ var intervals = (function(_, moment) {
     };
     var m120 = {
         derivedFrom: m60,
+        value: 'm120',
         storeName: 'm120',
         aggregate: 2,
         millis: 120 * 60 * 1000,
@@ -177,6 +183,7 @@ var intervals = (function(_, moment) {
         }
     };
     var d1 = {
+        value: 'd1',
         storeName: 'd1',
         millis: 24 * 60 * 60 * 1000,
         floor: function(exchange, dateTime) {
@@ -207,6 +214,7 @@ var intervals = (function(_, moment) {
     };
     var d5 = {
         derivedFrom: d1,
+        value: 'd5',
         storeName: 'd5',
         aggregate: 5,
         millis: 7 * 24 * 60 * 60 * 1000,
@@ -229,6 +237,7 @@ var intervals = (function(_, moment) {
         }
     };
     var quarter = {
+        value: 'quarter',
         storeName: 'quarter',
         millis: 3 * 31 * 24 * 60 * 60 * 1000,
         floor: function(exchange, dateTime) {
@@ -250,6 +259,7 @@ var intervals = (function(_, moment) {
         }
     };
     var annual = {
+        value: 'annual',
         storeName: 'annual',
         millis: 365 * 24 * 60 * 60 * 1000,
         floor: function(exchange, dateTime) {

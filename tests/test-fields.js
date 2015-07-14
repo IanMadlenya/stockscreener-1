@@ -32,9 +32,37 @@
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60;
 
 describe("Validation", function(){
-    these("should validate field", [
+    these("should validate d1 field", [
         "open", "low", "high", "close", "asof", "adj_close"
     ], isValid('d1'));
+
+    these("should validate d5 field", [
+        "open", "low", "high", "close", "asof", "adj_close"
+    ], isValid('d5'));
+
+    these("should validate m1 field", [
+        "open", "low", "high", "close", "asof", "total_volume"
+    ], isValid('m1'));
+
+    these("should validate m5 field", [
+        "open", "low", "high", "close", "asof", "total_volume"
+    ], isValid('m5'));
+
+    these("should validate m10 field", [
+        "open", "low", "high", "close", "asof", "total_volume"
+    ], isValid('m10'));
+
+    these("should validate m30 field", [
+        "open", "low", "high", "close", "asof", "total_volume"
+    ], isValid('m30'));
+
+    these("should validate m60 field", [
+        "open", "low", "high", "close", "asof", "total_volume"
+    ], isValid('m60'));
+
+    these("should validate m120 field", [
+        "open", "low", "high", "close", "asof", "total_volume"
+    ], isValid('m120'));
 
     these("should validate expression", [
         "asof", "SMA(20,close)", "EMA(21,close)"

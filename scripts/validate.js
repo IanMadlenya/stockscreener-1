@@ -65,7 +65,10 @@ function isIndicator(object, path) {
 }
 
 function isInterval(object, path) {
-    return ['m1', 'm5', 'm10', 'm30', 'm60', 'm120', 'd1', 'd5', 'quarter', 'annual'].indexOf(object) >= 0;
+    return validate(object, path, _.isObject) &&
+        validate(object, path, function(value){
+            return _.contains(['m1','m5','m10','m30','m60','m120','d1','d5','quarter','annual'], value);
+        }, 'value');
 }
 
 function isSecurityClass(object, path) {
