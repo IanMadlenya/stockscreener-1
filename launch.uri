@@ -1,1 +1,3 @@
-http://localhost:8080/screener/2015/launch
+# launch.uri
+# URL to open when app is launched
+http://localhost:8080/screener/screener-master/launch

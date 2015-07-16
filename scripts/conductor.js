@@ -54,6 +54,15 @@ dispatch({
         });
     },
 
+    profile: function(data){
+        return new Promise(function(callback){
+            console.log("Setting launch profile " + data.launch);
+            chrome.storage.local.set({launch: data.launch}, callback);
+        }).then(function(){
+            return {status: "success"};
+        });
+    },
+
     validate: (function(services, data){
         validate(data.interval, 'data.interval', isInterval);
         var derivedFrom = intervals[data.interval.value].derivedFrom;

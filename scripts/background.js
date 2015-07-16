@@ -97,10 +97,7 @@ function dispatch(handler) {
             var server = new http.Server();
             var wsServer = new http.WebSocketServer(server);
             server.listen(port);
-            var xhr = new XMLHttpRequest();
-            xhr.onloadend = function() {
-                var launch = xhr.status == 200 ? xhr.responseText.replace(/\s+$/,'') :
-                    "http://localhost:" + port + "/pages/launch.html";
+            promiseLaunchURL(port).then(function(launch){
                 chrome.identity.getProfileUserInfo(function(userInfo){
                     server.addEventListener('request', handleWebRequest.bind(this,
                         launch, {
@@ -115,14 +112,30 @@ function dispatch(handler) {
                         'txt': 'text/plain'
                     }, port, userInfo.email));
                 });
-            };
-            xhr.open('GET', "launch.uri", true);
-            xhr.send();
+            });
             wsServer.addEventListener('request', handleSocketRequest);
             return port;
         }).then(function(port){
             console.log("Listening on http://localhost:" + port + "/");
         }, console.error.bind(console));
+    }
+
+    function promiseLaunchURL(port) {
+        return new Promise(function(callback){
+            chrome.storage.local.get(["launch"], callback);
+        }).then(function(items){
+            if (items.launch) return items.launch;
+            var xhr = new XMLHttpRequest();
+            return new Promise(function(callback){
+                xhr.onloadend = callback;
+                xhr.open('GET', "launch.uri", true);
+                xhr.send();
+            }).then(function(){
+                return xhr.status == 200 ?
+                    xhr.responseText.replace(/(^|\s)#.*/g,'').replace(/^\s*/,'').replace(/\s+$/,'') :
+                    "http://localhost:" + port + "/pages/launch.html";
+            });
+        });
     }
 
     function handleWebRequest(launch_url, extensionTypes, port, email, req) {
@@ -132,8 +145,8 @@ function dispatch(handler) {
             xhr.onloadend = function() {
                 var redirect = xhr.status < 200 || xhr.status >= 400 ?
                     "http://localhost:" + port + "/pages/launch.html" :
-                    launch_url +
-                        "?version=" + chrome.runtime.getManifest().version +
+                    launch_url + (launch_url.indexOf('?') > 0 ? '&' : '?') +
+                        "version=" + chrome.runtime.getManifest().version +
                         "&email=" + encodeURIComponent(email) +
                         "#socket=ws://" + host + "/";
                 console.log('Redirected ' + redirect);
