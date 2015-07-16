@@ -24,10 +24,14 @@ The source code of this app is licensed under the BSD, a copy is provided in the
 
 > You will need to have a git client installed, such as [GitHub for Windows](https://windows.github.com/).
 
-> You will need to install and run the [Callimachus Web Server](http://callimachusproject.org/).
+> You will need to install and run the [Callimachus Web Server](http://callimachusproject.org/), version 1.4.
+
+The Probability Stock Screener source code is spread across two git repository:
+* *stockscreener* contains the Chrome App data feed
+* *screener* contains the Web application interface
 
 1. Clone the git repository https://github.com/ptrading/screener.git from [github](https://github.com/ptrading/screener).
-2. Using an ZIP utility create a ZIP file of the contents of the repository, or [download it here](https://github.com/ptrading/screener/archive/master.zip).
+2. Using an ZIP utility create a ZIP file of the contents of the repository (excluding .git), or [download it here](https://github.com/ptrading/screener/archive/master.zip).
 3. From the Callimachus [home folder](http://localhost:8080/?view) select "Import folder contents" from the main menu.
 4. Choose the ZIP file from step 2 and import into a sub folder, such as "screener".
 5. Clone the git repository https://github.com/ptrading/stockscreener.git from [github](https://github.com/ptrading/stockscreener).
