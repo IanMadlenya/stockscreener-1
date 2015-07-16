@@ -221,7 +221,7 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
             }, 'asof');
             var i = Math.max(_.sortedIndex(data.result, {
                 asof: toISOString(after)
-            }, 'asof'), data.result[idx] && ltDate(data.result[idx].asof, asof, true) && idx, idx - 1);
+            }, 'asof'), data.result[idx] && ltDate(data.result[idx].asof, asof, true) && idx || 0, idx - 1);
             if (!data.result[i] || ltDate(until, data.result[i].asof)) return Promise.reject(_.extend(data, {
                 status: 'error',
                 message: "No results for interval: " + period.value,
