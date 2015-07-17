@@ -97,21 +97,18 @@ function dispatch(handler) {
             var server = new http.Server();
             var wsServer = new http.WebSocketServer(server);
             server.listen(port);
-            promiseLaunchURL(port).then(function(launch){
-                chrome.identity.getProfileUserInfo(function(userInfo){
-                    server.addEventListener('request', handleWebRequest.bind(this,
-                        launch, {
-                        'css': 'text/css',
-                        'html': 'text/html',
-                        'htm': 'text/html',
-                        'jpg': 'image/jpeg',
-                        'jpeg': 'image/jpeg',
-                        'js': 'text/javascript',
-                        'png': 'image/png',
-                        'svg': 'image/svg+xml',
-                        'txt': 'text/plain'
-                    }, port, userInfo.email));
-                });
+            chrome.identity.getProfileUserInfo(function(userInfo){
+                server.addEventListener('request', handleWebRequest.bind(this, {
+                    'css': 'text/css',
+                    'html': 'text/html',
+                    'htm': 'text/html',
+                    'jpg': 'image/jpeg',
+                    'jpeg': 'image/jpeg',
+                    'js': 'text/javascript',
+                    'png': 'image/png',
+                    'svg': 'image/svg+xml',
+                    'txt': 'text/plain'
+                }, port, userInfo.email));
             });
             wsServer.addEventListener('request', handleSocketRequest);
             return port;
@@ -120,43 +117,16 @@ function dispatch(handler) {
         }, console.error.bind(console));
     }
 
-    function promiseLaunchURL(port) {
-        return new Promise(function(callback){
-            chrome.storage.local.get(["launch"], callback);
-        }).then(function(items){
-            if (items.launch) return items.launch;
-            var xhr = new XMLHttpRequest();
-            return new Promise(function(callback){
-                xhr.onloadend = callback;
-                xhr.open('GET', "launch.uri", true);
-                xhr.send();
-            }).then(function(){
-                return xhr.status == 200 ?
-                    xhr.responseText.replace(/(^|\s)#.*/g,'').replace(/^\s*/,'').replace(/\s+$/,'') :
-                    "http://localhost:" + port + "/pages/launch.html";
-            });
-        });
-    }
-
-    function handleWebRequest(launch_url, extensionTypes, port, email, req) {
-        var xhr = new XMLHttpRequest();
+    function handleWebRequest(extensionTypes, port, email, req) {
         if (req.headers.url == '/') {
             var host = req.headers.host || ('localhost:' + port);
-            xhr.onloadend = function() {
-                var redirect = xhr.status < 200 || xhr.status >= 400 ?
-                    "http://localhost:" + port + "/pages/launch.html" :
-                    launch_url + (launch_url.indexOf('?') > 0 ? '&' : '?') +
-                        "version=" + chrome.runtime.getManifest().version +
-                        "&email=" + encodeURIComponent(email) +
-                        "#socket=ws://" + host + "/";
+            promiseLaunchURL(host, email).then(function(redirect){
                 console.log('Redirected ' + redirect);
                 req.writeHead(302, {
                     'Location': redirect
                 });
                 req.end();
-            };
-            xhr.open('GET', launch_url, true);
-            xhr.send();
+            });
         } else {
             var url;
             if (req.headers.url.indexOf('?') > 0) {
@@ -164,6 +134,7 @@ function dispatch(handler) {
             } else {
                 url  = req.headers.url;
             }
+            var xhr = new XMLHttpRequest();
             xhr.onloadend = function() {
               var type = 'text/plain';
               if (this.getResponseHeader('Content-Type')) {
@@ -186,6 +157,43 @@ function dispatch(handler) {
             xhr.send();
         }
         return true;
+    }
+
+    function promiseLaunchURL(host, email) {
+        return new Promise(function(callback){
+            chrome.storage.local.get(["launch"], callback);
+        }).then(function(items){
+            if (items.launch) return items.launch;
+            var xhr = new XMLHttpRequest();
+            return new Promise(function(callback){
+                xhr.onloadend = callback;
+                xhr.open('GET', "launch.uri", true);
+                xhr.send();
+            }).then(function(){
+                return xhr.status == 200 ?
+                    xhr.responseText.replace(/(^|\s)#.*/g,'').replace(/^\s*/,'').replace(/\s+$/,'') :
+                    "http://" + host + "/pages/launch.html";
+            });
+        }).then(function(launch_url){
+            var manifest = chrome.runtime.getManifest();
+            if (!_.find(manifest.permissions, function(path) {
+                return _.isString(path) && launch_url.indexOf(path.replace(/\*$/,'')) === 0;
+            })) return launch_url;
+            var xhr = new XMLHttpRequest();
+            return new Promise(function(callback){
+                xhr.onloadend = callback;
+                xhr.open('GET', launch_url, true);
+                xhr.send();
+            }).then(function(){
+                if (xhr.status >= 200 && xhr.status < 400) return launch_url;
+                else return "http://" + host + "/pages/launch.html";
+            });
+        }).then(function(launch_url){
+            return launch_url + (launch_url.indexOf('?') > 0 ? '&' : '?') +
+                "version=" + chrome.runtime.getManifest().version +
+                "&email=" + encodeURIComponent(email) +
+                "#socket=ws://" + host + "/";
+        });
     }
 
     function handleSocketRequest(req) {

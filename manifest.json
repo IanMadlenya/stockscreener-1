@@ -61,7 +61,6 @@
         "notifications",
         "unlimitedStorage",
         {"socket": ["tcp-listen"]},
-        "*://*.probabilitytrading.net/*",
         "http://localhost:8080/*",
         "http://d.yimg.com/*",
         "http://query.yahooapis.com/*",

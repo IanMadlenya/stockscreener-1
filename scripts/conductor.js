@@ -56,8 +56,15 @@ dispatch({
 
     profile: function(data){
         return new Promise(function(callback){
-            console.log("Setting launch profile " + data.launch);
-            chrome.storage.local.set({launch: data.launch}, callback);
+            chrome.storage.local.get(["launch"], callback);
+        }).then(function(items){
+            if (items.launch == data.launch) return;
+            else if (items.launch)
+                throw Error("Reinstall Chrome App to change profile");
+            else return new Promise(function(callback){
+                console.log("Setting launch profile " + data.launch);
+                chrome.storage.local.set({launch: data.launch}, callback);
+            });
         }).then(function(){
             return {status: "success"};
         });
