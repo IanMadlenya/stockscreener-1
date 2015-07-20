@@ -278,7 +278,8 @@ function screenSignals(periods, load, security, watch, hold, stop, begin, end) {
             });
         });
     }).then(function(first){
-        if (_.isEmpty(first.result) || _.last(first.result).signal != 'stop') return first;
+        if (_.isEmpty(first.result) || _.last(first.result).signal != 'stop' || ltDate(end, first.until))
+            return first;
         return screenSignals(periods, load, security, watch, hold, stop, first.until, end).then(function(rest){
             if (_.isEmpty(rest.result)) return first;
             return combineResult([first, rest]);
