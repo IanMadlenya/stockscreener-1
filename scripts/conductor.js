@@ -54,6 +54,16 @@ dispatch({
         });
     },
 
+    workload: function() {
+        return Promise.all(_.map(services, function(workers, service) {
+            return Promise.all(_.map(workers, function(worker, index) {
+                return _.values(worker.workload);
+            }));
+        })).then(function(result){
+            return _.object(_.keys(services), result);
+        });
+    },
+
     profile: function(data){
         return new Promise(function(callback){
             chrome.storage.local.get(["launch"], callback);

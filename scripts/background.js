@@ -289,6 +289,7 @@ function dispatch(handler) {
             name: name,
             script: script,
             port: port,
+            workload: outstandingCommands,
             promiseMessage: function(data) {
                 var id = data.id && !outstandingCommands[data.id] ? data.id : ++outstandingCounter;
                 outstandingCounter = Math.max(outstandingCounter, id);
@@ -302,6 +303,7 @@ function dispatch(handler) {
                         }, 60000);
                     }, 60000);
                     outstandingCommands[id] = {
+                        since: new Date().toISOString(),
                         service: service,
                         name: name,
                         script: script,
