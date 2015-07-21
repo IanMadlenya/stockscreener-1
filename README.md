@@ -19,6 +19,16 @@ The source code of this app is licensed under the BSD, a copy is provided in the
 
 ## Installation
 
+### Install from Chrome Web Store
+
+Two published versions are available in the Chrome Web Store
+* Probability Stock Screener Basic
+* Probability Stock Screener
+
+Probability Stock Screener Basic can be installed at no cost and includes support for interday data from Yahoo! It can be installed at [Probability Stock Screener Basic at Chrome Web Store](https://chrome.google.com/webstore/detail/bgdbcehfnglkbgimkncfimadfnifcjcn).
+
+Probability Stock Screener has a modest monthly fee to support the continued development and includes support for intraday data (sold separately). It can be installed at [Probability Stock Screener at Chrome Web Store](https://chrome.google.com/webstore/detail/jcofaeigjeejbgcgdgjejlcjflghkpjn).
+
 ### Install from Binary
 
 > You will need to install and run the [Callimachus Web Server](http://callimachusproject.org/), version 1.4.
