@@ -2,7 +2,7 @@
     "manifest_version": 2,
     "name": "Probability Stock Screener",
     "short_name": "Screener",
-    "description": "Search, sort, and compare stocks across a variety of criteria and metric. Evaluate and compare strategies using historic market data.",
+    "description": "Search, sort, and compare stocks across a variety of criteria. Evaluate and compare strategies using historic market data.",
     "version": "0.0.0.1",
     "author": "James Leigh",
     "offline_enabled": false,
