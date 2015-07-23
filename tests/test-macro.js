@@ -381,18 +381,23 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        lower: "140.00"
+                        lower: "140.00",
+                        upper: "145.00"
                     }],
                     hold:[{
                         indicator: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        lower: "140.00"
+                        lower: "135.00",
+                        upper: "150.00"
                     }]
                 }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                     expect(result.length).toEqual(1);
-                    expect(result[0].performance.length).toBe(2);
+                    expect(result[0].performance.length).toBe(1);
+                    expect(result[0].watch.price).toBeCloseTo(140.93,2);
+                    expect(result[0].price).toBeCloseTo(151.06,2);
+                    expect(result[0].performance[0]).toBeCloseTo(7,0);
                 }).then(done, unexpected(done));
             });
             it("nothing", function(done){

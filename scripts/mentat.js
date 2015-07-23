@@ -168,14 +168,17 @@ onmessage = handle.bind(this, {
                 return profit + profit * ret / 100;
             }, 1), 365 * 24 * 60 * 60 * 1000 / exposure) - 1;
             return _.extend(data, {
-                result: _.extend(_.last(data.result), {
+                result: _.extend({
+                    watch: _.last(data.result.filter(function(item){
+                        return item.signal == 'watch';
+                    })),
                     positive_excursion: drawup,
                     negative_excursion: drawdown,
                     performance: performance,
                     growth: growth,
                     exposure: exposure / duration,
                     risk_adjusted: risk_adjusted * 100
-                })
+                }, _.last(data.result))
             });
         });
     }
