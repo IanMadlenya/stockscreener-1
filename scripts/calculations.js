@@ -174,7 +174,7 @@ var parseCalculation = (function(_) {
         },
         /* Addition */
         ADD: function(number, field) {
-            var n = getCalculation(n);
+            var n = getCalculation(number);
             var d = getCalculation(field, arguments, 2);
             return {
                 getErrorMessage: function() {
@@ -191,9 +191,28 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Subtraction */
+        SUBTRACT: function(number, field) {
+            var n = getCalculation(number);
+            var d = getCalculation(field, arguments, 2);
+            return {
+                getErrorMessage: function() {
+                    return n.getErrorMessage() || d.getErrorMessage();
+                },
+                getFields: function() {
+                    return n.getFields().concat(d.getFields());
+                },
+                getDataLength: function() {
+                    return Math.max(n.getDataLength(), d.getDataLength());
+                },
+                getValue: function(points) {
+                    return getValue(n, points) - getValue(d, points);
+                }
+            };
+        },
         /* Multiplication */
         MULTIPLY: function(number, field) {
-            var n = getCalculation(n);
+            var n = getCalculation(number);
             var d = getCalculation(field, arguments, 2);
             return {
                 getErrorMessage: function() {

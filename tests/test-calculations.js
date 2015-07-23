@@ -96,6 +96,8 @@ describe("calculations", function(){
             ];
             var SMA = parseCalculation(undefined, 'SMA(20,close)').getValue;
             var STDEV = parseCalculation(undefined, 'STDEV(20,close)').getValue;
+            var upper = parseCalculation(undefined, 'ADD(SMA(20,close),MULTIPLY(2,STDEV(20,close)))').getValue;
+            var lower = parseCalculation(undefined, 'SUBTRACT(SMA(20,close),MULTIPLY(2,STDEV(20,close)))').getValue;
             var BandWidth = parseCalculation(undefined, 'BBWidth(SMA(20,close),2,STDEV(20,close))').getValue;
             data.forEach(function(datum,i,data){
                 if (!datum[1]) return;
@@ -108,6 +110,8 @@ describe("calculations", function(){
                 expect(STDEV(points)).toBeCloseTo(datum[2]);
                 expect(SMA(points) + STDEV(points) * 2).toBeCloseTo(datum[3],0);
                 expect(SMA(points) - STDEV(points) * 2).toBeCloseTo(datum[4],0);
+                expect(upper(points)).toBeCloseTo(datum[3]);
+                expect(lower(points)).toBeCloseTo(datum[4]);
                 expect(BandWidth(points)).toBeCloseTo(datum[5]);
             });
         });
