@@ -280,7 +280,7 @@ function retryAfterImport(services, data, port, load) {
     }, data)).catch(function(error){
         if (load === false && error.quote && error.status == 'warning')
             return error; // just use what we have
-        if (!error.quote || load === false)
+        if (_.isEmpty(error.quote) || load === false)
             return Promise.reject(error);
         // try to load more
         return importAndRun(services, data, port, error.quote);

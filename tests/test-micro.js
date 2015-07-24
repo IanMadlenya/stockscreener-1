@@ -146,6 +146,13 @@ describe("Micro", function(){
                     upper: "25"
                 }, {
                     indicator: {
+                        expression: "HOUR(asof)",
+                        interval: {value: 'm60'}
+                    },
+                    lower: "10",
+                    upper: "15"
+                }, {
+                    indicator: {
                         expression: "POC(6)",
                         interval: {value: 'm60'}
                     },
@@ -198,13 +205,13 @@ describe("Micro", function(){
             }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
                     signal: 'watch',
-                    price: 132.93,
-                    asof: '2014-10-13T20:00:00.000Z'
+                    price: 134.98,
+                    asof: '2014-10-14T17:30:00.000Z'
                 }));
                 expect(result).toContain(jasmine.objectContaining({
                     signal: 'stop',
-                    price: 140.93,
-                    asof: '2014-10-21T20:00:00.000Z'
+                    price: 145.05,
+                    asof: '2014-10-23T20:00:00.000Z'
                 }));
             }).then(done, unexpected(done));
         });
@@ -267,6 +274,13 @@ describe("Micro", function(){
                     upper: "25"
                 }, {
                     indicator: {
+                        expression: "HOUR(asof)",
+                        interval: {value: 'm60'}
+                    },
+                    lower: "10",
+                    upper: "15"
+                }, {
+                    indicator: {
                         expression: "POC(6)",
                         interval: {value: 'm60'}
                     },
@@ -318,12 +332,12 @@ describe("Micro", function(){
                 }]
             }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
-                    price: 140.93,
-                    asof: '2014-10-21T20:00:00.000Z'
+                    price: 145.05,
+                    asof: '2014-10-23T20:00:00.000Z'
                 }));
-                expect(result[0].growth).toBeCloseTo(6,0);
+                expect(result[0].growth).toBeCloseTo(9,0);
                 expect(result[0].performance.length).toBe(1);
-                expect(result[0].performance[0]).toBeCloseTo(6,0);
+                expect(result[0].performance[0]).toBeCloseTo(9,0);
             }).then(done, unexpected(done));
         });
     });
