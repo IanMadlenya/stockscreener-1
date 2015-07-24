@@ -51,9 +51,8 @@ function isScreen(object, path) {
 function isFilter(object, path) {
     return validate(object, path, _.isObject) &&
         validate(object, path, isIndicator, 'indicator') &&
-        validate(object, path, _.isUndefined, 'changeReference') &&
         validate(object, path, optional(isIndicator), 'difference') &&
-        validate(object, path, optional(isIndicator), 'percentOf') &&
+        validate(object, path, optional(isIndicator), 'percent') &&
         validate(object, path, optional(_.isNumber, _.isString), 'upper') &&
         validate(object, path, optional(_.isNumber, _.isString), 'lower');
 }

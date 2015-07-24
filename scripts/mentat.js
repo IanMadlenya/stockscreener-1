@@ -196,8 +196,8 @@ function addChangeReference(filters, changes) {
             indicator: filter.difference
         };
     }), changes.map(function(filter){
-        return filter.percentOf && {
-            indicator: filter.percentOf
+        return filter.percent && {
+            indicator: filter.percent
         };
     })));
 }
@@ -205,7 +205,7 @@ function addChangeReference(filters, changes) {
 function pointLoad(parseCalculation, open, failfast, security, filters, lower, upper) {
     var datasets = {};
     var exprs = _.compact(_.flatten(filters.map(function(filter){
-        return [filter.indicator, filter.difference, filter.percentOf];
+        return [filter.indicator, filter.difference, filter.percent];
     }))).reduce(function(exprs, indicator){
         var expr = indicator.expression;
         var interval = indicator.interval.value;
@@ -246,7 +246,7 @@ function screenPeriods(intervals, exchange, filters) {
             return [
                 filter.indicator.interval.value,
                 filter.difference && filter.difference.interval.value,
-                filter.percentOf && filter.percentOf.interval.value
+                filter.percent && filter.percent.interval.value
             ];
     })))), function(interval) {
         if (!intervals[interval]) throw Error("Unknown interval: " + interval);
@@ -393,7 +393,7 @@ function loadFilteredPoint(load, period, filters, watching, after, begin, until)
             var reference = watching[period.value] ? watching :
                 _.extend(_.object([period.value],[data.result]), watching);
             var diff = valueOf(filter.difference, reference);
-            var of = valueOf(filter.percentOf, reference);
+            var of = valueOf(filter.percent, reference);
             var x = data.result[filter.indicator.expression] - diff;
             var value = of ? x * 100 / Math.abs(of) : x;
             if (_.isFinite(filter.lower)) {

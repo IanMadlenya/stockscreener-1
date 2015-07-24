@@ -119,7 +119,7 @@ describe("Micro", function(){
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf: {
+                    percent: {
                         expression: "STDEV(20,close)",
                         interval: {value: 'd1'}
                     },
@@ -133,7 +133,7 @@ describe("Micro", function(){
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf : {
+                    percent: {
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
@@ -160,7 +160,7 @@ describe("Micro", function(){
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf: {
+                    percent: {
                         expression: "STDEV(20,close)",
                         interval: {value: 'd1'}
                     },
@@ -195,7 +195,7 @@ describe("Micro", function(){
                         expression:"SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf:{
+                    percent:{
                         expression:"SMA(20,close)",
                         interval: {value: 'd1'}
                     },
@@ -247,7 +247,7 @@ describe("Micro", function(){
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf: {
+                    percent: {
                         expression: "STDEV(20,close)",
                         interval: {value: 'd1'}
                     },
@@ -261,7 +261,7 @@ describe("Micro", function(){
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf: {
+                    percent: {
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
@@ -288,7 +288,7 @@ describe("Micro", function(){
                         expression: "SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf: {
+                    percent: {
                         expression: "STDEV(20,close)",
                         interval: {value: 'd1'}
                     },
@@ -323,7 +323,7 @@ describe("Micro", function(){
                         expression:"SMA(20,close)",
                         interval: {value: 'd1'}
                     },
-                    percentOf:{
+                    percent:{
                         expression:"SMA(20,close)",
                         interval: {value: 'd1'}
                     },

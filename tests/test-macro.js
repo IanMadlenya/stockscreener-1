@@ -223,7 +223,7 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        percentOf: {
+                        percent: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
@@ -261,7 +261,7 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        percentOf: {
+                        percent: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
@@ -336,7 +336,7 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd5'}
                         },
-                        percentOf: {
+                        percent: {
                             expression: "close",
                             interval: {value: 'd5'}
                         },
@@ -351,7 +351,7 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        percentOf: {
+                        percent: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
