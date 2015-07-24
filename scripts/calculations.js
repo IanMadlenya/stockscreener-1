@@ -117,6 +117,30 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        HOUR: function(asof) {
+            return {
+                getErrorMessage: function() {
+                    if (!_.isString(asof) || !asof.match(/^[0-9a-z_\-&]+$/))
+                        return "Must be a field: " + asof;
+                    return null;
+                },
+                getFields: function(){
+                    return [asof];
+                },
+                getDataLength: function() {
+                    return 1;
+                },
+                getMomentFields: function() {
+                    return [asof];
+                },
+                getValue: function(points) {
+                    // pivot around noon as leap seconds/hours occur at night
+                    var start = moment(points[0][asof]);
+                    var noon = moment(start).millisecond(0).second(0).minute(0).hour(12);
+                    return (start.valueOf() - noon.valueOf()) /1000 /60 /60 +12;
+                }
+            };
+        },
         /* Maximum */
         MAX: function(n, field) {
             var calc = getCalculation(field, arguments, 2);
