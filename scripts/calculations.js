@@ -877,6 +877,35 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Daily Point Of Control */
+        DPOC: function(n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['asof','high','low'];
+                },
+                getMomentFields: function() {
+                    return ['asof'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    var end = moment(_.last(points).asof);
+                    var start = moment(end).millisecond(0).second(0).minute(0).hour(0);
+                    if (end.isSame(start)) {
+                        start = start.subtract(1, 'day');
+                    }
+                    return getPointOfControl(getTPOCount(points.filter(function(point){
+                        return start.isBefore(point.asof);
+                    })));
+                }
+            };
+        },
         /* Point Of Control */
         POC: function(n) {
             return {
