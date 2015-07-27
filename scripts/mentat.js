@@ -122,16 +122,23 @@ onmessage = handle.bind(this, {
         var stop = (_.isEmpty(hold) && watch || hold).filter(function(filter){
             return _.isFinite(filter.lower) || _.isFinite(filter.upper);
         });
+        var annual = createPeriod(intervals, 'annual', data.exchange);
+        var minute = _.last(_.sortBy(_.values(periods), function(period) {
+            return period.millis * -1;
+        }));
         return findSignals(periods, load, data.security, watch, hold, stop, data.begin, data.end).then(function(data){
             if (_.isEmpty(data.result)) return data;
             var watch;
-            var duration = Date.parse(data.end) - Date.parse(data.begin);
+            var duration = minute.diff(data.end, data.begin);
+            var firstYear = annual.floor(data.begin);
+            var lastYear = annual.ceil(data.end);
+            var yearLength = minute.diff(lastYear,firstYear) / annual.diff(lastYear,firstYear);
             var exposure = data.result.reduce(function(exposure, signal, i, signals){
                 if (signal.signal == 'watch') {
                     watch = signal;
                 }
                 if (signal.signal == 'stop' || i == signals.length-1) {
-                    return exposure + Date.parse(signal.asof) - Date.parse(watch.asof);
+                    return exposure + minute.diff(signal.asof, watch.asof);
                 } else return exposure;
             }, 0);
             var performance = data.result.reduce(function(performance, signal, i, signals){
@@ -164,9 +171,9 @@ onmessage = handle.bind(this, {
             var growth = performance.reduce(function(profit, ret){
                 return profit + profit * ret / 100;
             }, 1) * 100 - 100;
-            var risk_adjusted = Math.pow(performance.reduce(function(profit, ret){
+            var exposed_growth = Math.pow(performance.reduce(function(profit, ret){
                 return profit + profit * ret / 100;
-            }, 1), 365 * 24 * 60 * 60 * 1000 / exposure) - 1;
+            }, 1), yearLength / exposure) * 100 - 100;
             return _.extend(data, {
                 result: _.extend({
                     watch: _.last(data.result.filter(function(item){
@@ -176,8 +183,9 @@ onmessage = handle.bind(this, {
                     negative_excursion: drawdown,
                     performance: performance,
                     growth: growth,
-                    exposure: exposure / duration,
-                    risk_adjusted: risk_adjusted * 100
+                    exposure: (exposure / duration) * 100,
+                    duration: duration / yearLength,
+                    exposed_growth: exposed_growth
                 }, _.last(data.result))
             });
         });
@@ -242,17 +250,13 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
 }
 
 function screenPeriods(intervals, exchange, filters) {
-    var used = _.sortBy(_.compact(_.uniq(_.flatten(filters.map(function(filter){
+    return _.compact(_.uniq(_.flatten(filters.map(function(filter){
             return [
                 filter.indicator.interval.value,
                 filter.difference && filter.difference.interval.value,
                 filter.percent && filter.percent.interval.value
             ];
-    })))), function(interval) {
-        if (!intervals[interval]) throw Error("Unknown interval: " + interval);
-        return intervals[interval].millis * -1;
-    });
-    return used.reduce(function(periods, interval){
+    })))).reduce(function(periods, interval){
         periods[interval] = createPeriod(intervals, interval, exchange);
         return periods;
     }, {});
@@ -788,6 +792,7 @@ function createPeriod(intervals, interval, exchange) {
     var self = {};
     return period && _.extend(self, period, {
         value: period.value,
+        millis: period.millis,
         tz: exchange.tz,
         marketClosesAt: exchange.marketClosesAt,
         derivedFrom: period.derivedFrom && createPeriod(intervals, period.derivedFrom.storeName, exchange),
@@ -802,6 +807,9 @@ function createPeriod(intervals, interval, exchange) {
         },
         dec: function(date, n) {
             return period.dec(exchange, date, n).toISOString();
+        },
+        diff: function(to, from) {
+            return period.diff(exchange, to, from);
         },
         format: function(date) {
             return moment.tz(date, exchange.tz).format();

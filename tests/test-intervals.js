@@ -43,6 +43,8 @@ describe("intervals.js", function(){
                     var date = new Date("Fri Jan 31 2014 00:00:00 GMT-0500 (EST)");
                     var inc = intervals.annual.inc(exchange, date, amount);
                     expect(moment(inc).year()).toEqual(2015);
+                    expect(intervals.annual.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.annual.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
         });
@@ -53,6 +55,8 @@ describe("intervals.js", function(){
                     var date = new Date("Fri Jan 31 2014 16:00:00 GMT-0500 (EST)");
                     var inc = intervals.m60.inc(exchange, date, amount);
                     expect(moment(inc).minute()).toEqual(0);
+                    expect(intervals.m60.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.m60.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
         });
@@ -63,6 +67,8 @@ describe("intervals.js", function(){
                     var date = new Date("Fri Jan 31 2014 16:00:00 GMT-0500 (EST)");
                     var inc = intervals.m120.inc(exchange, date, amount);
                     expect(moment(inc).minute()).toEqual(0);
+                    expect(intervals.m120.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.m120.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
         });
@@ -73,12 +79,16 @@ describe("intervals.js", function(){
                     var date = new Date("Mon Oct 13 2014 16:00:00 GMT-0400 (EDT)");
                     var inc = intervals.d1.inc(exchange, date, amount);
                     expect(moment(inc).subtract(1,'minute').format('dddd')).toEqual(moment(date).add(1,'day').format('dddd'));
+                    expect(intervals.d1.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.d1.diff(exchange, date, inc)).toEqual(-amount);
                 });
                 it("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
                     var amount = 1;
                     var date = new Date("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)");
                     var inc = intervals.d1.inc(exchange, date, amount);
                     expect(moment(inc).subtract(1,'minute').format('dddd')).toEqual(moment(date).add(1,'day').format('dddd'));
+                    expect(intervals.d1.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.d1.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
             describe("dec", function() {
@@ -87,12 +97,16 @@ describe("intervals.js", function(){
                     var date = new Date("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)");
                     var dec = intervals.d1.dec(exchange, date, amount);
                     expect(moment(dec).format('dddd')).toEqual(moment(date).subtract(1,'day').format('dddd'));
+                    expect(intervals.d1.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.d1.diff(exchange, date, dec)).toEqual(amount);
                 });
                 it("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
                     var amount = 1;
                     var date = new Date("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT)");
                     var dec = intervals.d1.dec(exchange, date, amount);
                     expect(moment(dec).format('dddd')).toEqual(moment(date).subtract(1,'day').format('dddd'));
+                    expect(intervals.d1.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.d1.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
         });
@@ -138,6 +152,8 @@ describe("intervals.js", function(){
                     expect(inc.valueOf() - date.valueOf() > 0).toBe(true);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(amount);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).toBeLessThan(Math.ceil(amount /5) *7 +3);
+                    expect(intervals.d1.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.d1.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
         });
@@ -154,6 +170,8 @@ describe("intervals.js", function(){
                     expect(date.valueOf() - dec.valueOf() > 0).toBe(true);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(amount);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).toBeLessThan(Math.ceil(amount /5) *7 +3);
+                    expect(intervals.d1.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.d1.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
         });
@@ -193,6 +211,8 @@ describe("intervals.js", function(){
                     expect(inc.valueOf() - date.valueOf() > 0).toBe(true);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(5 * amount);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).toBeLessThan(amount *7 +7);
+                    expect(intervals.d5.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.d5.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
         });
@@ -209,6 +229,8 @@ describe("intervals.js", function(){
                     expect(date.valueOf() - dec.valueOf() > 0).toBe(true);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(5 * amount);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).toBeLessThan(amount *7 +7);
+                    expect(intervals.d5.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.d5.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
         });
@@ -279,12 +301,28 @@ function testMinuteInterval(size) {
                     expect(dec.valueOf()).toEqual(jasmine.any(Number));
                     expect(dec.valueOf() % size *60 *1000).toEqual(0);
                     expect(date.valueOf() - dec.valueOf() > 0).toBe(true);
-                    expect((date.valueOf() - dec.valueOf()) /1000 /60).not.toBeLessThan(size * amount);
+                    if (size < 60) expect((date.valueOf() - dec.valueOf()) /1000 /60).not.toBeLessThan(size * amount);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60).toBeLessThan(Math.ceil(size * amount /60 /6.5 /5) *7 * 24 *60 +2 *24 *60);
                     var opens = moment.tz(dec.format('YYYY-MM-DD') + 'T' + exchange.marketOpensAt, exchange.tz);
                     var closes = moment.tz(dec.format('YYYY-MM-DD') + 'T' + exchange.marketClosesAt, exchange.tz);
                     expect(dec.valueOf() >= opens.valueOf()).toBe(true);
                     expect(dec.valueOf() <= closes.valueOf()).toBe(true);
+                });
+            });
+        });
+        describe("diff", function() {
+            var interval = intervals['m' + size];
+            var dates = datesBetween(new Date(2010,0,1), new Date(2015,0,1), size * 1000);
+            var numbers = numbersBetween(0, 500, dates.length);
+            dates.forEach(function(date,i,dates){
+                var amount = numbers[i];
+                it(date.toString() + ' by ' + amount, function(){
+                    var inc = interval.inc(exchange, date, amount);
+                    var dec = interval.dec(exchange, date, amount);
+                    expect(interval.diff(exchange, inc, date)).toEqual(amount);
+                    expect(interval.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(interval.diff(exchange, date, inc)).toEqual(-amount);
+                    expect(interval.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
         });
