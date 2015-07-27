@@ -3,7 +3,7 @@
     "name": "Probability Stock Screener",
     "short_name": "Screener",
     "description": "Search, sort, and compare stocks across a variety of criteria. Evaluate and compare strategies using historic market data.",
-    "version": "0.3.2.6",
+    "version": "0.4.2.6",
     "author": "James Leigh",
     "offline_enabled": false,
     "minimum_chrome_version": "33",
@@ -41,16 +41,16 @@
         },
         "tcpServer": {
             "listen": [
-                "127.0.0.1:1880",
-                "127.0.0.1:1881",
-                "127.0.0.1:1882",
-                "127.0.0.1:1883",
-                "127.0.0.1:1884",
-                "127.0.0.1:1885",
-                "127.0.0.1:1886",
-                "127.0.0.1:1887",
-                "127.0.0.1:1888",
-                "127.0.0.1:1889"
+                "0.0.0.0:1880",
+                "0.0.0.0:1881",
+                "0.0.0.0:1882",
+                "0.0.0.0:1883",
+                "0.0.0.0:1884",
+                "0.0.0.0:1885",
+                "0.0.0.0:1886",
+                "0.0.0.0:1887",
+                "0.0.0.0:1888",
+                "0.0.0.0:1889"
             ]
         }
     },

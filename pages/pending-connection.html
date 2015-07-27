@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Probability Stock Screener</title>
+    <link rel="icon" type="image/png" href="../icons/favicon.png">
+    <link rel="stylesheet" href="../assets/bootstrap.css" />
+    <script type="text/javascript" src="../scripts/options.js"></script>
+    <script type="text/javascript" src="../scripts/pending-connection.js"></script>
+</head>
+<body>
+<form id="form" class="container">
+    <div class="page-header">
+        <h1><span id="address"></span> Connection</h1>
+    </div>
+    <input id="peerAddress" type="hidden" name="peerAddress" />
+    <p>Another machine is requesting access</p>
+    <div class="well">
+        <p>This maybe the first time you are accessing Probability Stock Screener from another computer, phone, or other device.</p>
+        <p>If this was you then click on Accept below to continue using the device.</p>
+        <p>If you are using a new device then click on the Reject button below to reject further connections from this device.</p>
+        <div class="text-right">
+            <button id="submit" type="submit" class="btn btn-primary">Reject</button>
+            <button id="accept" type="button" class="btn btn-default">Accept</button>
+        </div>
+    </div>
+</form>
+</body>
+</html>

@@ -47,9 +47,11 @@ function checkEula(){
 var services = {list: [], quote: [], mentat: []};
 
 function dispatch(handler) {
-    var availablePort = Promise.resolve(1880).then(searchForAvailablePort);
+    var manifest = chrome.runtime.getManifest();
+    var availableAddress = Promise.resolve(manifest.sockets.tcpServer.listen).then(searchForAvailablePort);
     chrome.app.runtime.onLaunched.addListener(function(){
-        availablePort.then(function(port){
+        availableAddress.then(function(address){
+            var port = parseInt(address.replace(/.*:/,''));
             chrome.browser.openTab({url:"http://localhost:" + port + "/"});
         }).catch(console.error.bind(console));
     });
@@ -62,12 +64,15 @@ function dispatch(handler) {
     });
     chrome.runtime.onSuspendCanceled.addListener(initialize);
 
-    function searchForAvailablePort(port) {
+    function searchForAvailablePort(addresses) {
+        var address = _.first(addresses);
         return new Promise(function(callback) {
             chrome.sockets.tcpServer.create({}, callback);
         }).then(function(createInfo){
             return new Promise(function(callback){
-                chrome.sockets.tcpServer.listen(createInfo.socketId, "127.0.0.1", port, callback);
+                var host = address.replace(/:.*/,'');
+                var port = parseInt(address.replace(/.*:/,''));
+                chrome.sockets.tcpServer.listen(createInfo.socketId, host, port, callback);
             }).then(function(result){
                 if (result < 0) return Promise.reject(result);
                 else return new Promise(function(callback){
@@ -75,9 +80,9 @@ function dispatch(handler) {
                 });
             });
         }).then(function(){
-            return port;
+            return address;
         }, function(result){
-            if (port % 10 < 9) return searchForAvailablePort(port + 1);
+            if (addresses.length > 1) return searchForAvailablePort(_.rest(addresses));
             else return Promise.reject(Error("No TCP port available " + result));
         });
     }
@@ -93,10 +98,56 @@ function dispatch(handler) {
                 });
             })
         });
-        availablePort.then(function(port){
+        var blacklist = [];
+        availableAddress.then(function(address){
             var server = new http.Server();
+            var sup = server.onConnection_;
+            server.onConnection_ = function(acceptInfo){
+                new Promise(function(callback){
+                    chrome.socket.getInfo(acceptInfo.socketId, callback);
+                }).then(function(info){
+                    return info.peerAddress;
+                }).then(function(adr){
+                    if (adr.indexOf("127.") === 0 || adr == "::1" || adr == "0:0:0:0:0:0:0:1")
+                        return true;
+                    return new Promise(function(callback){
+                        chrome.storage.local.get(["peerAddress"], callback);
+                    }).then(function(items){
+                        if (items.peerAddress && items.peerAddress.split(' ').indexOf(adr) >= 0)
+                            return true;
+                        if (blacklist.indexOf(adr) >= 0 || chrome.app.window.get("pending-connection"))
+                            return false;
+                        return new Promise(function(callback){
+                            blacklist.push(adr);
+                            chrome.app.window.create("pages/pending-connection.html#" + adr, {
+                                id: "pending-connection"
+                            }, function(createdWindow){
+                                createdWindow.onClosed.addListener(callback);
+                            });
+                        }).then(function(){
+                            return new Promise(function(callback){
+                                chrome.storage.local.get(["peerAddress"], callback);
+                            });
+                        }).then(function(items){
+                            return items.peerAddress && items.peerAddress.split(' ').indexOf(adr) >= 0;
+                        });
+                    }).then(function(accepted){
+                        if (accepted) return adr;
+                        else throw Error("Connection refused from " + adr);
+                    });
+                }).then(function(adr){
+                    console.log("Connection from " + adr);
+                    sup.call(server, acceptInfo);
+                }, function(error){
+                    console.error(error.message);
+                    chrome.socket.disconnect(acceptInfo.socketId);
+                    sup.call(server, acceptInfo);
+                });
+            };
             var wsServer = new http.WebSocketServer(server);
-            server.listen(port);
+            var host = address.replace(/:.*/,'');
+            var port = parseInt(address.replace(/.*:/,''));
+            server.listen(port, host);
             chrome.identity.getProfileUserInfo(function(userInfo){
                 server.addEventListener('request', handleWebRequest.bind(this, {
                     'css': 'text/css',
@@ -119,7 +170,10 @@ function dispatch(handler) {
 
     function handleWebRequest(extensionTypes, port, email, req) {
         if (req.headers.url == '/') {
-            var host = req.headers.host || ('localhost:' + port);
+            var host = req.headers.Host || ('localhost:' + port);
+            if (port != 80 && host.indexOf(":" + port) < 0) {
+                host += ":" + port;
+            }
             promiseLaunchURL(host, email).then(function(redirect){
                 console.log('Redirected ' + redirect);
                 req.writeHead(302, {
