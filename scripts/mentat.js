@@ -329,6 +329,11 @@ function screenSecurity(periods, load, security, signal, filters, watching, begi
     }), new Date(0), begin, begin, end).then(function(data){
         if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.until, end))
             return screenSecurity(periods, load, security, signal, filters, watching, data.until, end);
+        if (!data.result || ltDate(data.result.asof, begin))
+            return _.extend(data, {
+                passed: undefined,
+                result: undefined
+            });
         else if (signal == 'watch' && !data.passed ||
                 signal == 'stop' && data.passed != false)
             return _.extend(data, {

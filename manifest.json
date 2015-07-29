@@ -3,7 +3,7 @@
     "name": "Probability Stock Screener",
     "short_name": "Screener",
     "description": "Search, sort, and compare stocks across a variety of criteria. Evaluate and compare strategies using historic market data.",
-    "version": "0.5.2.7",
+    "version": "0.5.3.7",
     "author": "James Leigh",
     "offline_enabled": false,
     "minimum_chrome_version": "33",
