@@ -129,6 +129,60 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Prior value N days ago */
+        PRIOR: function(ex, interval, d, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(d))
+                        return "Must be a positive integer: " + d;
+                    return calc.getErrorMessage();
+                },
+                getFields: function(){
+                    return ['asof'].concat(calc.getFields());
+                },
+                getDataLength: function() {
+                    var opens = moment.tz('2010-03-01T' + ex.marketOpensAt, ex.tz);
+                    var closes = moment.tz('2010-03-01T' + ex.marketClosesAt, ex.tz);
+                    var dayLength = interval.diff(ex, closes, opens);
+                    var n = d * dayLength * 1.5; // extra for after hours activity
+                    return n + calc.getDataLength();
+                },
+                getValue: function(points) {
+                    var asof = intervals.d1.dec(ex, _.last(points).asof, d - 1);
+                    var end = _.sortedIndex(points, {
+                        asof: asof.toISOString()
+                    }, 'asof');
+                    var start = Math.max(end - calc.getDataLength(), 0);
+                    return getValues(n, calc, points.slice(start, end));
+                }
+            };
+        },
+        /* Since N days ago */
+        SINCE: function(ex, interval, d, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(d))
+                        return "Must be a possitive integer: " + d;
+                    return calc.getErrorMessage();
+                },
+                getFields: function(){
+                    return ['asof'].concat(calc.getFields());
+                },
+                getDataLength: function() {
+                    return calc.getDataLength();
+                },
+                getValue: function(points) {
+                    var asof = intervals.d1.dec(ex, _.last(points).asof, d - 1);
+                    var start = _.sortedIndex(points, {
+                        asof: asof.toISOString()
+                    }, 'asof');
+                    var end = Math.min(start + calc.getDataLength(), points.length);
+                    return getValue(calc, points.slice(start, end));
+                }
+            };
+        },
         /* Maximum */
         MAX: function(ex, interval, n, field) {
             var calc = getCalculation(ex, interval, field, arguments, 4);
