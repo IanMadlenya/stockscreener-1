@@ -108,7 +108,17 @@ var handler = {
 function registerDtnQuote() {
     if (_.pluck(services.quote, 'name').indexOf('dtn-quote') < 0) {
         hit('open').then(function() {
-            services.quote.push({
+            chrome.storage.local.set({dtn:true});
+            return true;
+        }, function(error){
+            console.warn("Intraday data is not available");
+            return new Promise(function(callback){
+                chrome.storage.local.get(["dtn"], callback);
+            }).then(function(items){
+                return items.dtn;
+            });
+        }).then(function(available){
+            if (available) services.quote.push({
                 service: 'quote',
                 name: 'dtn-quote',
                 port: {
@@ -120,8 +130,6 @@ function registerDtnQuote() {
                     return Promise.resolve(handler[data.cmd || data](data));
                 }
             });
-        }, function(){
-            console.log("Intraday data is not available");
         });
     }
 }
