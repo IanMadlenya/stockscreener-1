@@ -149,10 +149,13 @@ var parseCalculation = (function(_) {
                     return n + calc.getDataLength();
                 },
                 getValue: function(points) {
-                    var asof = intervals.d1.dec(ex, _.last(points).asof, d - 1);
+                    var prior = intervals.d1.dec(ex, _.last(points).asof, d);
+                    var closes = prior.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
+                    var asof = moment.tz(closes, ex.tz).toISOString();
                     var end = _.sortedIndex(points, {
-                        asof: asof.toISOString()
+                        asof: asof
                     }, 'asof');
+                    if (points[end] && points[end].asof == asof) end++;
                     var start = Math.max(end - calc.getDataLength(), 0);
                     return getValues(n, calc, points.slice(start, end));
                 }
@@ -171,13 +174,21 @@ var parseCalculation = (function(_) {
                     return ['asof'].concat(calc.getFields());
                 },
                 getDataLength: function() {
-                    return calc.getDataLength();
+                    var opens = moment.tz('2010-03-01T' + ex.marketOpensAt, ex.tz);
+                    var closes = moment.tz('2010-03-01T' + ex.marketClosesAt, ex.tz);
+                    var dayLength = interval.diff(ex, closes, opens);
+                    var n = d * dayLength * 1.5; // extra for after hours activity
+                    return Math.max(n, calc.getDataLength());
                 },
                 getValue: function(points) {
-                    var asof = intervals.d1.dec(ex, _.last(points).asof, d - 1);
+                    var since = intervals.d1.dec(ex, _.last(points).asof, d - 1);
+                    var opens = moment.tz(since.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+                    var asof = opens.toISOString();
                     var start = _.sortedIndex(points, {
-                        asof: asof.toISOString()
+                        asof: asof
                     }, 'asof');
+                    if (points[start] && points[start].asof == asof) start++;
+                    if (start >= points.length) return getValue(calc, points);
                     var end = Math.min(start + calc.getDataLength(), points.length);
                     return getValue(calc, points.slice(start, end));
                 }
