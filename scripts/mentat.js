@@ -34,8 +34,8 @@ var window = { moment: moment };
 importScripts('../assets/moment-timezone-with-data-2010-2020.js');
 importScripts('../assets/underscore.js');
 
-importScripts('calculations.js'); // parseCalculation
 importScripts('intervals.js');
+importScripts('calculations.js'); // parseCalculation
 importScripts('utils.js');
 
 var open = _.partial(openSymbolDatabase, indexedDB, _.map(intervals, 'storeName'));
@@ -53,13 +53,13 @@ onmessage = handle.bind(this, {
     },
 
     fields: function(data) {
-        var calcs = asCalculation(parseCalculation.bind(this, data.exchange), data.expressions);
+        var calcs = asCalculation(parseCalculation.bind(this,data.exchange),data.expressions,data.interval);
         var errorMessage = _.first(_.compact(_.invoke(calcs, 'getErrorMessage')));
         if (!errorMessage) {
             return _.uniq(_.flatten(_.invoke(calcs, 'getFields')));
         } else {
             data.expressions.forEach(function(expression){
-                var calc = parseCalculation(data.exchange, expression);
+                var calc = parseCalculation(data.exchange, expression, data.interval);
                 var msg = calc.getErrorMessage();
                 if (msg)
                     throw new Error(msg + ' in ' + expression);
@@ -428,7 +428,7 @@ function valueOf(indicator, watching) {
 }
 
 function loadData(parseCalculation, open, failfast, security, length, lower, upper, period, expressions) {
-    var calcs = asCalculation(parseCalculation, expressions);
+    var calcs = asCalculation(parseCalculation, expressions, period);
     var n = _.max(_.invoke(calcs, 'getDataLength'));
     var errorMessage = _.first(_.compact(_.invoke(calcs, 'getErrorMessage')));
     if (errorMessage) throw Error(errorMessage);
@@ -772,7 +772,7 @@ function preceding(array, len, endIndex) {
 }
 
 function validateExpressions(parseCalculation, intervals, data) {
-    var calc = parseCalculation(data.expression);
+    var calc = parseCalculation(data.expression, data.interval);
     var errorMessage = calc.getErrorMessage();
     if (errorMessage) {
         throw new Error(errorMessage);
@@ -785,9 +785,9 @@ function validateExpressions(parseCalculation, intervals, data) {
     }
 }
 
-function asCalculation(parseCalculation, expressions) {
+function asCalculation(parseCalculation, expressions, interval) {
     return _.map(expressions, function(expr){
-        return parseCalculation(expr);
+        return parseCalculation(expr, interval);
     });
 }
 

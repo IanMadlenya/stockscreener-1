@@ -178,14 +178,14 @@ describe("Micro", function(){
                 }],
                 hold:[{
                     indicator: {
-                        expression: "WORKDAY(asof,0)",
+                        expression: "WORKDAY(asof)",
                         interval: {value: 'd1'}
                     },
                     difference: {
-                        expression:"WORKDAY(asof,10)",
+                        expression:"WORKDAY(asof)",
                         interval: {value: 'd1'}
                     },
-                    upper: "0"
+                    upper: "10"
                 },{
                     indicator:{
                         expression:"close",
@@ -306,14 +306,14 @@ describe("Micro", function(){
                 }],
                 hold:[{
                     indicator: {
-                        expression: "WORKDAY(asof,0)",
+                        expression: "WORKDAY(asof)",
                         interval: {value: 'd1'}
                     },
                     difference:{
-                        expression:"WORKDAY(asof,10)",
+                        expression:"WORKDAY(asof)",
                         interval: {value: 'd1'}
                     },
-                    upper: "0"
+                    upper: "10"
                 },{
                     indicator:{
                         expression:"close",
@@ -335,9 +335,9 @@ describe("Micro", function(){
                     price: 145.05,
                     asof: '2014-10-23T20:00:00.000Z'
                 }));
-                expect(result[0].growth).toBeCloseTo(9,0);
+                expect(result[0].growth).toBeCloseTo(7,0);
                 expect(result[0].performance.length).toBe(1);
-                expect(result[0].performance[0]).toBeCloseTo(9,0);
+                expect(result[0].performance[0]).toBeCloseTo(7,0);
             }).then(done, unexpected(done));
         });
     });

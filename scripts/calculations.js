@@ -31,7 +31,7 @@
 
 var parseCalculation = (function(_) {
     var calculations = {
-        unknown: function(expression) {
+        unknown: function(ex, interval, expression) {
             return {
                 getErrorMessage: function() {
                     return "Expression is unknown: " + expression;
@@ -47,7 +47,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        identity: function(field) {
+        identity: function(ex, interval, field) {
             return {
                 getErrorMessage: function() {
                     if (!_.isString(field) || !field.match(/^[0-9a-z\_\-&]+$/))
@@ -65,7 +65,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        finite: function(number) {
+        finite: function(ex, interval, number) {
             return {
                 getErrorMessage: function() {
                     if (!_.isFinite(number))
@@ -83,13 +83,11 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        WORKDAY: function(asof, n) {
+        WORKDAY: function(ex, interval, asof) {
             return {
                 getErrorMessage: function() {
                     if (!_.isString(asof) || !asof.match(/^[0-9a-z_\-&]+$/))
                         return "Must be a field: " + asof;
-                    if (!_.isNumber(n) || Math.round(n) != n)
-                        return "Must be an integer: " + n;
                     return null;
                 },
                 getFields: function(){
@@ -98,26 +96,19 @@ var parseCalculation = (function(_) {
                 getDataLength: function() {
                     return 1;
                 },
-                getMomentFields: function() {
-                    return [asof];
-                },
                 getValue: function(points) {
-                    var start = moment(points[0][asof]);
-                    var wd = start.isoWeekday();
-                    var w = Math.floor((wd -1 + n) / 5);
-                    if (n > 0) {
-                        if (wd > 5) start.add(8 - wd, 'days');
-                        start.isoWeek(start.isoWeek() + w).isoWeekday(wd + n - w * 5);
-                    } else if (n < 0) {
-                        if (wd > 5) start.subtract(wd - 5, 'days');
-                        start.isoWeek(start.isoWeek() + w).isoWeekday(wd + n - w * 5);
-                    }
-                    var offset = 2 - moment.tz('1900-01-01', start.tz()).valueOf() /1000 /60 /60 /24;
-                    return start.valueOf() /1000 /60 /60 /24 + offset;
+                    var start = moment(points[0][asof]).tz(ex.tz);
+                    var noon = moment(start).millisecond(0).second(0).minute(0).hour(12);
+                    var zero = moment.tz('1970-01-01', ex.tz).startOf('isoWeek');
+                    var weeks = start.diff(zero, 'weeks');
+                    var days = start.isoWeekday() - 1;
+                    if (days > 4) return weeks * 5 + 5;
+                    var hours = (start.valueOf() - noon.valueOf()) /1000 /60 /60 +12;
+                    return weeks*5 + days + hours/24;
                 }
             };
         },
-        HOUR: function(asof) {
+        HOUR: function(ex, interval, asof) {
             return {
                 getErrorMessage: function() {
                     if (!_.isString(asof) || !asof.match(/^[0-9a-z_\-&]+$/))
@@ -130,20 +121,17 @@ var parseCalculation = (function(_) {
                 getDataLength: function() {
                     return 1;
                 },
-                getMomentFields: function() {
-                    return [asof];
-                },
                 getValue: function(points) {
                     // pivot around noon as leap seconds/hours occur at night
-                    var start = moment(points[0][asof]);
+                    var start = moment(points[0][asof]).tz(ex.tz);
                     var noon = moment(start).millisecond(0).second(0).minute(0).hour(12);
                     return (start.valueOf() - noon.valueOf()) /1000 /60 /60 +12;
                 }
             };
         },
         /* Maximum */
-        MAX: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        MAX: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -160,8 +148,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Minimum */
-        MIN: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        MIN: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -178,8 +166,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Returns the sign of a number. Returns 1 if the number is positive, -1 if negative and 0 if zero. */
-        SIGN: function(field) {
-            var calc = getCalculation(field, arguments, 1);
+        SIGN: function(ex, interval, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 3);
             return {
                 getErrorMessage: function() {
                     return calc.getErrorMessage();
@@ -197,9 +185,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* Addition */
-        ADD: function(number, field) {
-            var n = getCalculation(number);
-            var d = getCalculation(field, arguments, 2);
+        ADD: function(ex, interval, number, field) {
+            var n = getCalculation(ex, interval, number);
+            var d = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     return n.getErrorMessage() || d.getErrorMessage();
@@ -216,9 +204,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* Subtraction */
-        SUBTRACT: function(number, field) {
-            var n = getCalculation(number);
-            var d = getCalculation(field, arguments, 2);
+        SUBTRACT: function(ex, interval, number, field) {
+            var n = getCalculation(ex, interval, number);
+            var d = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     return n.getErrorMessage() || d.getErrorMessage();
@@ -235,9 +223,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* Multiplication */
-        MULTIPLY: function(number, field) {
-            var n = getCalculation(number);
-            var d = getCalculation(field, arguments, 2);
+        MULTIPLY: function(ex, interval, number, field) {
+            var n = getCalculation(ex, interval, number);
+            var d = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     return n.getErrorMessage() || d.getErrorMessage();
@@ -254,9 +242,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* Percent ratio */
-        Percent: function(numerator, denominator) {
-            var n = getCalculation(numerator);
-            var d = getCalculation(denominator);
+        PERCENT: function(ex, interval, numerator, denominator) {
+            var n = getCalculation(ex, interval, numerator);
+            var d = getCalculation(ex, interval, denominator);
             return {
                 getErrorMessage: function() {
                     return n.getErrorMessage() || d.getErrorMessage();
@@ -275,7 +263,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Age Of High */
-        AOH: function(n) {
+        AOH: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -295,11 +283,11 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Convergence-Divergence Oscillator */
-        CDO: function(s, l, field) {
-            var args = Array.prototype.slice.call(arguments);
-            var short = getCalculation(field, [s].concat(args.slice(3)));
-            var long = getCalculation(field, [l].concat(args.slice(3)));
+        /* Convergence-Divergence Oscillator @deprecated */
+        CDO: function(ex, interval, s, l, field) {
+            var args = Array.prototype.slice.call(arguments, 2);
+            var short = getCalculation(ex, interval, field, [s].concat(args.slice(3)));
+            var long = getCalculation(ex, interval, field, [l].concat(args.slice(3)));
             return {
                 getErrorMessage: function() {
                     if (short.getErrorMessage())
@@ -315,9 +303,9 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Percentage Change Oscillator */
-        PCO: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        /* Percentage Change Oscillator @deprecated */
+        PCO: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -337,8 +325,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Percentage Maximum Oscillator @deprecaded */
-        PMO: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        PMO: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -363,8 +351,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Percentage above Low @deprecaded */
-        PLOW: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        PLOW: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -384,8 +372,8 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Stochastic Oscillator */
-        STO: function(n, s1, s2) {
+        /* Stochastic Oscillator @deprecated */
+        STO: function(ex, interval, n, s1, s2) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -420,8 +408,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Simple Moveing Average */
-        SMA: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        SMA: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -439,8 +427,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Exponential Moveing Average */
-        EMA: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        EMA: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -465,7 +453,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Weighted On Blanance Volume */
-        OBV: function(n) {
+        OBV: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -493,8 +481,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Relative Strength Index */
-        RSI: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        RSI: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -533,7 +521,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Average True Range */
-        ATR: function(n) {
+        ATR: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -564,9 +552,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* Difference over ATR @deprecaded */
-        DATR: function(n, field) {
-            var ATR = getCalculation('ATR', arguments, 0);
-            var calc = getCalculation(field, arguments, 2);
+        DATR: function(ex, interval, n, field) {
+            var ATR = getCalculation(ex, interval, 'ATR', arguments, 2);
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     return ATR.getErrorMessage() || calc.getErrorMessage();
@@ -586,8 +574,8 @@ var parseCalculation = (function(_) {
             };
         },
         /* Standard Deviation */
-        STDEV: function(n, field) {
-            var calc = getCalculation(field, arguments, 2);
+        STDEV: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -612,9 +600,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* Keltner Channel @deprecaded */
-        KELT: function(centre, unit) {
-            var ATR = getCalculation(unit, arguments, 3);
-            var calc = getCalculation(centre);
+        KELT: function(ex, interval, centre, unit) {
+            var ATR = getCalculation(ex, interval, unit, arguments, 5);
+            var calc = getCalculation(ex, interval, centre);
             return {
                 getErrorMessage: function() {
                     return ATR.getErrorMessage() || calc.getErrorMessage();
@@ -633,9 +621,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* Bollinger BandWidth @deprecaded */
-        BBWidth: function(centre, multiplier, unit) {
-            var ATR = getCalculation(unit, arguments, 3);
-            var calc = getCalculation(centre);
+        BBWidth: function(ex, interval, centre, multiplier, unit) {
+            var ATR = getCalculation(ex, interval, unit, arguments, 5);
+            var calc = getCalculation(ex, interval, centre);
             return {
                 getErrorMessage: function() {
                     if (!_.isNumber(multiplier) || multiplier != Math.round(multiplier))
@@ -659,9 +647,9 @@ var parseCalculation = (function(_) {
             };
         },
         /* %B @deprecaded */
-        PercentB: function(centre, multiplier, unit) {
-            var ATR = getCalculation(unit, arguments, 3);
-            var calc = getCalculation(centre);
+        PercentB: function(ex, interval, centre, multiplier, unit) {
+            var ATR = getCalculation(ex, interval, unit, arguments, 5);
+            var calc = getCalculation(ex, interval, centre);
             return {
                 getErrorMessage: function() {
                     if (!_.isNumber(multiplier) || multiplier != Math.round(multiplier))
@@ -685,7 +673,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Parabolic SAR */
-        PSAR: function(factor, limit, n) {
+        PSAR: function(ex, interval, factor, limit, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -749,7 +737,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Stop And Buy */
-        SAB: function(factor, limit, n) {
+        SAB: function(ex, interval, factor, limit, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -796,7 +784,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Stop And Sell */
-        SAS: function(factor, limit, n) {
+        SAS: function(ex, interval, factor, limit, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -842,23 +830,24 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Time Price Oppertunity Count percentage */
-        TPOC: function(n) {
+        /* Time Price Opportunity Count percentage */
+        TPOC: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
                         return "Must be a positive integer: " + n;
-                    return null;
+                    return calc.getErrorMessage();
                 },
                 getFields: function() {
-                    return ['high','low'];
+                    return ['high','low'].concat(calc.getFields());
                 },
                 getDataLength: function() {
-                    return n;
+                    return n - 1 + calc.getDataLength();
                 },
                 getValue: function(points) {
                     var tpos = getTPOCount(points);
-                    var poc = getPointOfControl(tpos);
+                    var target = getValue(calc, points);
                     var bottom = 0, top = tpos.length-1;
                     while (tpos[bottom].count <= 1 && bottom < top) bottom++;
                     while (tpos[top].count <= 1 && top > bottom) top--;
@@ -867,18 +856,20 @@ var parseCalculation = (function(_) {
                         top = tpos.length-1;
                     }
                     var step = 0.01;
-                    var above = _.range(poc+step, tpos[top].price+step, step).reduce(function(above, price){
+                    var above = _.range(target+step, tpos[top].price+step, step).reduce(function(above, price){
                         return above + tpoCount(tpos, decimal(price));
                     }, 0);
-                    var below = _.range(poc-step, tpos[bottom].price-step, -step).reduce(function(below, price){
+                    var below = _.range(target-step, tpos[bottom].price-step, -step).reduce(function(below, price){
                         return below + tpoCount(tpos, decimal(price));
                     }, 0);
-                    return (above - below) / Math.max(Math.min(above, below),1) *100;
+                    var value = tpoCount(tpos, target);
+                    var total = value + above + below;
+                    return (value + below) / total * 100;
                 }
             };
         },
-        /* Daily Point Of Control */
-        DPOC: function(n) {
+        /* Daily Point Of Control @deprecated */
+        DPOC: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -888,14 +879,11 @@ var parseCalculation = (function(_) {
                 getFields: function() {
                     return ['asof','high','low'];
                 },
-                getMomentFields: function() {
-                    return ['asof'];
-                },
                 getDataLength: function() {
                     return n;
                 },
                 getValue: function(points) {
-                    var end = moment(_.last(points).asof);
+                    var end = moment(_.last(points).asof).tz(ex.tz);
                     var start = moment(end).millisecond(0).second(0).minute(0).hour(0);
                     if (end.isSame(start)) {
                         start = start.subtract(1, 'day');
@@ -907,7 +895,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Point Of Control */
-        POC: function(n) {
+        POC: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -926,7 +914,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Point of Control Oscillator @deprecaded */
-        POCO: function(n, s1, s2) {
+        POCO: function(ex, interval, n, s1, s2) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -987,7 +975,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* @deprecaded */
-        HIGH_VALUE: function(n) {
+        HIGH_VALUE: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -1008,7 +996,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* @deprecaded */
-        LOW_VALUE: function(n) {
+        LOW_VALUE: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
                     if (!isPositiveInteger(n))
@@ -1029,7 +1017,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Annual Piotroski F-Score */
-        'F-Score': function() {
+        'F-Score': function(ex, interval) {
             function long_term_debt_to_asset_ratio(point) {
                 if (!point['long-term_debt']) return 0;
                 return point['long-term_debt'] * point.return_on_assets /
@@ -1074,7 +1062,7 @@ var parseCalculation = (function(_) {
             };
         },
         /* Quarter Piotroski F-Score */
-        FQScore: function() {
+        FQScore: function(ex, interval) {
             return {
                 getErrorMessage: function() {
                     return null;
@@ -1128,25 +1116,18 @@ var parseCalculation = (function(_) {
         }
     };
 
-    return function parseCalculation(exchange, calculation) {
+    return function parseCalculation(exchange, calculation, interval) {
+        var int = interval && intervals[interval.value];
         var parsed = parseExpression(calculation);
-        if (!parsed) return calculations.unknown(calculation);
-        else if (typeof parsed == 'string') return calculations.identity(calculation);
+        if (!parsed)
+            return calculations.unknown(exchange, int, calculation);
+        else if (typeof parsed == 'string')
+            return calculations.identity(exchange, int, calculation);
         var func = parsed[0];
-        var args = parsed.slice(1);
+        var args = [exchange, int].concat(parsed.slice(1));
         if (!calculations[func])
-            return calculations.unknown(calculation); // unknown function
-        var calc = calculations[func].apply(calculations[func], args);
-        if (typeof calc.getMomentFields != 'function') return calc;
-        return _.extend({}, calc, {
-            getValue: function(points) {
-                return calc.getValue(points.map(function(point){
-                    return _.extend({}, point, _.object(calc.getMomentFields(), calc.getMomentFields().map(function(field){
-                        return moment(point[field]).tz(exchange.tz);
-                    })))
-                }));
-            }
-        });
+            return calculations.unknown(exchange, int, calculation); // unknown function
+        return calculations[func].apply(calculations[func], args);
     };
 
     function parseExpression(expr) {
@@ -1263,14 +1244,14 @@ var parseCalculation = (function(_) {
         else return tpos.slice(bottom, top+1);
     }
 
-    function getCalculation(field, args, slice) {
+    function getCalculation(ex, interval, field, args, slice) {
         if (!field) throw Error("Expected field or expression, but was: " + field);
         var shifted = slice ? Array.prototype.slice.call(args, slice, args.length) : args;
         return calculations[field] ?
-            calculations[field].apply(this, shifted) :
-            _.isFinite(field) ? calculations.finite(field) :
-            _.isString(field) ? calculations.identity(field) :
-            getCalculation(_.first(field), _.rest(field));
+            calculations[field].apply(this, [ex, interval].concat(shifted)) :
+            _.isFinite(field) ? calculations.finite(ex, interval, field) :
+            _.isString(field) ? calculations.identity(ex, interval, field) :
+            getCalculation(ex, interval, _.first(field), _.rest(field));
     }
 
     function getValues(size, calc, points) {

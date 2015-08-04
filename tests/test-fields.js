@@ -73,7 +73,7 @@ describe("Validation", function(){
     ], isInvalid('d1'));
 
     these("should not validate expression in wrong period", [
-        "F-Score()", "Percent(total_liabilities, total_stockholders_equity)"
+        "F-Score()", "PERCENT(total_liabilities, total_stockholders_equity)"
     ], isInvalid('d1'));
 
     these("should validate F-Score() expression", [
@@ -81,7 +81,7 @@ describe("Validation", function(){
     ], isValid('annual'));
 
     these("should validate Percent expression", [
-        "Percent(total_liabilities, total_stockholders_equity)"
+        "PERCENT(total_liabilities, total_stockholders_equity)"
     ], isValid('quarter'));
 
     these("should validate quarter field", [
