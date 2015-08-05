@@ -1081,8 +1081,12 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Annual Piotroski F-Score */
+        /* Annual Piotroski F-Score @deprecaded */
         'F-Score': function(ex, interval) {
+            return calculations.FSCORE(ex, interval);
+        },
+        /* Annual Piotroski F-Score */
+        'FSCORE': function(ex, interval) {
             function long_term_debt_to_asset_ratio(point) {
                 if (!point['long-term_debt']) return 0;
                 return point['long-term_debt'] * point.return_on_assets /
@@ -1126,8 +1130,12 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Quarter Piotroski F-Score */
+        /* Quarter Piotroski F-Score @deprecaded */
         FQScore: function(ex, interval) {
+            return calculations.FQSCORE(ex, interval);
+        },
+        /* Quarter Piotroski F-Score */
+        FQSCORE: function(ex, interval) {
             return {
                 getErrorMessage: function() {
                     return null;
