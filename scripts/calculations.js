@@ -517,6 +517,69 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Volume Weighted Moveing Average */
+        VWMA: function(ex, interval, n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['open', 'high', 'low', 'close', 'volume'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    return reducePriceVolumeWeight(points, function(sum, price, weight) {
+                        return sum + price * weight;
+                    }, 0);
+                }
+            };
+        },
+        /* Time Weighted Moveing Average */
+        TWMA: function(ex, interval, n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['open', 'high', 'low', 'close', 'volume'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    return reducePriceTimeWeight(points, function(sum, price, weight) {
+                        return sum + price * weight;
+                    }, 0);
+                }
+            };
+        },
+        /* Range Weighted Moveing Average */
+        RWMA: function(ex, interval, n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['open', 'high', 'low', 'close', 'volume'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    return reducePriceRangeWeight(points, function(sum, price, weight) {
+                        return sum + price * weight;
+                    }, 0);
+                }
+            };
+        },
         /* Weighted On Blanance Volume */
         OBV: function(ex, interval, n) {
             return {
@@ -661,6 +724,78 @@ var parseCalculation = (function(_) {
                         return diff * diff;
                     })) / Math.max(prices.length,1));
                     return sd || 1;
+                }
+            };
+        },
+        /* Volume Weighted Standard Deviation */
+        VWSTDEV: function(ex, interval, n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['open', 'high', 'low', 'close', 'volume'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    var avg = reducePriceVolumeWeight(points, function(sum, price, weight) {
+                        return sum + price * weight;
+                    }, 0);
+                    return Math.sqrt(reducePriceVolumeWeight(points, function(sum, price, weight) {
+                        return sum + (price - avg) * (price - avg) * weight;
+                    }, 0)) || 1;
+                }
+            };
+        },
+        /* Time Weighted Standard Deviation */
+        TWSTDEV: function(ex, interval, n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['open', 'high', 'low', 'close', 'volume'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    var avg = reducePriceTimeWeight(points, function(sum, price, weight) {
+                        return sum + price * weight;
+                    }, 0);
+                    return Math.sqrt(reducePriceTimeWeight(points, function(sum, price, weight) {
+                        return sum + (price - avg) * (price - avg) * weight;
+                    }, 0)) || 1;
+                }
+            };
+        },
+        /* Range Weighted Standard Deviation */
+        RWSTDEV: function(ex, interval, n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['open', 'high', 'low', 'close', 'volume'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    var avg = reducePriceRangeWeight(points, function(sum, price, weight) {
+                        return sum + price * weight;
+                    }, 0);
+                    return Math.sqrt(reducePriceRangeWeight(points, function(sum, price, weight) {
+                        return sum + (price - avg) * (price - avg) * weight;
+                    }, 0)) || 1;
                 }
             };
         },
@@ -1226,6 +1361,54 @@ var parseCalculation = (function(_) {
                 return parseFloat(value);
             return value;
         }));
+    }
+
+    function reducePriceVolumeWeight(points, fn, memo) {
+        var total = Math.max(sum(_.pluck(points, 'volume')), 1);
+        return points.reduce(function(memo, point){
+            var start = Math.ceil(Math.min(point.open, point.close) * 100);
+            var end = Math.max(point.open, point.close) *100 + 1;
+            var body = _.range(start, end);
+            var range = _.range(Math.ceil(point.low *100), point.high *100 + 1);
+            var r = point.volume / range.length / total /2;
+            var b = point.volume / body.length / total /2;
+            return range.reduce(function(memo, price){
+                return fn(memo, price /100, r);
+            }, body.reduce(function(memo, price){
+                return fn(memo, price /100, b);
+            }, memo));
+        }, memo);
+    }
+
+    function reducePriceTimeWeight(points, fn, memo) {
+        var total = points.length;
+        return points.reduce(function(memo, point){
+            var range = [
+                point.open, point.low, point.high, point.close,
+                (point.low + point.high)/2, (point.open + point.close)/2
+            ];
+            var weight = 1 / range.length / total;
+            return range.reduce(function(memo, price){
+                return fn(memo, price, weight);
+            }, memo);
+        }, memo);
+    }
+
+    function reducePriceRangeWeight(points, fn, memo) {
+        var total = points.length;
+        return points.reduce(function(memo, point){
+            var start = Math.ceil(Math.min(point.open, point.close) * 100);
+            var end = Math.max(point.open, point.close) *100 + 1;
+            var body = _.range(start, end);
+            var range = _.range(Math.ceil(point.low *100), point.high *100 + 1);
+            var r = 1 / range.length / total /2;
+            var b = 1 / body.length / total /2;
+            return range.reduce(function(memo, price){
+                return fn(memo, price /100, r);
+            }, body.reduce(function(memo, price){
+                return fn(memo, price /100, b);
+            }, memo));
+        }, memo);
     }
 
     function getValueRange(tpos, poc) {
