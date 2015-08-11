@@ -109,7 +109,7 @@ function dispatch(handler) {
                     return info.peerAddress;
                 }).then(function(adr){
                     if (adr.indexOf("127.") === 0 || adr == "::1" || adr == "0:0:0:0:0:0:0:1")
-                        return true;
+                        return adr;
                     return new Promise(function(callback){
                         chrome.storage.local.get(["peerAddress"], callback);
                     }).then(function(items){
@@ -356,7 +356,10 @@ function dispatch(handler) {
                             reject(_.extend({}, data, {status: 'error', message: "Service took too long to respond"}));
                         }, 60000);
                     }, 60000);
-                    outstandingCommands[id] = {
+                    var msg = _.extend(_.isObject(data) ? data : {cmd: data}, {id: id});
+                    outstandingCommands[id] = _.extend({}, _.pick(msg, function(value, key){
+                        return _.isString(value) || _.isFinite(value);
+                    }), {
                         since: new Date().toISOString(),
                         service: service,
                         name: name,
@@ -364,8 +367,7 @@ function dispatch(handler) {
                         id: data.id,
                         resolve: resolve,
                         reject: reject
-                    };
-                    var msg = _.extend(_.isObject(data) ? data : {cmd: data}, {id: id});
+                    });
                     port.postMessage(msg);
                 }).then(function(resolved) {
                     delete outstandingCommands[id];

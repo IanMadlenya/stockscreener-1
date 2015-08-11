@@ -30,16 +30,20 @@
           return document.getElementById(id);
         }
         function log(text) {
-          $('log').value += text + '\n';
+          $('log').value += text;
+          try {
+            $('log').value = $('log').value.split('\n\n').map(function(json){
+                return json ? JSON.stringify(JSON.parse(json), undefined, 2) : json;
+            }).join('\n\n');
+          } catch(e) {}
         }
         document.addEventListener('DOMContentLoaded', function() {
           var address = window.location.href.replace('http', 'ws');
           var ws = new WebSocket(address);
           ws.addEventListener('open', function() {
-            log('Connected');
+            $('input').disabled = false;
           });
           ws.addEventListener('close', function() {
-            log('Connection lost');
             $('input').disabled = true;
           });
           ws.addEventListener('message', function(e) {
@@ -56,6 +60,6 @@
   </head>
   <body>
     <textarea id="log"></textarea>
-    <input type="text" id="input" placeholder="Type a request here" />
+    <input type="text" id="input" placeholder="Type a request here" autofocus="autofocus" />
   </body>
 </html>
