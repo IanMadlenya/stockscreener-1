@@ -53,6 +53,8 @@ function isFilter(object, path) {
         validate(object, path, isIndicator, 'indicator') &&
         validate(object, path, optional(isIndicator), 'difference') &&
         validate(object, path, optional(isIndicator), 'percent') &&
+        validate(object, path, optional(isIndicator), 'differenceWatch') &&
+        validate(object, path, optional(isIndicator), 'percentWatch') &&
         validate(object, path, optional(_.isNumber, _.isString), 'upper') &&
         validate(object, path, optional(_.isNumber, _.isString), 'lower');
 }

@@ -219,11 +219,11 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        difference: {
+                        differenceWatch: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        percent: {
+                        percentWatch: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
@@ -257,11 +257,11 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        difference: {
+                        differenceWatch: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        percent: {
+                        percentWatch: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
@@ -347,11 +347,11 @@ describe("Macro", function(){
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        difference: {
+                        differenceWatch: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },
-                        percent: {
+                        percentWatch: {
                             expression: "close",
                             interval: {value: 'd1'}
                         },

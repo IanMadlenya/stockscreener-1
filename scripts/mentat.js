@@ -106,22 +106,22 @@ onmessage = handle.bind(this, {
         var filters = _.compact([].concat(data.screen.watch, data.screen.hold));
         var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, filters, data.begin, data.end);
         var periods = screenPeriods(intervals, data.exchange, filters);
-        var hold = data.screen.hold || [];
-        var watch = addChangeReference(data.screen.watch, filters);
-        var stop = (_.isEmpty(hold) && watch || hold).filter(function(filter){
+        var hold = addReference(data.screen.hold || []);
+        var watch = addWatchReference(addReference(data.screen.watch), filters);
+        var stop = addReference((_.isEmpty(hold) && watch || hold).filter(function(filter){
             return _.isFinite(filter.lower) || _.isFinite(filter.upper);
-        });
+        }));
         return findSignals(periods, load, data.security, watch, hold, stop, data.begin, data.end);
     },
     screen: function(data){
-        var filters = _.compact([].concat(data.screen.watch, data.screen.hold, data.screen.stop));
+        var filters = _.compact([].concat(data.screen.watch, data.screen.hold));
         var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, filters, data.begin, data.end);
         var periods = screenPeriods(intervals, data.exchange, filters);
-        var hold = data.screen.hold || [];
-        var watch = addChangeReference(data.screen.watch, filters);
-        var stop = (_.isEmpty(hold) && watch || hold).filter(function(filter){
+        var hold = addReference(data.screen.hold || []);
+        var watch = addWatchReference(addReference(data.screen.watch), filters);
+        var stop = addReference((_.isEmpty(hold) && watch || hold).filter(function(filter){
             return _.isFinite(filter.lower) || _.isFinite(filter.upper);
-        });
+        }));
         var annual = createPeriod(intervals, 'annual', data.exchange);
         var minute = _.last(_.sortBy(_.values(periods), function(period) {
             return period.millis * -1;
@@ -198,14 +198,26 @@ function sum(numbers) {
     }, 0);
 }
 
-function addChangeReference(filters, changes) {
-    return _.compact([].concat(filters, changes.map(function(filter){
+function addReference(filters) {
+    return _.compact([].concat(filters, filters.map(function(filter){
         return filter.difference && {
             indicator: filter.difference
         };
-    }), changes.map(function(filter){
+    }), filters.map(function(filter){
         return filter.percent && {
             indicator: filter.percent
+        };
+    })));
+}
+
+function addWatchReference(filters, changes) {
+    return _.compact([].concat(filters, changes.map(function(filter){
+        return filter.differenceWatch && {
+            indicator: filter.differenceWatch
+        };
+    }), changes.map(function(filter){
+        return filter.percentWatch && {
+            indicator: filter.percentWatch
         };
     })));
 }
@@ -213,7 +225,7 @@ function addChangeReference(filters, changes) {
 function pointLoad(parseCalculation, open, failfast, security, filters, lower, upper) {
     var datasets = {};
     var exprs = _.compact(_.flatten(filters.map(function(filter){
-        return [filter.indicator, filter.difference, filter.percent];
+        return [filter.indicator, filter.difference, filter.percent, filter.differenceWatch, filter.percentWatch];
     }))).reduce(function(exprs, indicator){
         var expr = indicator.expression;
         var interval = indicator.interval.value;
@@ -254,7 +266,9 @@ function screenPeriods(intervals, exchange, filters) {
             return [
                 filter.indicator.interval.value,
                 filter.difference && filter.difference.interval.value,
-                filter.percent && filter.percent.interval.value
+                filter.percent && filter.percent.interval.value,
+                filter.differenceWatch && filter.differenceWatch.interval.value,
+                filter.percentWatch && filter.percentWatch.interval.value
             ];
     })))).reduce(function(periods, interval){
         periods[interval] = createPeriod(intervals, interval, exchange);
@@ -321,7 +335,7 @@ function screenSecurity(periods, load, security, signal, filters, watching, begi
         return periods[interval].millis * -1;
     });
     var pass = signal == 'watch';
-    return filterSecurityByPeriods(load, signal, watching, sorted.map(function(interval) {
+    return filterSecurityByPeriods(load, signal, watching, {}, sorted.map(function(interval) {
         return {
             period: periods[interval],
             filters: byInterval[interval]
@@ -348,19 +362,18 @@ function screenSecurity(periods, load, security, signal, filters, watching, begi
     });
 }
 
-function filterSecurityByPeriods(load, signal, watching, periodsAndFilters, after, lower, begin, upper) {
+function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, begin, upper) {
     var rest = _.rest(periodsAndFilters);
     var period = _.first(periodsAndFilters).period;
     var filters = _.first(periodsAndFilters).filters;
-    return findNextSignal(load, signal, !rest.length, period, filters, watching, after, begin, upper).then(function(data){
+    return findNextSignal(load, signal, !rest.length, period, filters, watching, holding, after, begin, upper).then(function(data){
         if (!data.result) return data;
         else if (data.status == 'failure' || !rest.length) return _.extend({}, data, {
             result: _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof])
         });
-        var reference = watching[period.value] ? watching :
-            _.extend(_.object([period.value],[data.result]), watching);
+        var reference = _.extend(_.object([period.value],[data.result]), holding);
         var start = maxDate(lower, data.result.asof);
-        return filterSecurityByPeriods(load, signal, reference, rest, data.result.asof, start, start, minDate(upper, data.until)).then(function(child){
+        return filterSecurityByPeriods(load, signal, watching, reference, rest, data.result.asof, start, start, minDate(upper, data.until)).then(function(child){
             if (ltDate(upper, data.until) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
@@ -369,40 +382,39 @@ function filterSecurityByPeriods(load, signal, watching, periodsAndFilters, afte
                 quote: _.compact(_.flatten([data.quote, child.quote])),
                 result: _.extend(_.object([period.value], [data.result]), child.result)
             });
-            return filterSecurityByPeriods(load, signal, watching, periodsAndFilters, after, lower, data.until, upper);
+            return filterSecurityByPeriods(load, signal, watching, {}, periodsAndFilters, after, lower, data.until, upper);
         });
     });
 }
 
-function findNextSignal(load, signal, leaf, period, filters, watching, after, begin, until) {
+function findNextSignal(load, signal, leaf, period, filters, watching, holding, after, begin, until) {
     if (signal == 'watch')
-        return findNextActiveFilter(true, load, period, filters, watching, after, begin, until);
+        return findNextActiveFilter(true, load, period, filters, watching, holding, after, begin, until);
     else if (signal == 'stop' && leaf)
-        return findNextActiveFilter(false, load, period, filters, watching, after, begin, until);
+        return findNextActiveFilter(false, load, period, filters, watching, holding, after, begin, until);
     else if (signal == 'stop')
-        return loadFilteredPoint(load, period, filters, watching, after, begin, until);
+        return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until);
     else if (signal == 'hold')
         return load(period, after, minDate(begin,until));
     else throw Error("Unknown signal: " + signal);
 }
 
-function findNextActiveFilter(pass, load, period, filters, watching, after, begin, until) {
-    return loadFilteredPoint(load, period, filters, watching, after, begin, until).then(function(data){
+function findNextActiveFilter(pass, load, period, filters, watching, holding, after, begin, until) {
+    return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until).then(function(data){
         if (pass != data.passed && ltDate(data.until, until, true))
-            return findNextActiveFilter(pass, load, period, filters, watching, after, data.until, until);
+            return findNextActiveFilter(pass, load, period, filters, watching, holding, after, data.until, until);
         else return data;
     });
 }
 
-function loadFilteredPoint(load, period, filters, watching, after, begin, until) {
+function loadFilteredPoint(load, period, filters, watching, holding, after, begin, until) {
     return load(period, after, minDate(begin,until), until).then(function(data){
         if (!data.result) return data;
         var pass =_.reduce(filters, function(pass, filter) {
             if (!pass) return false;
-            var reference = watching[period.value] ? watching :
-                _.extend(_.object([period.value],[data.result]), watching);
-            var diff = valueOf(filter.difference, reference);
-            var of = valueOf(filter.percent, reference);
+            var reference = _.extend(_.object([period.value],[data.result]), holding);
+            var diff = valueOf(filter.difference, reference) + valueOf(filter.differenceWatch, watching);
+            var of = valueOf(filter.percent, reference) || valueOf(filter.percentWatch, watching);
             var x = data.result[filter.indicator.expression] - diff;
             var value = of ? x * 100 / Math.abs(of) : x;
             if (_.isFinite(filter.lower)) {
@@ -421,10 +433,10 @@ function loadFilteredPoint(load, period, filters, watching, after, begin, until)
     });
 }
 
-function valueOf(indicator, watching) {
+function valueOf(indicator, reference) {
     var int = indicator && indicator.interval.value;
-    if (!int || !watching[int]) return 0;
-    return watching[int][indicator.expression];
+    if (!int || !reference[int]) return 0;
+    return reference[int][indicator.expression];
 }
 
 function loadData(parseCalculation, open, failfast, security, length, lower, upper, period, expressions) {
