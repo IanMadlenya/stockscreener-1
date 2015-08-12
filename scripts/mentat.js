@@ -382,7 +382,7 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
                 quote: _.compact(_.flatten([data.quote, child.quote])),
                 result: _.extend(_.object([period.value], [data.result]), child.result)
             });
-            return filterSecurityByPeriods(load, signal, watching, {}, periodsAndFilters, after, lower, data.until, upper);
+            return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, data.until, upper);
         });
     });
 }
@@ -539,6 +539,9 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
             }
             return result;
         }, []);
+        if (result.length && ltDate(_.last(result).asof, period.ceil(_.last(result).asof))) {
+            result.pop(); // last period is not yet complete
+        }
         return _.extend(data, {
             result: result
         });
@@ -668,14 +671,23 @@ function storeData(open, security, period, data) {
 
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security, 5);
+        var request = indexedDB.open(security, 6);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {
                 var db = event.target.result;
+                // Clear the database to re-download everything
+                for (var i=db.objectStoreNames.length -1; i>=0; i--) {
+                    var name = db.objectStoreNames[i];
+                    if (name != "annual" && name != "quarter") {
+                        // annual and quarter history is limited
+                        db.deleteObjectStore(db.objectStoreNames[i]);
+                    }
+                }
                 // Create an objectStore for this database
                 storeNames.forEach(function(name){
-                    if (!db.objectStoreNames.contains(name)) {
+                    if (!db.objectStoreNames.contains(name)
+                            || (name != "annual" && name != "quarter")) {
                         db.createObjectStore(name, { keyPath: "asof" });
                     }
                 });
