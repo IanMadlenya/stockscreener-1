@@ -513,7 +513,7 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
 function collectAggregateRange(open, failfast, security, period, length, lower, upper) {
     var ceil = period.ceil;
     var end = ltDate(ceil(upper), upper, true) ? upper : period.floor(upper);
-    var size = period.aggregate * length + 1;
+    var size = period.aggregate * (length + 1);
     return collectRawRange(open, failfast, security, period.derivedFrom, size, lower, end).then(function(data){
         if (!data.result.length) return data;
         var upper, count, discard = ceil(data.result[0].asof);
