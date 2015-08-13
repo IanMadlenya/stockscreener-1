@@ -307,7 +307,7 @@ function dispatch(handler) {
                     socket.send(JSON.stringify(result) + '\n\n');
                 });
             }).catch(function(error){
-                console.log(error);
+                console.error(error);
                 socket.send(JSON.stringify(normalizedError(error)) + '\n\n');
             });
         }

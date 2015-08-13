@@ -245,7 +245,7 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
             var idx = _.sortedIndex(data.result, {
                 asof: toISOString(asof)
             }, 'asof');
-            if (startIndex < data.result.length && ltDate(data.result[startIndex].asof, after, true)) {
+            if (startIndex < data.result.length && ltDate(data.result[startIndex].asof, after)) {
                 startIndex++;
             }
             var i = Math.max(startIndex, data.result[idx] && ltDate(data.result[idx].asof, asof, true) && idx || 0, idx - 1);
@@ -327,6 +327,8 @@ function holdSecurity(screen, filters, watching, begin, end) {
 }
 
 function screenSecurity(periods, load, security, signal, filters, watching, begin, end){
+    if (ltDate(end, begin))
+        throw Error("Assert error " + end + " is less than " + begin);
     if (!filters.length) return Promise.resolve({status: 'success'});
     var getInterval = _.compose(_.property('value'), _.property('interval'), _.property('indicator'));
     var byInterval = _.groupBy(filters, getInterval);
@@ -363,6 +365,8 @@ function screenSecurity(periods, load, security, signal, filters, watching, begi
 }
 
 function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, begin, upper) {
+    if (ltDate(upper, begin))
+        throw Error("Assert error " + upper + " is less than " + begin);
     var rest = _.rest(periodsAndFilters);
     var period = _.first(periodsAndFilters).period;
     var filters = _.first(periodsAndFilters).filters;
@@ -372,8 +376,12 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
             result: _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof])
         });
         var reference = _.extend(_.object([period.value],[data.result]), holding);
-        var start = maxDate(lower, data.result.asof);
-        return filterSecurityByPeriods(load, signal, watching, reference, rest, data.result.asof, start, start, minDate(upper, data.until)).then(function(child){
+        var start = period.ceil(data.result.asof);
+        if (ltDate(upper, start)) return _.extend({}, data, {
+            passed: undefined,
+            result: _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof])
+        });
+        return filterSecurityByPeriods(load, signal, watching, reference, rest, start, maxDate(lower, start), maxDate(start, begin), minDate(upper, data.until)).then(function(child){
             if (ltDate(upper, data.until) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
@@ -382,6 +390,8 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
                 quote: _.compact(_.flatten([data.quote, child.quote])),
                 result: _.extend(_.object([period.value], [data.result]), child.result)
             });
+            if (ltDate(data.until, begin, true))
+                throw Error("Assert error " + data.until + " is less than " + begin);
             return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, data.until, upper);
         });
     });
@@ -400,7 +410,11 @@ function findNextSignal(load, signal, leaf, period, filters, watching, holding, 
 }
 
 function findNextActiveFilter(pass, load, period, filters, watching, holding, after, begin, until) {
+    if (ltDate(until, begin))
+        throw Error("Assert error " + until + " is less than " + begin);
     return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until).then(function(data){
+        if (ltDate(data.until, begin, true))
+            throw Error("Assert error " + data.until + " is less than " + begin);
         if (pass != data.passed && ltDate(data.until, until, true))
             return findNextActiveFilter(pass, load, period, filters, watching, holding, after, data.until, until);
         else return data;
@@ -504,6 +518,10 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
             // no data available
             var floored = period.floor(lower);
             return collectAggregateRange(open, failfast, security, period, length, floored, upper).then(function(aggregated){
+                if (aggregated.status == "warning" && aggregated.result.length == result.length)
+                    return _.extend(aggregated, {
+                        result: result
+                    });
                 return storeData(open, security, period, aggregated.result).then(_.constant(aggregated));
             });
         }
@@ -573,7 +591,6 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                     quote: [{
                         security: security,
                         interval: period.value,
-                        result: result,
                         start: period.format(result[result.length - 1].asof)
                     }]
                 });

@@ -253,14 +253,17 @@ function combineResult(results){
         var result = msg.result ? memo.result.concat(msg.result) : memo.result;
         return _.extend(memo, msg, {
             status: memo.status != msg.status ? 'warning' : memo.status,
-            result: result
+            result: result,
+            message: memo.message,
+            quote: memo.quote
         });
     }, {
         status: results[0].status,
         result: [],
-        message: _.uniq(_.pluck(results, 'message').sort(), true).join('\n') || undefined,
-        error: _.isEmpty(errors) ? undefined : errors,
-        quote: _.isEmpty(errors) ? undefined : _.flatten(_.pluck(errors, 'quote'))
+        message: _.uniq(_.flatten(_.pluck(results, 'message')).sort(), true) || undefined,
+        quote: _.isEmpty(errors) ? undefined : _.uniq(_.flatten(_.pluck(errors, 'quote')), false, function(quote){
+            return JSON.stringify(quote);
+        })
     });
 }
 
