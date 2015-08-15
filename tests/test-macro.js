@@ -268,14 +268,10 @@ describe("Macro", function(){
                         upper: "4"
                     }]
                 }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
-                    expect(result.length).toEqual(9);
+                    expect(result.length).toEqual(2);
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 133.83
-                    }));
-                    expect(result).toContain(jasmine.objectContaining({
-                        signal: 'hold',
-                        price: 137.60
                     }));
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'stop',
@@ -303,7 +299,7 @@ describe("Macro", function(){
                         lower: "140.00"
                     }]
                 }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
-                    expect(result.length).toEqual(11);
+                    expect(result.length).toEqual(4);
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 140.93
@@ -315,10 +311,6 @@ describe("Macro", function(){
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 145.05
-                    }));
-                    expect(result).toContain(jasmine.objectContaining({
-                        signal: 'hold',
-                        price: 148.59
                     }));
                 }).then(done, unexpected(done));
             });

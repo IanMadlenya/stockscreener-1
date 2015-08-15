@@ -341,4 +341,282 @@ describe("Micro", function(){
             }).then(done, unexpected(done));
         });
     });
+
+    describe("TQQQ under valued", function(){
+        it("day signal", function(done){
+            screener.signals([
+                {
+                  "exchange": {
+                    "iri": "http://localhost/screener/exchanges/ngm",
+                    "label": "NASDAQ Global Market",
+                    "marketOpensAt": "09:30:00",
+                    "marketClosesAt": "16:00:00",
+                    "tz": "America/New_York",
+                    "marketLang": "en-US",
+                    "mic": "XNMS",
+                    "morningstarCode": "XNAS",
+                    "exch": "NGM",
+                    "yahooSuffix": null,
+                    "dtnPrefix": null
+                  },
+                  "includes": [
+                    "http://localhost/screener/exchanges/ngm/TQQQ"
+                  ],
+                  "sectors": [],
+                  "industries": [],
+                  "countries": [],
+                  "excludes": []
+                }
+            ],{
+            watch: [
+              {
+                upper: "-200",
+                indicator: {
+                  interval: {
+                    value: "m1"
+                  },
+                  expression: "low"
+                },
+                difference: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWMA(20)"
+                },
+                percent: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWSTDEV(20)"
+                }
+              },
+              {
+                lower: "9.6",
+                upper: "12",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "HOUR(asof)"
+                }
+              },
+              {
+                lower: "0",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "SMA(8,close)"
+                },
+                difference: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "SMA(8,open)"
+                }
+              }
+            ]
+          }, new Date('2015-03-13'),new Date('2015-03-14')).then(function(result){
+                expect(result).toEqual([]);
+            }).then(done, unexpected(done));
+        });
+        it("signals", function(done){
+            screener.signals([
+                {
+                  "exchange": {
+                    "iri": "http://localhost/screener/exchanges/ngm",
+                    "label": "NASDAQ Global Market",
+                    "marketOpensAt": "09:30:00",
+                    "marketClosesAt": "16:00:00",
+                    "tz": "America/New_York",
+                    "marketLang": "en-US",
+                    "mic": "XNMS",
+                    "morningstarCode": "XNAS",
+                    "exch": "NGM",
+                    "yahooSuffix": null,
+                    "dtnPrefix": null
+                  },
+                  "includes": [
+                    "http://localhost/screener/exchanges/ngm/TQQQ"
+                  ],
+                  "sectors": [],
+                  "industries": [],
+                  "countries": [],
+                  "excludes": []
+                }
+            ],{
+            watch: [
+              {
+                upper: "-100",
+                indicator: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "close"
+                },
+                difference: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "SMA(20,close)"
+                },
+                percent: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "STDEV(20,close)"
+                }
+              },
+              {
+                upper: "-200",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "SINCE(1,MIN(200,low))"
+                },
+                difference: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWMA(20)"
+                },
+                percent: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWSTDEV(20)"
+                }
+              },
+              {
+                lower: "100000",
+                indicator: {
+                  interval: {
+                    value: "d5"
+                  },
+                  expression: "volume"
+                }
+              },
+              {
+                lower: "0.5",
+                indicator: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "STDEV(20,close)"
+                },
+                percent: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "SMA(20,close)"
+                }
+              },
+              {
+                lower: "9.6",
+                upper: "12",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "HOUR(asof)"
+                }
+              },
+              {
+                lower: "0",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "SMA(8,close)"
+                },
+                difference: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "SMA(8,open)"
+                }
+              }
+            ],
+            hold: [
+              {
+                upper: "-100",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "high"
+                },
+                difference: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWMA(20)"
+                },
+                percent: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWSTDEV(20)"
+                }
+              },
+              {
+                lower: "-2",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "low"
+                },
+                differenceWatch: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "close"
+                },
+                percentWatch: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "close"
+                }
+              },
+              {
+                indicator: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWMA(20)"
+                },
+                difference: {
+                  interval: {
+                    value: "d1"
+                  },
+                  expression: "RWSTDEV(20)"
+                }
+              },
+              {
+                upper: "15.9",
+                indicator: {
+                  interval: {
+                    value: "m10"
+                  },
+                  expression: "HOUR(asof)"
+                }
+              }
+            ]
+          }, new Date('2015-03-12'),new Date('2015-03-13')).then(function(result){
+                expect(result).toContain(jasmine.objectContaining({
+                    price: 102.57,
+                    asof: '2015-03-12T13:50:00.000Z',
+                    signal: 'watch'
+                }));
+                expect(result).toContain(jasmine.objectContaining({
+                    price: 103.22,
+                    asof: '2015-03-12T20:00:00.000Z',
+                    signal: 'stop'
+                }));
+            }).then(done, unexpected(done));
+        });
+    });
 });

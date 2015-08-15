@@ -292,10 +292,12 @@ function importAndRun(services, data, port, quotes) {
     var ticker = decodeURI(data.security.substring(exchange.iri.length + 1));
     return importQuotes(services, exchange, ticker, quotes, port).then(function(imported){
         return port.promiseMessage(data).catch(function(error){
-            var exclude = _.uniq(quotes.map(_.property('interval')));
-            var intervals = error.quote && _.uniq(error.quote.map(_.property('interval')));
-            if (intervals && !_.some(intervals, _.contains.bind(_, exclude))) {
-                // asking for different invervals this time
+            var exclude = _.groupBy(quotes, 'interval');
+            var intervals = error.quote && _.groupBy(error.quote, 'interval');
+            if (intervals && !_.some(intervals, function(errors, interval){
+                return _.intersection(_.pluck(exclude[interval], 'start'), _.pluck(errors, 'start')).length;
+            })) {
+                // asking for different invervals or start dates this time
                 return importAndRun(services, data, port, error.quote);
             } else if (error.status == 'warning') {
                 // just use what we have

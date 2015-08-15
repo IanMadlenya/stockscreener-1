@@ -286,19 +286,17 @@ function findSignals(periods, load, security, watch, hold, stop, begin, end) {
 }
 
 function screenSignals(periods, load, security, watch, hold, stop, begin, end) {
-    var screen = screenSecurity.bind(this, periods, load, security);
-    return screen('watch', watch, {}, begin, end).then(function(ws){
+    var find = findSignal.bind(this, periods, load, security);
+    return find('watch', watch, {}, begin, end).then(function(ws){
         if (!ws.result) return _.extend(ws, {
             result: []
         });
-        return screen('stop', stop, ws.result, ws.result.asof, end).then(function(ss){
+        return find('stop', stop, ws.result, ws.result.asof, end).then(function(ss){
+            var last = ss.result ? ss.result.asof : ws.result.asof;
             var stopped = ss.result ? ss.result.asof : end;
-            return holdSecurity(screen, hold, ws.result, ws.result.asof, stopped).then(function(hs) {
+            return findLastHoldSignals(find, hold, ws.result, ws.result.asof, stopped).then(function(hs) {
                 if (_.isEmpty(hs.result) && _.isEmpty(ss.result)) return combineResult([ws]);
-                else if (_.isEmpty(hs.result)) return combineResult([ws, ss]);
-                else if (_.isEmpty(ss.result)) return combineResult([ws, hs]);
-                _.last(hs.result).signal = ss.result.signal;
-                return combineResult([ws, hs]);
+                else return combineResult([ws, deepExtend(hs,ss)]);
             });
         });
     }).then(function(first){
@@ -311,22 +309,27 @@ function screenSignals(periods, load, security, watch, hold, stop, begin, end) {
     });
 }
 
-function holdSecurity(screen, filters, watching, begin, end) {
-    return screen('hold', filters, watching, begin, end).then(function(first) {
-        if (!first.result) return _.extend(first, {
-            result: []
-        });
-        if (ltDate(end, first.until)) return _.extend(first, {
-            result: [first.result]
-        });
-        return holdSecurity(screen, filters, watching, first.until, end).then(function(rest) {
-            rest.result.unshift(first.result);
-            return rest;
+function findLastHoldSignals(find, filters, watching, begin, end) {
+    return find('hold', filters, watching, begin, end).then(function(first) {
+        if (!first.result || ltDate(end, first.until)) return first;
+        return findLastHoldSignals(find, filters, watching, first.until, end).then(function(last) {
+            return deepExtend(first, last);
         });
     });
 }
 
-function screenSecurity(periods, load, security, signal, filters, watching, begin, end){
+function deepExtend(target, source) {
+    for (var prop in source) {
+        var dst = target[prop];
+        var src = source[prop];
+        if (src && prop in target && typeof dst == 'object' && typeof src == 'object')
+            deepExtend(dst, src);
+        else if (src !== undefined) target[prop] = src;
+    }
+    return target;
+}
+
+function findSignal(periods, load, security, signal, filters, watching, begin, end){
     if (ltDate(end, begin))
         throw Error("Assert error " + end + " is less than " + begin);
     if (!filters.length) return Promise.resolve({status: 'success'});
@@ -336,7 +339,6 @@ function screenSecurity(periods, load, security, signal, filters, watching, begi
         if (!periods[interval]) throw Error("Unknown interval: " + interval);
         return periods[interval].millis * -1;
     });
-    var pass = signal == 'watch';
     return filterSecurityByPeriods(load, signal, watching, {}, sorted.map(function(interval) {
         return {
             period: periods[interval],
@@ -344,7 +346,7 @@ function screenSecurity(periods, load, security, signal, filters, watching, begi
         };
     }), new Date(0), begin, begin, end).then(function(data){
         if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.until, end))
-            return screenSecurity(periods, load, security, signal, filters, watching, data.until, end);
+            return findSignal(periods, load, security, signal, filters, watching, data.until, end);
         if (!data.result || ltDate(data.result.asof, begin))
             return _.extend(data, {
                 passed: undefined,
@@ -372,15 +374,18 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
     var filters = _.first(periodsAndFilters).filters;
     return findNextSignal(load, signal, !rest.length, period, filters, watching, holding, after, begin, upper).then(function(data){
         if (!data.result) return data;
-        else if (data.status == 'failure' || !rest.length) return _.extend({}, data, {
+        else if (data.passed === false || !rest.length) return _.extend({}, data, {
             result: _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof])
         });
         var reference = _.extend(_.object([period.value],[data.result]), holding);
         var start = period.ceil(data.result.asof);
-        if (ltDate(upper, start)) return _.extend({}, data, {
-            passed: undefined,
-            result: _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof])
-        });
+        if (ltDate(upper, start)) {
+            // couldn't find signal, end of period
+            return _.extend({}, data, {
+                passed: undefined,
+                result: _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof])
+            });
+        }
         return filterSecurityByPeriods(load, signal, watching, reference, rest, start, maxDate(lower, start), maxDate(start, begin), minDate(upper, data.until)).then(function(child){
             if (ltDate(upper, data.until) ||
                     signal == 'watch' && child.passed ||
@@ -392,6 +397,7 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
             });
             if (ltDate(data.until, begin, true))
                 throw Error("Assert error " + data.until + " is less than " + begin);
+            // couldn't find a signal, try next period
             return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, data.until, upper);
         });
     });
@@ -530,7 +536,7 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
 
 function collectAggregateRange(open, failfast, security, period, length, lower, upper) {
     var ceil = period.ceil;
-    var end = ltDate(ceil(upper), upper, true) ? upper : period.floor(upper);
+    var end = period.inc(upper, 2); // increment beyond a complete point
     var size = period.aggregate * (length + 1);
     return collectRawRange(open, failfast, security, period.derivedFrom, size, lower, end).then(function(data){
         if (!data.result.length) return data;
@@ -557,7 +563,9 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
             }
             return result;
         }, []);
-        if (result.length && ltDate(_.last(result).asof, period.ceil(_.last(result).asof))) {
+        if (result.length && ltDate(_.last(result).asof, upper)) {
+            result.pop(); // last period is beyond upper
+        } else if (result.length && ltDate(_.last(result).asof, period.ceil(_.last(result).asof))) {
             result.pop(); // last period is not yet complete
         }
         return _.extend(data, {
@@ -611,10 +619,9 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                     start: period.format(result[result.length - 1].asof)
                 });
             }
-            return conclude({
-                status: failfast ? 'error' : 'warning',
+            return Promise.reject({
+                status: 'error',
                 message: 'Need more data points',
-                result: result,
                 quote: quote
             });
         } else {
@@ -688,7 +695,7 @@ function storeData(open, security, period, data) {
 
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security, 6);
+        var request = indexedDB.open(security, 7);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {
