@@ -66,6 +66,7 @@ onmessage = handle.bind(this, {
     },
 
     lookup: (function(lookupSymbol, data) {
+        if (!data.exchange.exch) return [];
         var suffix = data.exchange.yahooSuffix || '';
         return lookupSymbol(data.exchange, data.symbol).then(function(results){
             return results.map(function(result){
@@ -82,7 +83,8 @@ onmessage = handle.bind(this, {
 
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, data) {
         var interval = data.interval;
-        if (interval != 'd1') return {status: 'success', result: []};
+        if (interval != 'd1' || !data.exchange.exch)
+            return {status: 'success', result: []};
         var symbol = guessSymbol(data.exchange, data.ticker);
         var mapped = symbolMap[symbol];
         return loadSymbol(data, mapped || symbol).catch(function(error) {
