@@ -145,19 +145,19 @@ var parseCalculation = (function(_) {
                     var opens = moment.tz('2010-03-01T' + ex.marketOpensAt, ex.tz);
                     var closes = moment.tz('2010-03-01T' + ex.marketClosesAt, ex.tz);
                     var dayLength = interval.diff(ex, closes, opens);
-                    var n = d * dayLength * 1.5; // extra for after hours activity
+                    var n = Math.ceil((d + 1) * dayLength * 2); // extra for after hours activity
                     return n + calc.getDataLength();
                 },
                 getValue: function(points) {
                     var prior = intervals.d1.dec(ex, _.last(points).asof, d);
                     var closes = prior.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
-                    var asof = moment.tz(closes, ex.tz).toISOString();
+                    var prior = moment.tz(closes, ex.tz).toISOString();
                     var end = _.sortedIndex(points, {
-                        asof: asof
+                        asof: prior
                     }, 'asof');
-                    if (points[end] && points[end].asof == asof) end++;
+                    if (points[end] && points[end].asof == prior) end++;
                     var start = Math.max(end - calc.getDataLength(), 0);
-                    return getValues(n, calc, points.slice(start, end));
+                    return getValue(calc, points.slice(start, end));
                 }
             };
         },
@@ -177,17 +177,18 @@ var parseCalculation = (function(_) {
                     var opens = moment.tz('2010-03-01T' + ex.marketOpensAt, ex.tz);
                     var closes = moment.tz('2010-03-01T' + ex.marketClosesAt, ex.tz);
                     var dayLength = interval.diff(ex, closes, opens);
-                    var n = d * dayLength * 1.5; // extra for after hours activity
+                    var n = Math.ceil((d + 1) * dayLength * 2); // extra for after hours activity
                     return Math.max(n, calc.getDataLength());
                 },
                 getValue: function(points) {
-                    var since = intervals.d1.dec(ex, _.last(points).asof, d - 1);
-                    var opens = moment.tz(since.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
-                    var asof = opens.toISOString();
+                    var asof = moment.tz(_.last(points).asof, ex.tz);
+                    var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+                    var dec = asof.isAfter(opens) ? d - 1 : d;
+                    var since = intervals.d1.dec(ex, opens, dec).toISOString();
                     var start = _.sortedIndex(points, {
-                        asof: asof
+                        asof: since
                     }, 'asof');
-                    if (points[start] && points[start].asof == asof) start++;
+                    if (points[start] && points[start].asof == since) start++;
                     if (start >= points.length) return getValue(calc, points);
                     var end = Math.min(start + calc.getDataLength(), points.length);
                     return getValue(calc, points.slice(start, end));
