@@ -292,10 +292,11 @@ function importAndRun(services, data, port, quotes) {
     var ticker = decodeURI(data.security.substring(exchange.iri.length + 1));
     return importQuotes(services, exchange, ticker, quotes, port).then(function(imported){
         return port.promiseMessage(data).catch(function(error){
-            var exclude = _.groupBy(quotes, 'interval');
-            var intervals = error.quote && _.groupBy(error.quote, 'interval');
-            if (intervals && !_.some(intervals, function(errors, interval){
-                return _.intersection(_.pluck(exclude[interval], 'start'), _.pluck(errors, 'start')).length;
+            var minStart = _.compose(_.property('start'), _.first, _.partial(_.sortBy, _, 'start'));
+            var earliest = _.mapObject(_.groupBy(quotes, 'interval'), minStart);
+            var intervals = error.quote && _.mapObject(_.groupBy(error.quote, 'interval'), minStart);
+            if (intervals && _.some(intervals, function(start, interval){
+                return !earliest[interval] || start < earliest[interval];
             })) {
                 // asking for different invervals or start dates this time
                 return importAndRun(services, data, port, error.quote);
