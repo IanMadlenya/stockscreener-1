@@ -109,6 +109,17 @@ describe("intervals.js", function(){
                     expect(intervals.d1.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
+            describe("diff", function() {
+                it("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)", function(){
+                    var date = new Date("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)");
+                    expect(intervals.d1.diff(exchange, date, date)).toEqual(0);
+                    expect(intervals.d1.diff(exchange, date, moment(date).subtract(1,'days'))).toEqual(1);
+                });
+                it("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
+                    var date = new Date("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT)");
+                    expect(intervals.d1.diff(exchange, moment(date).add(1,'days'), date)).toEqual(1);
+                });
+            });
         });
     });
     testMinuteInterval(1);

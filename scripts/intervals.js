@@ -369,31 +369,40 @@ var intervals = (function(_, moment) {
             if (wd > 5)
                 return d1.inc(ex, start.add(8 - wd, 'days'), amount);
             var w = Math.floor((wd -1 + amount) / 5);
-            return start.isoWeek(start.isoWeek() + w).isoWeekday(wd + amount - w * 5);
+            var days = amount - w *5;
+            if (wd + days < 6)
+                return start.isoWeek(start.isoWeek() + w).isoWeekday(wd + days);
+            else return start.isoWeek(start.isoWeek() + w).isoWeekday(wd +2 + days);
         },
         dec: function(ex, dateTime, amount) {
             var start = d1.floor(ex, dateTime);
             var wd = start.isoWeekday();
-            if (wd > 5)
-                return d1.dec(ex, start.subtract(wd - 5, 'days'), amount);
-            var w = Math.floor((wd -1 - amount) / 5);
-            return start.isoWeek(start.isoWeek() + w).isoWeekday(wd - amount - w * 5);
+            if (wd == 1)
+                return d1.dec(ex, start.subtract(2, 'days'), amount)
+            else if (wd == 7)
+                return d1.dec(ex, start.subtract(1, 'days'), amount);
+            var w = Math.floor(amount / 5);
+            var days = amount - w*5;
+            if (wd > days)
+                return start.isoWeek(start.isoWeek() - w).isoWeekday(wd - days);
+            else return start.isoWeek(start.isoWeek() - w).isoWeekday(wd -2 - days);
         },
         diff: function(ex, to, from) {
-            var start = d1.inc(ex, from, 0);
-            var end = d1.dec(ex, to, 0);
-            if (end.isBefore(start) && moment(to).isBefore(from))
+            var start = moment(from).tz(ex.tz);
+            var end = moment(to).tz(ex.tz);
+            if (end.isBefore(start))
                 return -1 * d1.diff(ex, from, to);
-            else if (end.isBefore(start))
-                return 0;
             var weeks = end.diff(start, 'weeks');
             if (weeks)
                 return weeks * 5 + d1.diff(ex, end, start.add(weeks, 'weeks'));
-            var days = end.diff(start, 'days');
-            if (days && start.isoWeekday() < end.isoWeekday())
-                return days;
-            else if (days) return days -2;
-            else return 0;
+            else if (start.isoWeekday() > 5)
+                return d1.diff(ex, end, start.startOf('day').add(1, 'weeks').isoWeekday(1));
+            else if (end.isoWeekday() > 6)
+                return d1.diff(ex, end.startOf('day').isoWeekday(6), start);
+            else if (start.isoWeekday() < end.isoWeekday())
+                return end.diff(start, 'days');
+            else
+                return Math.max(end.diff(start, 'days') -2, 0);
         }
     };
     var d5 = {
@@ -420,12 +429,8 @@ var intervals = (function(_, moment) {
             return start.isoWeek(start.isoWeek() + -amount);
         },
         diff: function(ex, to, from) {
-            var start = d5.inc(ex, from, 0);
-            var end = d5.dec(ex, to, 0);
-            if (end.isBefore(start) && moment(to).isBefore(from))
-                return -1 * d5.diff(ex, from, to);
-            else if (end.isBefore(start))
-                return 0;
+            var start = moment(from).tz(ex.tz);
+            var end = moment(to).tz(ex.tz);
             return end.diff(start, 'weeks');
         }
     };
