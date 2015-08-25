@@ -183,8 +183,7 @@ var parseCalculation = (function(_) {
                 getValue: function(points) {
                     var asof = moment.tz(_.last(points).asof, ex.tz);
                     var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
-                    var dec = asof.isAfter(opens) ? d - 1 : d;
-                    var since = intervals.d1.dec(ex, opens, dec).toISOString();
+                    var since = intervals.d1.dec(ex, opens, d-1).toISOString();
                     var start = _.sortedIndex(points, {
                         asof: since
                     }, 'asof');
@@ -560,7 +559,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Range Weighted Moveing Average */
+        /* Range Weighted Moveing Average @deprecated */
         RWMA: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
@@ -776,7 +775,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Range Weighted Standard Deviation */
+        /* Range Weighted Standard Deviation @deprecated */
         RWSTDEV: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {

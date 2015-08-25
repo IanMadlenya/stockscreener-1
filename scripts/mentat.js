@@ -695,7 +695,7 @@ function storeData(open, security, period, data) {
 
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security, 7);
+        var request = indexedDB.open(security, 8);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {
