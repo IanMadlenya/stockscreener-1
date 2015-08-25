@@ -1030,6 +1030,39 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Price of Percent of Volume */
+        POPV: function(ex, interval, n, p) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    if (!isPositiveInteger(p))
+                        return "Must be a positive integer: " + p;
+                    return null;
+                },
+                getFields: function() {
+                    return ['high','low','open','close','volume'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    var prices = _.uniq(_.sortBy(_.union(
+                        _.pluck(points, 'high'), _.pluck(points, 'low'),
+                        _.pluck(points, 'open'), _.pluck(points, 'close')
+                    )), true);
+                    if (p <= 0) return _.first(prices);
+                    if (p >= 100) return _.last(prices);
+                    return prices[Math.min(_.sortedIndex(prices, prices, function(target){
+                        if (target === prices) return p /100;
+                        return reducePriceVolumeWeight(points, function(sum, price, weight){
+                            if (price > target) return sum;
+                            else return sum + weight;
+                        }, 0);
+                    }), prices.length-1)];
+                }
+            };
+        },
         /* Time Price Opportunity Count percentage */
         TPOC: function(ex, interval, n, field) {
             var calc = getCalculation(ex, interval, field, arguments, 4);
