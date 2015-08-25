@@ -484,6 +484,9 @@ function loadData(parseCalculation, open, failfast, security, length, lower, upp
             }, result);
             if (updated && data.status == "success") {
                 updates.push(point);
+                if (updates.length >= 100) {
+                    storeData(open, security, period, updates.splice(0, updates.length));
+                }
             }
             return point;
         });
@@ -514,7 +517,7 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
             // need to update with newer data
             var last = result[result.length - 1];
             return collectAggregateRange(open, failfast, security, period, 0, last.asof, upper).then(function(aggregated){
-                return storeData(open, security, period, aggregated.result).then(_.constant(aggregated));
+                return storeNewData(open, security, period, aggregated.result).then(_.constant(aggregated));
             }).then(function(aggregated){
                 return _.extend(aggregated, {
                     result: result.concat(aggregated.result)
@@ -528,7 +531,17 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
                     return _.extend(aggregated, {
                         result: result
                     });
-                return storeData(open, security, period, aggregated.result).then(_.constant(aggregated));
+                return storeNewData(open, security, period, aggregated.result).then(_.constant(aggregated));
+            }).then(function(aggregated){
+                var first = _.first(aggregated.result).asof;
+                var last = _.last(aggregated.result).asof;
+                return open(security, period, 'readonly', collect.bind(this, 1, first, last));
+            }).then(function(result){
+                // return the merged result
+                return {
+                    status: 'success',
+                    result: result
+                };
             });
         }
     });
@@ -665,11 +678,26 @@ function importData(open, period, security, result) {
         // Yahoo provides weekly/month-to-date data
         return ltDate(point.asof, now, true);
     });
-    return storeData(open, security, period, points).then(function(){
+    return storeNewData(open, security, period, points).then(function(){
         return {
             status: 'success'
         };
     });
+}
+
+function storeNewData(open, security, period, data) {
+    if (!data.length) return Promise.resolve(data);
+    return open(security, period, 'readonly', nextItem.bind(this, null)).then(function(earliest){
+        if (!earliest) return data;
+        var now = new Date().toISOString();
+        return open(security, period, 'readonly', collect.bind(this, 1, now, now)).then(function(latest){
+            return _.last(latest);
+        }).then(function(latest){
+            return data.filter(function(point){
+                return point.asof < earliest.asof || point.asof > latest.asof;
+            });
+        });
+    }).then(storeData.bind(this, open, security, period));
 }
 
 function storeData(open, security, period, data) {

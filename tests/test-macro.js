@@ -391,7 +391,7 @@ describe("Macro", function(){
                     expect(result[0].price).toBeCloseTo(151.06,2);
                     expect(result[0].performance[0]).toBeCloseTo(7,0);
                     expect(result[0].growth).toBeCloseTo(7,0);
-                    expect(result[0].exposure).toBeCloseTo(27,0);
+                    expect(result[0].exposure).toBeCloseTo(31,0);
                     expect(result[0].duration).toBeCloseTo(1/12,0);
                 }).then(done, unexpected(done));
             });

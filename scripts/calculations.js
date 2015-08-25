@@ -181,6 +181,7 @@ var parseCalculation = (function(_) {
                     return Math.max(n, calc.getDataLength());
                 },
                 getValue: function(points) {
+                    if (_.isEmpty(points)) return getValue(calc, points);
                     var asof = moment.tz(_.last(points).asof, ex.tz);
                     var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
                     var since = intervals.d1.dec(ex, opens, d-1).toISOString();
@@ -532,7 +533,8 @@ var parseCalculation = (function(_) {
                     return n;
                 },
                 getValue: function(points) {
-                    return reducePriceVolumeWeight(points, function(sum, price, weight) {
+                    var prices = getPrices(points);
+                    return reducePriceVolumeWeight(points, prices, function(sum, price, weight) {
                         return sum + price * weight;
                     }, 0);
                 }
@@ -742,10 +744,11 @@ var parseCalculation = (function(_) {
                     return n;
                 },
                 getValue: function(points) {
-                    var avg = reducePriceVolumeWeight(points, function(sum, price, weight) {
+                    var prices = getPrices(points);
+                    var avg = reducePriceVolumeWeight(points, prices, function(sum, price, weight) {
                         return sum + price * weight;
                     }, 0);
-                    return Math.sqrt(reducePriceVolumeWeight(points, function(sum, price, weight) {
+                    return Math.sqrt(reducePriceVolumeWeight(points, prices, function(sum, price, weight) {
                         return sum + (price - avg) * (price - avg) * weight;
                     }, 0)) || 1;
                 }
@@ -1047,19 +1050,20 @@ var parseCalculation = (function(_) {
                     return n;
                 },
                 getValue: function(points) {
-                    var prices = _.uniq(_.sortBy(_.union(
-                        _.pluck(points, 'high'), _.pluck(points, 'low'),
-                        _.pluck(points, 'open'), _.pluck(points, 'close')
-                    )), true);
+                    var prices = getPrices(points);
                     if (p <= 0) return _.first(prices);
                     if (p >= 100) return _.last(prices);
-                    return prices[Math.min(_.sortedIndex(prices, prices, function(target){
-                        if (target === prices) return p /100;
-                        return reducePriceVolumeWeight(points, function(sum, price, weight){
-                            if (price > target) return sum;
-                            else return sum + weight;
-                        }, 0);
-                    }), prices.length-1)];
+                    var volume = reducePriceVolumeWeight(points, prices, function(volume, price, weight){
+                        var i = _.sortedIndex(prices, price);
+                        volume[i] = weight + (volume[i] || 0);
+                        return volume;
+                    }, new Array(prices.length));
+                    var total = sum(volume);
+                    var below = 0;
+                    for (var i=0; i<volume.length && below * 100 / total < p; i++) {
+                        below += volume[i];
+                    }
+                    return prices[i-1];
                 }
             };
         },
@@ -1396,20 +1400,28 @@ var parseCalculation = (function(_) {
         }));
     }
 
-    function reducePriceVolumeWeight(points, fn, memo) {
+    function getPrices(points) {
+        return points.reduce(function(prices, point){
+            return [
+                point.high, point.low, point.open, point.close
+            ].reduce(function(prices, price){
+                var i = _.sortedIndex(prices, price);
+                if (prices[i] != price) prices.splice(i, 0, price);
+                return prices;
+            }, prices);
+        }, []);
+    }
+
+    function reducePriceVolumeWeight(points, prices, fn, memo) {
         var total = Math.max(sum(_.pluck(points, 'volume')), 1);
         return points.reduce(function(memo, point){
-            var start = Math.ceil(Math.min(point.open, point.close) * 100);
-            var end = Math.max(point.open, point.close) *100 + 1;
-            var body = _.range(start, end);
-            var range = _.range(Math.ceil(point.low *100), point.high *100 + 1);
-            var r = point.volume / range.length / total /2;
-            var b = point.volume / body.length / total /2;
+            var low = _.sortedIndex(prices, point.low);
+            var high = _.sortedIndex(prices, point.high);
+            var range = prices.slice(low, high+1);
+            var r = point.volume / range.length / total;
             return range.reduce(function(memo, price){
-                return fn(memo, price /100, r);
-            }, body.reduce(function(memo, price){
-                return fn(memo, price /100, b);
-            }, memo));
+                return fn(memo, price, r);
+            }, memo);
         }, memo);
     }
 
@@ -1562,7 +1574,7 @@ var parseCalculation = (function(_) {
 
     function sum(values) {
         return _.reduce(values, function(memo, value){
-            return memo + value;
+            return memo + (value || 0);
         }, 0);
     }
 
