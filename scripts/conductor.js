@@ -175,8 +175,7 @@ dispatch({
         validate(data.length, 'data.length', _.isFinite);
         validate(data.lower, 'data.lower', isISOString);
         validate(data.upper, 'data.upper', isISOString);
-        var worker = getWorker(services.mentat, data.security);
-        return retryAfterImport(services, data, services.mentat[worker]).then(function(data){
+        return retryAfterImport(services, data).then(function(data){
             return data.result;
         });
     }).bind(this, services),
@@ -193,7 +192,6 @@ dispatch({
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         return promiseSecurities(services, data.securityClasses, function(exchange, security) {
-            var worker = services.mentat[getWorker(services.mentat, security)];
             return retryAfterImport(services, {
                 cmd: 'signals',
                 begin: data.begin,
@@ -201,7 +199,7 @@ dispatch({
                 screen: data.screen,
                 exchange: exchange,
                 security: security
-            }, worker, data.load).catch(function(error){
+            }, data.load).catch(function(error){
                 console.log("Could not load", security, error.status, error);
                 return normalizedError(error);
             });
@@ -217,7 +215,6 @@ dispatch({
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         return promiseSecurities(services, data.securityClasses, function(exchange, security) {
-            var worker = services.mentat[getWorker(services.mentat, security)];
             return retryAfterImport(services, {
                 cmd: 'screen',
                 begin: data.begin,
@@ -225,7 +222,7 @@ dispatch({
                 screen: data.screen,
                 exchange: exchange,
                 security: security
-            }, worker, data.load).catch(function(error){
+            }, data.load).catch(function(error){
                 console.log("Could not load", security, error.status, error);
                 return normalizedError(error);
             });
@@ -274,10 +271,13 @@ function listSecurities(services, securityClasses) {
     })).then(_.flatten).then(_.uniq);
 }
 
-function retryAfterImport(services, data, port, load) {
-    return port.promiseMessage(_.extend({
-        failfast: load !== false
+function retryAfterImport(services, data, load) {
+    var failfast = load !== false;
+    var primary = services.mentat[getWorker(services.mentat, data.security + failfast)];
+    return primary.promiseMessage(_.extend({
+        failfast: failfast
     }, data)).catch(function(error){
+        var port = services.mentat[getWorker(services.mentat, data.security)];
         if (load === false && error.quote && error.status == 'warning')
             return error; // just use what we have
         if (_.isEmpty(error.quote) || load === false)
