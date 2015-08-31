@@ -1110,6 +1110,36 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Percent of Volume Below */
+        POVB: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return calc.getErrorMessage();
+                },
+                getFields: function() {
+                    return ['high','low','open','close','volume'].concat(calc.getFields());
+                },
+                getDataLength: function() {
+                    return Math.max(n, calc.getDataLength());
+                },
+                getValue: function(points) {
+                    var target = getValue(calc, points);
+                    var prices = getPrices(points);
+                    if (target <= _.first(prices)) return 0;
+                    if (target > _.last(prices)) return 100;
+                    var total = 0;
+                    var below = reducePriceVolumeWeight(points, prices, function(below, price, weight){
+                        total += weight;
+                        if (price < target) return below + weight;
+                        else return below;
+                    }, 0);
+                    return below *100 / total;
+                }
+            };
+        },
         /* Time Price Opportunity Count percentage */
         TPOC: function(ex, interval, n, field) {
             var calc = getCalculation(ex, interval, field, arguments, 4);
