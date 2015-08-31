@@ -65,7 +65,7 @@ describe("Sectors", function(){
         ["XNMS", "Miscellaneous", "CNSI"],
         ["XNMS", "Public Utilities", "CLFD"],
         ["XNMS", "Technology", "PFPT"],
-        ["XNMS", "Transportation", "QLTY"],
+        ["XNMS", "Transportation", "PTSI"],
         ["XNGS", "Basic Industries", "GOLD"],
         ["XNGS", "Capital Goods", "PCAR"],
         ["XNGS", "Consumer Durables", "SIAL"],
