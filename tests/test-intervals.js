@@ -33,7 +33,9 @@ describe("intervals.js", function(){
     var exchange = {
         tz: "America/New_York",
         marketOpensAt: "09:30:00",
-        marketClosesAt: "16:00:00"
+        marketClosesAt: "16:00:00",
+        premarketOpensAt: "04:00:00",
+        afterHoursClosesAt: "20:00:00"
     };
     describe("spot check", function(){
         describe('annual', function(){
@@ -252,7 +254,9 @@ function testMinuteInterval(size) {
     var exchange = {
         tz: "America/New_York",
         marketOpensAt: "09:30:00",
-        marketClosesAt: "16:00:00"
+        marketClosesAt: "16:00:00",
+        premarketOpensAt: "04:00:00",
+        afterHoursClosesAt: "20:00:00"
     };
     describe('m' + size, function(){
         describe("ceil", function() {
@@ -294,8 +298,8 @@ function testMinuteInterval(size) {
                     expect(inc.valueOf() - date.valueOf() > 0).toBe(true);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60).not.toBeLessThan(size * amount);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60).toBeLessThan(Math.ceil(size * amount /60 /6.5 /5) *7 *24 *60 +2 *24 *60);
-                    var opens = moment.tz(inc.format('YYYY-MM-DD') + 'T' + exchange.marketOpensAt, exchange.tz);
-                    var closes = moment.tz(inc.format('YYYY-MM-DD') + 'T' + exchange.marketClosesAt, exchange.tz);
+                    var opens = moment.tz(inc.format('YYYY-MM-DD') + 'T' + exchange.premarketOpensAt, exchange.tz);
+                    var closes = moment.tz(inc.format('YYYY-MM-DD') + 'T' + exchange.afterHoursClosesAt, exchange.tz);
                     expect(inc.valueOf() >= opens.valueOf()).toBe(true);
                     expect(inc.valueOf() <= closes.valueOf()).toBe(true);
                 });
@@ -314,8 +318,8 @@ function testMinuteInterval(size) {
                     expect(date.valueOf() - dec.valueOf() > 0).toBe(true);
                     if (size < 60) expect((date.valueOf() - dec.valueOf()) /1000 /60).not.toBeLessThan(size * amount);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60).toBeLessThan(Math.ceil(size * amount /60 /6.5 /5) *7 * 24 *60 +2 *24 *60);
-                    var opens = moment.tz(dec.format('YYYY-MM-DD') + 'T' + exchange.marketOpensAt, exchange.tz);
-                    var closes = moment.tz(dec.format('YYYY-MM-DD') + 'T' + exchange.marketClosesAt, exchange.tz);
+                    var opens = moment.tz(dec.format('YYYY-MM-DD') + 'T' + exchange.premarketOpensAt, exchange.tz);
+                    var closes = moment.tz(dec.format('YYYY-MM-DD') + 'T' + exchange.afterHoursClosesAt, exchange.tz);
                     expect(dec.valueOf() >= opens.valueOf()).toBe(true);
                     expect(dec.valueOf() <= closes.valueOf()).toBe(true);
                 });

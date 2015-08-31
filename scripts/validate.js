@@ -87,8 +87,10 @@ function isExchange(object, path) {
         validate(object, path, _.isString, 'iri') &&
         validate(object, path, _.isString, 'tz') &&
         validate(object, path, _.isString, 'mic') &&
-        validate(object, path, _.isString, 'marketOpensAt') &&
-        validate(object, path, _.isString, 'marketClosesAt') &&
+        validate(object, path, isTime, 'marketOpensAt') &&
+        validate(object, path, isTime, 'marketClosesAt') &&
+        validate(object, path, isTime, 'premarketOpensAt') &&
+        validate(object, path, isTime, 'afterHoursClosesAt') &&
         validate(object, path, optional(_.isString), 'yahooSuffix') &&
         validate(object, path, optional(_.isString), 'dtnPrefix') &&
         validate(object, path, _.isString, 'marketLang') &&
@@ -100,6 +102,11 @@ function isISOString(object, path) {
     return validate(object, path, _.isString) &&
         object.match(/^\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+Z$/) &&
         new Date(object).getFullYear() > 1900;
+}
+
+function isTime(object, path) {
+    return validate(object, path, _.isString) &&
+        object.match(/^[0-2]\d:[0-5]\d:[0-5]\d$/) && true;
 }
 
 function optional(/* func.. */) {

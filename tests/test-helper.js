@@ -33,10 +33,12 @@ jasmine.DEFAULT_TIMEOUT_INTERVAL = 20000;
 
 var exchanges = [
   {
-    "iri": "http://probabilitytrading.net/exchanges/arcx",
+    "iri": "http://localhost/exchanges/arcx",
     "label": "Archipelago Electronic Communications Network",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "04:00:00",
+    "afterHoursClosesAt": "20:00:00",
     "tz": "America/New_York",
     "marketLang": "en-US",
     "mic": "ARCX",
@@ -46,10 +48,12 @@ var exchanges = [
     "dtnPrefix": null
   },
   {
-    "iri": "http://probabilitytrading.net/exchanges/ncm",
+    "iri": "http://localhost/exchanges/ncm",
     "label": "NASDAQ Capital Market",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "04:00:00",
+    "afterHoursClosesAt": "20:00:00",
     "tz": "America/New_York",
     "marketLang": "en-US",
     "mic": "XNCM",
@@ -59,10 +63,12 @@ var exchanges = [
     "dtnPrefix": null
   },
   {
-    "iri": "http://probabilitytrading.net/exchanges/ngm",
+    "iri": "http://localhost/exchanges/ngm",
     "label": "NASDAQ Global Market",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "04:00:00",
+    "afterHoursClosesAt": "20:00:00",
     "tz": "America/New_York",
     "marketLang": "en-US",
     "mic": "XNMS",
@@ -72,10 +78,12 @@ var exchanges = [
     "dtnPrefix": null
   },
   {
-    "iri": "http://probabilitytrading.net/exchanges/ngs",
+    "iri": "http://localhost/exchanges/ngs",
     "label": "NASDAQ Global Select Market",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "04:00:00",
+    "afterHoursClosesAt": "20:00:00",
     "tz": "America/New_York",
     "marketLang": "en-US",
     "mic": "XNGS",
@@ -85,10 +93,12 @@ var exchanges = [
     "dtnPrefix": null
   },
   {
-    "iri": "http://probabilitytrading.net/exchanges/amex",
+    "iri": "http://localhost/exchanges/amex",
     "label": "NYSE MKT LLC",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "04:00:00",
+    "afterHoursClosesAt": "20:00:00",
     "tz": "America/New_York",
     "marketLang": "en-US",
     "mic": "XASE",
@@ -98,10 +108,12 @@ var exchanges = [
     "dtnPrefix": null
   },
   {
-    "iri": "http://probabilitytrading.net/exchanges/nyse",
+    "iri": "http://localhost/exchanges/nyse",
     "label": "New York Stock Exchange",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "04:00:00",
+    "afterHoursClosesAt": "20:00:00",
     "tz": "America/New_York",
     "marketLang": "en-US",
     "mic": "XNYS",
@@ -111,10 +123,12 @@ var exchanges = [
     "dtnPrefix": null
   },
   {
-    "iri": "http://probabilitytrading.net/exchanges/tsx-v",
+    "iri": "http://localhost/exchanges/tsx-v",
     "label": "TSX Venture Exchange",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "09:30:00",
+    "afterHoursClosesAt": "16:00:00",
     "tz": "America/Toronto",
     "marketLang": "en-CA",
     "mic": "XTSX",
@@ -124,10 +138,12 @@ var exchanges = [
     "dtnPrefix": "C."
   },
   {
-    "iri": "http://probabilitytrading.net/exchanges/tsx",
+    "iri": "http://localhost/exchanges/tsx",
     "label": "Toronto Stock Exchange",
     "marketOpensAt": "09:30:00",
     "marketClosesAt": "16:00:00",
+    "premarketOpensAt": "09:30:00",
+    "afterHoursClosesAt": "16:00:00",
     "tz": "America/Toronto",
     "marketLang": "en-CA",
     "mic": "XTSE",

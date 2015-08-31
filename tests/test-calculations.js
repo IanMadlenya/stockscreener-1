@@ -32,6 +32,193 @@
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60;
 
 describe("calculations", function(){
+    describe("SESSION", function(){
+        var normal = {
+            tz: 'America/New_York',
+            marketOpensAt: '09:30:00',
+            marketClosesAt: '16:00:00',
+            premarketOpensAt: "09:30:00",
+            afterHoursClosesAt: "16:00:00"
+        };
+        var allday = {
+            tz: 'America/New_York',
+            marketOpensAt: '00:00:00',
+            marketClosesAt: '24:00:00',
+            premarketOpensAt: "00:00:00",
+            afterHoursClosesAt: "24:00:00"
+        };
+        var extended = {
+            tz: 'America/New_York',
+            marketOpensAt: '04:00:00',
+            marketClosesAt: '20:00:00',
+            premarketOpensAt: "04:00:00",
+            afterHoursClosesAt: "20:00:00"
+        };
+        var interval = {
+            "value": "m60"
+        };
+        var points = [{
+            "asof": "2015-02-27T10:00:00.000Z",
+            "high": 211.17,
+            "low": 211.09,
+            "open": 211.16,
+            "close": 211.09,
+            "total_volume": 2859,
+            "volume": 2800
+        }, {
+            "asof": "2015-02-27T11:00:00.000Z",
+            "high": 211.18,
+            "low": 211.05,
+            "open": 211.14,
+            "close": 211.05,
+            "total_volume": 17271,
+            "volume": 14232
+        }, {
+            "asof": "2015-02-27T12:00:00.000Z",
+            "high": 211.23,
+            "low": 211.08,
+            "open": 211.08,
+            "close": 211.2,
+            "total_volume": 21788,
+            "volume": 4517
+        }, {
+            "asof": "2015-02-27T13:00:00.000Z",
+            "high": 211.25,
+            "low": 211.08,
+            "open": 211.18,
+            "close": 211.21,
+            "total_volume": 109413,
+            "volume": 87105
+        }, {
+            "asof": "2015-02-27T14:00:00.000Z",
+            "high": 211.4,
+            "low": 211.1,
+            "open": 211.24,
+            "close": 211.18,
+            "total_volume": 424678,
+            "volume": 312343
+        }, {
+            "asof": "2015-02-27T15:00:00.000Z",
+            "high": 211.44,
+            "low": 210.84,
+            "open": 211.19,
+            "close": 211.07,
+            "total_volume": 11113646,
+            "volume": 10098527
+        }, {
+            "asof": "2015-02-27T16:00:00.000Z",
+            "high": 211.55,
+            "low": 211.02,
+            "open": 211.06,
+            "close": 211.52,
+            "total_volume": 21381358,
+            "volume": 9624331
+        }, {
+            "asof": "2015-02-27T17:00:00.000Z",
+            "high": 211.5399,
+            "low": 211.17,
+            "open": 211.52,
+            "close": 211.39,
+            "total_volume": 29920161,
+            "volume": 5898687
+        }, {
+            "asof": "2015-02-27T18:00:00.000Z",
+            "high": 211.58,
+            "low": 211.3,
+            "open": 211.38,
+            "close": 211.36,
+            "total_volume": 36501888,
+            "volume": 4485999
+        }, {
+            "asof": "2015-02-27T19:00:00.000Z",
+            "high": 211.4,
+            "low": 211.1,
+            "open": 211.36,
+            "close": 211.27,
+            "total_volume": 42632006,
+            "volume": 6041752
+        }, {
+            "asof": "2015-02-27T20:00:00.000Z",
+            "high": 211.35,
+            "low": 210.78,
+            "open": 211.28,
+            "close": 210.91,
+            "total_volume": 53606417,
+            "volume": 9174962
+        }, {
+            "asof": "2015-02-27T21:00:00.000Z",
+            "high": 211.06,
+            "low": 210.64,
+            "open": 210.9132,
+            "close": 210.69,
+            "total_volume": 82394367,
+            "volume": 25959761
+        }, {
+            "asof": "2015-02-27T22:00:00.000Z",
+            "high": 211.5,
+            "low": 210.6,
+            "open": 210.69,
+            "close": 211,
+            "total_volume": 105805276,
+            "volume": 17964862
+        }, {
+            "asof": "2015-02-27T23:00:00.000Z",
+            "high": 211.03,
+            "low": 210.66,
+            "open": 211.01,
+            "close": 210.93,
+            "total_volume": 107980314,
+            "volume": 1673787
+        }, {
+            "asof": "2015-02-28T00:00:00.000Z",
+            "high": 210.93,
+            "low": 210.76,
+            "open": 210.93,
+            "close": 210.81,
+            "total_volume": 108053144,
+            "volume": 71248
+        }, {
+            "asof": "2015-02-28T01:00:00.000Z",
+            "high": 210.86,
+            "low": 210.82,
+            "open": 210.83,
+            "close": 210.83,
+            "total_volume": 108075972,
+            "volume": 21391
+        }];
+        it("empty", function(){
+            var open = parseCalculation(normal, 'SESSION(SINCE(1,open))', interval).getValue;
+            var close = parseCalculation(normal, 'SESSION(close)', interval).getValue;
+            expect(open([])).toBeUndefined();
+            expect(close([])).toBeUndefined();
+        });
+        it("24hr", function(){
+            var open = parseCalculation(allday, 'SESSION(SINCE(1,open))', interval).getValue;
+            var close = parseCalculation(allday, 'SESSION(close)', interval).getValue;
+            expect(open(points)).toEqual(211.16);
+            expect(close(points)).toEqual(210.83);
+        });
+        it("day", function(){
+            var open = parseCalculation(normal, 'SESSION(SINCE(1,open))', interval).getValue;
+            var close = parseCalculation(normal, 'SESSION(close)', interval).getValue;
+            expect(open(points)).toEqual(211.19);
+            expect(close(points)).toEqual(210.69);
+        });
+        it("extended", function(){
+            var open = parseCalculation(extended, 'SESSION(SINCE(1,open))', interval).getValue;
+            var close = parseCalculation(extended, 'SESSION(close)', interval).getValue;
+            expect(open(points)).toEqual(211.16);
+            expect(close(points)).toEqual(210.83);
+        });
+        it("long-term", function(done){
+            screener.load("http://localhost/exchanges/arcx/SPY", ['open','close'], "m30", 6000, new Date("2014-11-22")).then(function(points){
+                var open = parseCalculation(normal, 'SESSION(SINCE(50,open))', interval).getValue;
+                var close = parseCalculation(normal, 'SESSION(close)', interval).getValue;
+                expect(open(points)).toEqual(199.16);
+                expect(close(points)).toEqual(206.68);
+            }).then(done, unexpected(done));
+        });
+    });
     describe("DATE", function(){
         var WORKDAY = parseCalculation({tz: 'America/New_York'}, 'WORKDAY(asof)').getValue;
         it("WORKDAY0", function(){

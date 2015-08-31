@@ -61,7 +61,8 @@ var parseCalculation = (function(_) {
                     return 1;
                 },
                 getValue: function(points) {
-                    return points[0][field];
+                    if (points.length) return points[0][field];
+                    else return undefined;
                 }
             };
         },
@@ -142,8 +143,8 @@ var parseCalculation = (function(_) {
                     return ['asof'].concat(calc.getFields());
                 },
                 getDataLength: function() {
-                    var opens = moment.tz('2010-03-01T' + ex.marketOpensAt, ex.tz);
-                    var closes = moment.tz('2010-03-01T' + ex.marketClosesAt, ex.tz);
+                    var opens = moment.tz('2010-03-01T' + ex.premarketOpensAt, ex.tz);
+                    var closes = moment.tz('2010-03-01T' + ex.afterHoursClosesAt, ex.tz);
                     var dayLength = interval.diff(ex, closes, opens);
                     var n = Math.ceil((d + 1) * dayLength * 2); // extra for after hours activity
                     return n + calc.getDataLength();
@@ -174,8 +175,8 @@ var parseCalculation = (function(_) {
                     return ['asof'].concat(calc.getFields());
                 },
                 getDataLength: function() {
-                    var opens = moment.tz('2010-03-01T' + ex.marketOpensAt, ex.tz);
-                    var closes = moment.tz('2010-03-01T' + ex.marketClosesAt, ex.tz);
+                    var opens = moment.tz('2010-03-01T' + ex.premarketOpensAt, ex.tz);
+                    var closes = moment.tz('2010-03-01T' + ex.afterHoursClosesAt, ex.tz);
                     var dayLength = interval.diff(ex, closes, opens);
                     var n = Math.ceil((d + 1) * dayLength * 2); // extra for after hours activity
                     return Math.max(n, calc.getDataLength());
@@ -183,7 +184,7 @@ var parseCalculation = (function(_) {
                 getValue: function(points) {
                     if (_.isEmpty(points)) return getValue(calc, points);
                     var asof = moment.tz(_.last(points).asof, ex.tz);
-                    var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+                    var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
                     var since = intervals.d1.dec(ex, opens, d-1).toISOString();
                     var start = _.sortedIndex(points, {
                         asof: since
@@ -192,6 +193,48 @@ var parseCalculation = (function(_) {
                     if (start >= points.length) return getValue(calc, points);
                     var end = Math.min(start + calc.getDataLength(), points.length);
                     return getValue(calc, points.slice(start, end));
+                }
+            };
+        },
+        /* Normal Market Hour Session */
+        SESSION: function(ex, interval, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 3);
+            return {
+                getErrorMessage: calc.getErrorMessage.bind(calc),
+                getFields: calc.getFields.bind(calc),
+                getDataLength: function() {
+                    return calc.getDataLength() * 2; // cross extended hours
+                },
+                getValue: function(points) {
+                    if (_.isEmpty(points))
+                        return getValue(calc, points);
+                    var start = "2000-01-01T".length;
+                    var first = moment.tz(_.first(points).asof, ex.tz);
+                    var last = moment.tz(_.last(points).asof, ex.tz);
+                    var opens = moment.tz(first.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+                    var closes = moment.tz(last.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
+                    var ohms = opens.hour() *60 *60 + opens.minute() *60 + opens.seconds();
+                    var chms = closes.hour() *60 *60 + closes.minute() *60 + closes.seconds();
+                    if (ohms == chms)
+                        return getValue(calc, points); // 24 hour market
+                    if (opens.isDST() == closes.isDST() && closes.diff(opens, 'months') < 2) {
+                        // Use string comparison for faster filter
+                        var after = opens.toISOString().substring(start);
+                        var before = closes.toISOString().substring(start);
+                        return getValue(calc, points.filter(after < before ? function(point){
+                            var time = point.asof.substring(start);
+                            return after < time && time <= before;
+                        } : function(point){
+                            var time = point.asof.substring(start);
+                            return after < time || time <= before;
+                        }));
+                    } else {
+                        return getValue(calc, points.filter(function(point){
+                            var asof = moment.tz(point.asof, ex.tz);
+                            var hms = asof.hour() *60 *60 + asof.minute() *60 + asof.seconds();
+                            return ohms < hms && hms <= chms;
+                        }));
+                    }
                 }
             };
         },
