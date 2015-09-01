@@ -1178,6 +1178,35 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Rotation Factor */
+        ROF: function(ex, interval, n) {
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return null;
+                },
+                getFields: function() {
+                    return ['high','low'];
+                },
+                getDataLength: function() {
+                    return n;
+                },
+                getValue: function(points) {
+                    return points.reduce(function(factor, point, i, points) {
+                        if (i < 1) return factor;
+                        else if (points[i-1].low < point.low)
+                            return factor + 1;
+                        else return factor - 1;
+                    }, points.reduce(function(factor, point, i, points) {
+                        if (i < 1) return factor;
+                        else if (points[i-1].high < point.high)
+                            return factor + 1;
+                        else return factor - 1;
+                    }, 0));
+                }
+            };
+        },
         /* Daily Point Of Control @deprecated */
         DPOC: function(ex, interval, n) {
             return {
