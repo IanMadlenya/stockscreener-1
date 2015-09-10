@@ -234,11 +234,18 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
         return exprs;
     }, {});
     return function(period, after, asof, until) {
-        if (!datasets[period.value]) {
-            datasets[period.value] = loadData(parseCalculation, open, failfast, security,
-                1, asof, period.inc(upper, 1), period, exprs[period.value]);
+        var next = period.inc(asof, 1);
+        if (!datasets[period.value] || ltDate(datasets[period.value].upper, next)) {
+            var begin = asof;
+            var end = minDate(period.inc(asof, 100), period.inc(upper, 1));
+            datasets[period.value] = {
+                lower: begin,
+                upper: end,
+                promise: loadData(parseCalculation, open, failfast, security,
+                    1, begin, end, period, exprs[period.value])
+            };
         }
-        return datasets[period.value].then(function(data){
+        return datasets[period.value].promise.then(function(data){
             var startIndex = _.sortedIndex(data.result, {
                 asof: toISOString(after)
             }, 'asof');
@@ -255,7 +262,7 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
             });
             return _.extend({}, data, {
                 result: _.clone(data.result[i]),
-                until: i+1 < data.result.length ? data.result[i+1].asof : period.inc(asof, 1)
+                until: i+1 < data.result.length ? data.result[i+1].asof : period.inc(data.result[i].asof, 1)
             });
         });
     };
@@ -345,7 +352,7 @@ function findSignal(periods, load, security, signal, filters, watching, begin, e
             filters: byInterval[interval]
         };
     }), new Date(0), begin, begin, end).then(function(data){
-        if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.until, end))
+        if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.until, end) && ltDate(begin, data.until))
             return findSignal(periods, load, security, signal, filters, watching, data.until, end);
         if (!data.result || ltDate(data.result.asof, begin))
             return _.extend(data, {
@@ -387,7 +394,7 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
             });
         }
         return filterSecurityByPeriods(load, signal, watching, reference, rest, start, maxDate(lower, start), maxDate(start, begin), minDate(upper, data.until)).then(function(child){
-            if (ltDate(upper, data.until) ||
+            if (ltDate(upper, data.until) || ltDate(data.until, begin, true) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
                     signal == 'hold') return _.extend({}, child, {
@@ -395,8 +402,6 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
                 quote: _.compact(_.flatten([data.quote, child.quote])),
                 result: _.extend(_.object([period.value], [data.result]), child.result)
             });
-            if (ltDate(data.until, begin, true))
-                throw Error("Assert error " + data.until + " is less than " + begin);
             // couldn't find a signal, try next period
             return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, data.until, upper);
         });
@@ -420,7 +425,7 @@ function findNextActiveFilter(pass, load, period, filters, watching, holding, af
         throw Error("Assert error " + until + " is less than " + begin);
     return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until).then(function(data){
         if (ltDate(data.until, begin, true))
-            throw Error("Assert error " + data.until + " is less than " + begin);
+            return data; // Need more data points
         if (pass != data.passed && ltDate(data.until, until, true))
             return findNextActiveFilter(pass, load, period, filters, watching, holding, after, data.until, until);
         else return data;
@@ -723,7 +728,7 @@ function storeData(open, security, period, data) {
 
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security, 8);
+        var request = indexedDB.open(security, 9);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {

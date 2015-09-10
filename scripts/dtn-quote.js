@@ -87,7 +87,7 @@ var handler = {
             }).filter(function(result){
                 return result.close > 0 && result.close < 10000 && result.total_volume > 0;
             });
-            if (results.length && moment(results[0].dateTime).valueOf() > asof - (interval * 1000)) {
+            if (results.length && moment(results[0].dateTime).valueOf() > asof - (seconds * 1000)) {
                 results = results.slice(1); // first line might yet be incomplete
             }
             console.log("Read", results.length, interval, symbol);

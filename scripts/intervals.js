@@ -49,8 +49,8 @@ var intervals = (function(_, moment) {
             var wd = start.isoWeekday();
             if (wd > 5)
                 return m1.inc(ex, start.add(8 - wd, 'days'), amount);
-            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             if (start.isBefore(opens))
                 return m1.inc(ex, opens, amount);
             if (start.isAfter(closes))
@@ -70,8 +70,8 @@ var intervals = (function(_, moment) {
             var wd = start.isoWeekday();
             if (wd > 5)
                 return m1.dec(ex, start.subtract(wd - 5, 'days'), amount);
-            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             if (start.isBefore(opens))
                 return m1.dec(ex, closes.subtract(1, 'days'), amount);
             if (start.isAfter(closes))
@@ -92,8 +92,8 @@ var intervals = (function(_, moment) {
                 return -1 * m1.diff(ex, from, to);
             else if (end.isBefore(start))
                 return 0;
-            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             var minInDay = closes.diff(opens, 'minutes');
             var weeks = end.diff(start, 'weeks');
             if (weeks)
@@ -195,12 +195,12 @@ var intervals = (function(_, moment) {
         inc: function(ex, dateTime, amount) {
             if (amount < 0) throw Error("Amount must be >= 0");
             var date = moment(dateTime).tz(ex.tz);
-            var opens = moment.tz(date.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
+            var opens = moment.tz(date.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
             var start = opens.valueOf() == date.valueOf() ? date.startOf('hour') : m60.ceil(ex, dateTime);
             var wd = start.isoWeekday();
             if (wd > 5)
                 return m60.inc(ex, start.add(8 - wd, 'days'), amount);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             if (opens.diff(start, 'hours') > 0)
                 return m60.inc(ex, opens, amount);
             if (start.diff(closes, 'hours') > 0)
@@ -222,8 +222,8 @@ var intervals = (function(_, moment) {
             var wd = start.isoWeekday();
             if (wd > 5)
                 return m60.dec(ex, start.subtract(wd - 5, 'days'), amount);
-            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             if (opens.diff(start, 'hours') > 0)
                 return m60.dec(ex, closes.subtract(1, 'days'), amount);
             if (start.diff(closes, 'hours') > 0)
@@ -246,8 +246,8 @@ var intervals = (function(_, moment) {
                 return -1 * m60.diff(ex, from, to);
             else if (end.isBefore(start))
                 return 0;
-            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             var hoursInDay = Math.ceil(closes.diff(opens, 'hours', true));
             var weeks = end.diff(start, 'weeks');
             if (weeks)
@@ -280,13 +280,13 @@ var intervals = (function(_, moment) {
         inc: function(ex, dateTime, amount) {
             if (amount < 0) throw Error("Amount must be >= 0");
             var date = moment(dateTime).tz(ex.tz);
-            var opens = moment.tz(date.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
+            var opens = moment.tz(date.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
             var floorOpens = m120.floor(ex, opens);
             var start = opens.valueOf() == date.valueOf() ? floorOpens : m120.ceil(ex, dateTime);
             var wd = start.isoWeekday();
             if (wd > 5)
                 return m120.inc(ex, start.add(8 - wd, 'days'), amount);
-            var closes = moment.tz(date.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var closes = moment.tz(date.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             var ceilCloses = m120.ceil(ex, closes);
             if (start.valueOf() < floorOpens.valueOf())
                 return m120.inc(ex, opens, amount);
@@ -309,9 +309,9 @@ var intervals = (function(_, moment) {
             var wd = start.isoWeekday();
             if (wd > 5)
                 return m120.dec(ex, start.subtract(wd - 5, 'days'), amount);
-            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
+            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
             var floorOpens = m120.floor(ex, opens);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             var ceilCloses = m120.ceil(ex, closes);
             if (start.valueOf() < floorOpens.valueOf())
                 return m120.dec(ex, closes.subtract(1, 'days'), amount);
@@ -335,9 +335,9 @@ var intervals = (function(_, moment) {
                 return -1 * m120.diff(ex, from, to);
             else if (end.isBefore(start))
                 return 0;
-            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
+            var opens = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
             var floorOpens = m120.floor(ex, opens);
-            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt, ex.tz);
+            var closes = moment.tz(start.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
             var ceilCloses = m120.ceil(ex, closes);
             var hoursInDay = Math.ceil(ceilCloses.diff(floorOpens, 'hours', true) /2);
             var weeks = end.diff(start, 'weeks');
