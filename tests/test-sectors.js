@@ -62,7 +62,7 @@ describe("Sectors", function(){
         ["XNMS", "Energy", "WLB"],
         ["XNMS", "Finance", "NGHC"],
         ["XNMS", "Health Care", "MNKD"],
-        ["XNMS", "Miscellaneous", "CNSI"],
+        ["XNMS", "Miscellaneous", "TTGT"],
         ["XNMS", "Public Utilities", "CLFD"],
         ["XNMS", "Technology", "PFPT"],
         ["XNMS", "Transportation", "PTSI"],
