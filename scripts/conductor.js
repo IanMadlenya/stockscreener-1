@@ -323,13 +323,13 @@ function importQuotes(services, exchange, ticker, quotes, port) {
                 if (result.length === 0) return null;
                 if (result[0].close !== undefined && isNaN(result[0].close))
                     throw Error("Data is NaN " + JSON.stringify(result[0]));
-                return port.promiseMessage({
+                return port.promiseMessage(_.extend({}, request, {
                     cmd: 'import',
                     security: request.security,
                     interval: request.interval,
                     exchange: exchange,
                     points: result
-                });
+                }));
             });
         }));
     })).then(_.flatten).then(_.compact);

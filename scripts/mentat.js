@@ -521,32 +521,37 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
         } else if (result.length && below >= length) {
             // need to update with newer data
             var last = result[result.length - 1];
-            return collectAggregateRange(open, failfast, security, period, 0, last.asof, upper).then(function(aggregated){
-                return storeNewData(open, security, period, aggregated.result).then(_.constant(aggregated));
-            }).then(function(aggregated){
-                return _.extend(aggregated, {
-                    result: result.concat(aggregated.result)
+            return collectAggregateRange(open, failfast, security, period, 1, last.asof, upper).then(function(aggregated){
+                return storeNewData(open, security, period, aggregated.result).then(function(){
+                    return open(security, period, 'readonly', collect.bind(this, length, lower, upper));
+                }).then(function(result){
+                    return _.extend(aggregated, {
+                        result: result
+                    });
                 });
             });
         } else {
             // no data available
-            var floored = period.floor(lower);
-            return collectAggregateRange(open, failfast, security, period, length, floored, upper).then(function(aggregated){
+            return bounds(open, security, period).then(function(bounds){
+                var start = bounds && ltDate(_.last(bounds).asof, lower) ? _.last(bounds).asof : lower;
+                var end = bounds && ltDate(upper, _.first(bounds).asof) ? _.first(bounds).asof : upper;
+                var floored = period.floor(start);
+                return collectAggregateRange(open, failfast, security, period, length, floored, end);
+            }).then(function(aggregated){
                 if (aggregated.status == "warning" && aggregated.result.length == result.length)
                     return _.extend(aggregated, {
                         result: result
                     });
-                return storeNewData(open, security, period, aggregated.result).then(_.constant(aggregated));
-            }).then(function(aggregated){
-                var first = _.first(aggregated.result).asof;
-                var last = _.last(aggregated.result).asof;
-                return open(security, period, 'readonly', collect.bind(this, 1, first, last));
-            }).then(function(result){
-                // return the merged result
-                return {
-                    status: 'success',
-                    result: result
-                };
+                return storeNewData(open, security, period, aggregated.result).then(function(){
+                    var first = _.first(aggregated.result).asof;
+                    var last = _.last(aggregated.result).asof;
+                    return open(security, period, 'readonly', collect.bind(this, 1, first, last));
+                }).then(function(result){
+                    // return the merged result
+                    return _.extend(aggregated, {
+                        result: result
+                    });
+                });
             });
         }
     });
@@ -617,7 +622,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                     quote: [{
                         security: security,
                         interval: period.value,
-                        start: period.format(result[result.length - 1].asof)
+                        start: period.format(period.dec(_.last(result).asof, 1))
                     }]
                 });
             });
@@ -634,7 +639,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                 quote.push({
                     security: security,
                     interval: period.value,
-                    start: period.format(result[result.length - 1].asof)
+                    start: period.format(period.dec(_.last(result).asof, 1))
                 });
             }
             return Promise.reject({
@@ -644,10 +649,12 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
             });
         } else {
             // no data available
-            return open(security, period, 'readonly', nextItem.bind(this, null)).then(function(earliest){
+            return bounds(open, security, period).then(function(bounds){
                 var d1 = period.dec(lower, length);
-                var d2 = earliest ? moment(earliest.asof) : d1;
-                var start = ltDate(d1, d2) ? d1 : d2;
+                var earliest = bounds ? _.first(bounds).asof : undefined;
+                var latest = bounds ? _.last(bounds).asof : undefined;
+                var start = latest && ltDate(latest, d1) ? period.dec(latest, 1) : d1;
+                var end = earliest && ltDate(upper, earliest) ? period.inc(earliest, 1) : undefined;
                 return Promise.reject({
                     status: 'error',
                     message: 'No data points available',
@@ -655,7 +662,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                         security: security,
                         interval: period.value,
                         start: period.format(start),
-                        end: earliest && period.format(earliest.asof)
+                        end: end ? period.format(end) : undefined
                     }]
                 });
             });
@@ -692,15 +699,15 @@ function importData(open, period, security, result) {
 
 function storeNewData(open, security, period, data) {
     if (!data.length) return Promise.resolve(data);
-    return open(security, period, 'readonly', nextItem.bind(this, null)).then(function(earliest){
-        if (!earliest) return data;
-        var now = new Date().toISOString();
-        return open(security, period, 'readonly', collect.bind(this, 1, now, now)).then(function(latest){
-            return _.last(latest);
-        }).then(function(latest){
-            return data.filter(function(point){
-                return point.asof < earliest.asof || point.asof > latest.asof;
-            });
+    return bounds(open, security, period).then(function(bounds){
+        if (!bounds) return data;
+        else if ((_.first(bounds).asof > _.first(data).asof || _.first(data).asof > _.last(bounds).asof)
+                && (_.first(bounds).asof > _.last(data).asof || _.last(data).asof > _.last(bounds).asof))
+            throw Error('Disconnected import: '
+                + _.first(data).asof + ' - ' + _.last(data).asof + ' is disconnected from '
+                +_.first(bounds).asof + ' - ' + _.last(bounds).asof + ' in ' + period.value);
+        else return data.filter(function(point){
+            return point.asof < _.first(bounds).asof || point.asof > _.last(bounds).asof;
         });
     }).then(storeData.bind(this, open, security, period));
 }
@@ -726,9 +733,21 @@ function storeData(open, security, period, data) {
     });
 }
 
+function bounds(open, security, period) {
+    return open(security, period, 'readonly', nextItem.bind(this, null)).then(function(earliest){
+        if (!earliest) return undefined;
+        var now = new Date().toISOString();
+        return open(security, period, 'readonly', collect.bind(this, 1, now, now)).then(function(latest){
+            return _.last(latest);
+        }).then(function(latest){
+            return [earliest, latest];
+        });
+    });
+}
+
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security, 9);
+        var request = indexedDB.open(security, 10);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {
