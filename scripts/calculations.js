@@ -433,7 +433,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Percentage Maximum Oscillator @deprecaded */
+        /* Percentage Maximum Oscillator @deprecated */
         PMO: function(ex, interval, n, field) {
             var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
@@ -459,7 +459,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Percentage above Low @deprecaded */
+        /* Percentage above Low @deprecated */
         PLOW: function(ex, interval, n, field) {
             var calc = getCalculation(ex, interval, field, arguments, 4);
             return {
@@ -561,7 +561,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Volume Weighted Moveing Average */
+        /* Volume Weighted Moveing Average @deprecated */
         VWMA: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
@@ -583,7 +583,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Time Weighted Moveing Average */
+        /* Time Weighted Moveing Average @deprecated */
         TWMA: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
@@ -724,7 +724,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Difference over ATR @deprecaded */
+        /* Difference over ATR @deprecated */
         DATR: function(ex, interval, n, field) {
             var ATR = getCalculation(ex, interval, 'ATR', arguments, 2);
             var calc = getCalculation(ex, interval, field, arguments, 4);
@@ -772,7 +772,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Volume Weighted Standard Deviation */
+        /* Volume Weighted Standard Deviation @deprecated */
         VWSTDEV: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
@@ -797,7 +797,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Time Weighted Standard Deviation */
+        /* Time Weighted Standard Deviation @deprecated */
         TWSTDEV: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
@@ -845,7 +845,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Keltner Channel @deprecaded */
+        /* Keltner Channel @deprecated */
         KELT: function(ex, interval, centre, unit) {
             var ATR = getCalculation(ex, interval, unit, arguments, 5);
             var calc = getCalculation(ex, interval, centre);
@@ -866,7 +866,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Bollinger BandWidth @deprecaded */
+        /* Bollinger BandWidth @deprecated */
         BBWidth: function(ex, interval, centre, multiplier, unit) {
             var ATR = getCalculation(ex, interval, unit, arguments, 5);
             var calc = getCalculation(ex, interval, centre);
@@ -892,7 +892,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* %B @deprecaded */
+        /* %B @deprecated */
         PercentB: function(ex, interval, centre, multiplier, unit) {
             var ATR = getCalculation(ex, interval, unit, arguments, 5);
             var calc = getCalculation(ex, interval, centre);
@@ -1252,7 +1252,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Point of Control Oscillator @deprecaded */
+        /* Point of Control Oscillator @deprecated */
         POCO: function(ex, interval, n, s1, s2) {
             return {
                 getErrorMessage: function() {
@@ -1313,7 +1313,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* @deprecaded */
+        /* @deprecated */
         HIGH_VALUE: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
@@ -1334,7 +1334,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* @deprecaded */
+        /* @deprecated */
         LOW_VALUE: function(ex, interval, n) {
             return {
                 getErrorMessage: function() {
@@ -1355,7 +1355,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Annual Piotroski F-Score @deprecaded */
+        /* Annual Piotroski F-Score @deprecated */
         'F-Score': function(ex, interval) {
             return calculations.FSCORE(ex, interval);
         },
@@ -1404,7 +1404,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Quarter Piotroski F-Score @deprecaded */
+        /* Quarter Piotroski F-Score @deprecated */
         FQScore: function(ex, interval) {
             return calculations.FQSCORE(ex, interval);
         },
