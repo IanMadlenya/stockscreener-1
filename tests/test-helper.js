@@ -204,14 +204,14 @@ var screener = {
                 });
             },
 
-            screen: function(securityClasses, screen, asof, until, load) {
+            screen: function(securityClasses, criteria, asof, until, load) {
                 return postDispatchMessage({
                     cmd: 'screen',
                     begin: asof,
                     end: until,
                     load: load,
                     securityClasses: securityClasses,
-                    screen: screen
+                    criteria: criteria
                 }).catch(function(data){
                     if (load !== false && data.status == 'warning')
                         return data.result;
@@ -219,14 +219,14 @@ var screener = {
                 });
             },
 
-            signals: function(securityClasses, screen, asof, until, load) {
+            signals: function(securityClasses, criteria, asof, until, load) {
                 return postDispatchMessage({
                     cmd: 'signals',
                     begin: asof,
                     end: until,
                     load: load,
                     securityClasses: securityClasses,
-                    screen: screen
+                    criteria: criteria
                 }).catch(function(data){
                     if (load !== false && data.status == 'warning')
                         return data.result;
@@ -488,7 +488,7 @@ function signalsCheck(securityClasses, screen, begin, end, points) {
                         security: security
                     });
                 });
-                expect(result.length).toEqual(expected.length);
+                expect(result.length).not.toBeLessThan(expected.length);
                 expected.forEach(function(point, i){
                     for (var key in point) {
                         if (typeof point[key] == 'object') {

@@ -91,118 +91,115 @@ describe("Micro", function(){
             screener.signals([{
                 exchange: getExchange("New York Stock Exchange"),
                 includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-            }],{
-                watch:[{
-                    indicator: {
-                        expression: "F-Score()",
-                        interval: {value: 'annual'}
-                    },
-                    lower: "5"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'd5'}
-                    },
-                    lower: "5"
-                }, {
-                    indicator: {
-                        expression: "volume",
-                        interval: {value: 'd5'}
-                    },
-                    lower: "100000"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'd1'}
-                    },
-                    difference: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent: {
-                        expression: "STDEV(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "-200"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'd1'}
-                    },
-                    difference: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "-4"
-                }, {
-                    indicator: {
-                        expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "25"
-                }, {
-                    indicator: {
-                        expression: "HOUR(asof)",
-                        interval: {value: 'm60'}
-                    },
-                    lower: "10",
-                    upper: "15"
-                }, {
-                    indicator: {
-                        expression: "POC(6)",
-                        interval: {value: 'm60'}
-                    },
-                    difference: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent: {
-                        expression: "STDEV(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    lower: "-200"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'm10'}
-                    },
-                    difference: {
-                        expression: "POC(6)",
-                        interval: {value: 'm60'}
-                    },
-                    upper: "0"
-                }],
-                hold:[{
-                    indicator: {
-                        expression: "WORKDAY(asof)",
-                        interval: {value: 'd1'}
-                    },
-                    differenceWatch: {
-                        expression:"WORKDAY(asof)",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "10"
-                },{
-                    indicator:{
-                        expression:"close",
-                        interval: {value: 'd1'}
-                    },
-                    difference:{
-                        expression:"SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent:{
-                        expression:"SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    upper:"0",
-                    lower: "-15"
-                }]
-            }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+            }], [{
+                indicatorWatch: {
+                    expression: "F-Score()",
+                    interval: {value: 'annual'}
+                },
+                lower: "5"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'd5'}
+                },
+                lower: "5"
+            }, {
+                indicatorWatch: {
+                    expression: "volume",
+                    interval: {value: 'd5'}
+                },
+                lower: "100000"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'd1'}
+                },
+                differenceWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percentWatch: {
+                    expression: "STDEV(20,close)",
+                    interval: {value: 'd1'}
+                },
+                upper: "-200"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'd1'}
+                },
+                differenceWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percentWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                upper: "-4"
+            }, {
+                indicatorWatch: {
+                    expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
+                    interval: {value: 'd1'}
+                },
+                upper: "25"
+            }, {
+                indicatorWatch: {
+                    expression: "HOUR(asof)",
+                    interval: {value: 'm60'}
+                },
+                lower: "10",
+                upper: "15"
+            }, {
+                indicatorWatch: {
+                    expression: "POC(6)",
+                    interval: {value: 'm60'}
+                },
+                differenceWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percentWatch: {
+                    expression: "STDEV(20,close)",
+                    interval: {value: 'd1'}
+                },
+                lower: "-200"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'm10'}
+                },
+                differenceWatch: {
+                    expression: "POC(6)",
+                    interval: {value: 'm60'}
+                },
+                upper: "0"
+            }, {
+                indicator: {
+                    expression: "WORKDAY(asof)",
+                    interval: {value: 'd1'}
+                },
+                differenceWatch: {
+                    expression:"WORKDAY(asof)",
+                    interval: {value: 'd1'}
+                },
+                upper: "10"
+            },{
+                indicator:{
+                    expression:"close",
+                    interval: {value: 'd1'}
+                },
+                difference:{
+                    expression:"SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percent:{
+                    expression:"SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                upper:"0",
+                lower: "-15"
+            }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
                     signal: 'watch',
                     price: 134.98,
@@ -219,118 +216,115 @@ describe("Micro", function(){
             screener.screen([{
                 exchange: getExchange("New York Stock Exchange"),
                 includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-            }],{
-                watch:[{
-                    indicator: {
-                        expression: "F-Score()",
-                        interval: {value: 'annual'}
-                    },
-                    lower: "5"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'd5'}
-                    },
-                    lower: "5"
-                }, {
-                    indicator: {
-                        expression: "volume",
-                        interval: {value: 'd5'}
-                    },
-                    lower: "100000"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'd1'}
-                    },
-                    difference: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent: {
-                        expression: "STDEV(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "-200"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'd1'}
-                    },
-                    difference: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "-4"
-                }, {
-                    indicator: {
-                        expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "25"
-                }, {
-                    indicator: {
-                        expression: "HOUR(asof)",
-                        interval: {value: 'm60'}
-                    },
-                    lower: "10",
-                    upper: "15"
-                }, {
-                    indicator: {
-                        expression: "POC(6)",
-                        interval: {value: 'm60'}
-                    },
-                    difference: {
-                        expression: "SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent: {
-                        expression: "STDEV(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    lower: "-200"
-                }, {
-                    indicator: {
-                        expression: "close",
-                        interval: {value: 'm10'}
-                    },
-                    difference: {
-                        expression: "POC(6)",
-                        interval: {value: 'm60'}
-                    },
-                    upper: "0"
-                }],
-                hold:[{
-                    indicator: {
-                        expression: "WORKDAY(asof)",
-                        interval: {value: 'd1'}
-                    },
-                    differenceWatch:{
-                        expression:"WORKDAY(asof)",
-                        interval: {value: 'd1'}
-                    },
-                    upper: "10"
-                },{
-                    indicator:{
-                        expression:"close",
-                        interval: {value: 'd1'}
-                    },
-                    difference:{
-                        expression:"SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    percent:{
-                        expression:"SMA(20,close)",
-                        interval: {value: 'd1'}
-                    },
-                    upper:"0",
-                    lower: "-15"
-                }]
-            }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+            }], [{
+                indicatorWatch: {
+                    expression: "F-Score()",
+                    interval: {value: 'annual'}
+                },
+                lower: "5"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'd5'}
+                },
+                lower: "5"
+            }, {
+                indicatorWatch: {
+                    expression: "volume",
+                    interval: {value: 'd5'}
+                },
+                lower: "100000"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'd1'}
+                },
+                differenceWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percentWatch: {
+                    expression: "STDEV(20,close)",
+                    interval: {value: 'd1'}
+                },
+                upper: "-200"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'd1'}
+                },
+                differenceWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percentWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                upper: "-4"
+            }, {
+                indicatorWatch: {
+                    expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
+                    interval: {value: 'd1'}
+                },
+                upper: "25"
+            }, {
+                indicatorWatch: {
+                    expression: "HOUR(asof)",
+                    interval: {value: 'm60'}
+                },
+                lower: "10",
+                upper: "15"
+            }, {
+                indicatorWatch: {
+                    expression: "POC(6)",
+                    interval: {value: 'm60'}
+                },
+                differenceWatch: {
+                    expression: "SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percentWatch: {
+                    expression: "STDEV(20,close)",
+                    interval: {value: 'd1'}
+                },
+                lower: "-200"
+            }, {
+                indicatorWatch: {
+                    expression: "close",
+                    interval: {value: 'm10'}
+                },
+                differenceWatch: {
+                    expression: "POC(6)",
+                    interval: {value: 'm60'}
+                },
+                upper: "0"
+            }, {
+                indicator: {
+                    expression: "WORKDAY(asof)",
+                    interval: {value: 'd1'}
+                },
+                differenceWatch:{
+                    expression:"WORKDAY(asof)",
+                    interval: {value: 'd1'}
+                },
+                upper: "10"
+            },{
+                indicator:{
+                    expression:"close",
+                    interval: {value: 'd1'}
+                },
+                difference:{
+                    expression:"SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                percent:{
+                    expression:"SMA(20,close)",
+                    interval: {value: 'd1'}
+                },
+                upper:"0",
+                lower: "-15"
+            }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
                     price: 140.93,
                     asof: '2014-10-21T20:00:00.000Z'
@@ -369,8 +363,7 @@ describe("Micro", function(){
                   "countries": [],
                   "excludes": []
                 }
-            ],{
-            watch: [
+            ],[
               {
                 upper: "-200",
                 indicator: {
@@ -417,8 +410,7 @@ describe("Micro", function(){
                   expression: "SMA(8,open)"
                 }
               }
-            ]
-          }, new Date('2015-03-13'),new Date('2015-03-14')).then(function(result){
+          ], new Date('2015-03-13'),new Date('2015-03-14')).then(function(result){
                 expect(result).toEqual([]);
             }).then(done, unexpected(done));
         });
@@ -448,23 +440,22 @@ describe("Micro", function(){
                   "countries": [],
                   "excludes": []
                 }
-            ],{
-            watch: [
+            ],[
               {
                 upper: "-100",
-                indicator: {
+                indicatorWatch: {
                   interval: {
                     value: "d1"
                   },
                   expression: "close"
                 },
-                difference: {
+                differenceWatch: {
                   interval: {
                     value: "d1"
                   },
                   expression: "SMA(20,close)"
                 },
-                percent: {
+                percentWatch: {
                   interval: {
                     value: "d1"
                   },
@@ -473,19 +464,19 @@ describe("Micro", function(){
               },
               {
                 upper: "-200",
-                indicator: {
+                indicatorWatch: {
                   interval: {
                     value: "m10"
                   },
                   expression: "SINCE(1,MIN(200,low))"
                 },
-                difference: {
+                differenceWatch: {
                   interval: {
                     value: "d1"
                   },
                   expression: "RWMA(20)"
                 },
-                percent: {
+                percentWatch: {
                   interval: {
                     value: "d1"
                   },
@@ -494,7 +485,7 @@ describe("Micro", function(){
               },
               {
                 lower: "100000",
-                indicator: {
+                indicatorWatch: {
                   interval: {
                     value: "d5"
                   },
@@ -503,13 +494,13 @@ describe("Micro", function(){
               },
               {
                 lower: "0.5",
-                indicator: {
+                indicatorWatch: {
                   interval: {
                     value: "d1"
                   },
                   expression: "STDEV(20,close)"
                 },
-                percent: {
+                percentWatch: {
                   interval: {
                     value: "d1"
                   },
@@ -519,7 +510,7 @@ describe("Micro", function(){
               {
                 lower: "9.6",
                 upper: "12",
-                indicator: {
+                indicatorWatch: {
                   interval: {
                     value: "m10"
                   },
@@ -528,21 +519,19 @@ describe("Micro", function(){
               },
               {
                 lower: "0",
-                indicator: {
+                indicatorWatch: {
                   interval: {
                     value: "m10"
                   },
                   expression: "SMA(8,close)"
                 },
-                difference: {
+                differenceWatch: {
                   interval: {
                     value: "m10"
                   },
                   expression: "SMA(8,open)"
                 }
-              }
-            ],
-            hold: [
+              },
               {
                 upper: "-100",
                 indicator: {
@@ -608,8 +597,7 @@ describe("Micro", function(){
                   expression: "HOUR(asof)"
                 }
               }
-            ]
-          }, new Date('2015-03-12'),new Date('2015-03-13')).then(function(result){
+          ], new Date('2015-03-12'),new Date('2015-03-13')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
                     price: 102.57,
                     asof: '2015-03-12T13:50:00.000Z',

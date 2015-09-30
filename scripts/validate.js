@@ -32,12 +32,26 @@
 function isArrayOf(func) {
     return function(object, path) {
         if (!_.isArray(object)) return false;
+        if (!object.length) return false;
         for (var i=0; i<object.length; i++) {
             var ret = func(object[i], path);
             if (ret !== true) return ret;
         }
         return true;
     };
+}
+
+function isCriteria(object, path) {
+    return validate(object, path, _.isObject) &&
+        validate(object, path, optional(isIndicator), 'indicator') &&
+        validate(object, path, optional(isIndicator), 'difference') &&
+        validate(object, path, optional(isIndicator), 'percent') &&
+        validate(object, path, optional(isIndicator), 'indicatorWatch') &&
+        validate(object, path, optional(isIndicator), 'differenceWatch') &&
+        validate(object, path, optional(isIndicator), 'percentWatch') &&
+        validate(object, path, optional(_.isNumber, _.isString), 'upper') &&
+        validate(object, path, optional(_.isNumber, _.isString), 'lower') &&
+        validate(object.indicator || object.indicatorWatch, path + '.indicator', _.isObject);
 }
 
 function isScreen(object, path) {

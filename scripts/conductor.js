@@ -188,15 +188,26 @@ dispatch({
 
     signals: function(data) {
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
-        validate(data.screen, 'data.screen', isScreen);
+        if (!data.criteria && data.screen) validate(data.screen, 'data.screen', isScreen);
+        else validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
+        var criteria = !data.criteria ? _.compact([].concat(data.screen.watch.map(function(filter){
+            return _.extend({}, filter, {
+                indicator: undefined,
+                difference: undefined,
+                percent: undefined,
+                indicatorWatch: filter.indicatorWatch || filter.indicator,
+                differenceWatch: filter.differenceWatch || filter.difference,
+                percentWatch: filter.percentWatch || filter.percent
+            });
+        }), data.screen.hold || data.screen.watch)) : data.criteria;
         return promiseSecurities(services, data.securityClasses, function(exchange, security) {
             return retryAfterImport(services, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
-                screen: data.screen,
+                criteria: criteria,
                 exchange: exchange,
                 security: security
             }, data.load).catch(function(error){
@@ -211,15 +222,26 @@ dispatch({
 
     screen: function(data) {
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
-        validate(data.screen, 'data.screen', isScreen);
+        if (!data.criteria && data.screen) validate(data.screen, 'data.screen', isScreen);
+        else validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
+        var criteria = !data.criteria ? _.compact([].concat(data.screen.watch.map(function(filter){
+            return _.extend({}, filter, {
+                indicator: undefined,
+                difference: undefined,
+                percent: undefined,
+                indicatorWatch: filter.indicatorWatch || filter.indicator,
+                differenceWatch: filter.differenceWatch || filter.difference,
+                percentWatch: filter.percentWatch || filter.percent
+            });
+        }), data.screen.hold || data.screen.watch)) : data.criteria;
         return promiseSecurities(services, data.securityClasses, function(exchange, security) {
             return retryAfterImport(services, {
                 cmd: 'screen',
                 begin: data.begin,
                 end: data.end,
-                screen: data.screen,
+                criteria: criteria,
                 exchange: exchange,
                 security: security
             }, data.load).catch(function(error){

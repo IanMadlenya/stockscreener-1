@@ -169,15 +169,13 @@ describe("Macro", function(){
                     ofExchange: 'XNGS',
                     includes: ['XNGS:YHOO']
                 }],
-                {
-                    watch:[{
-                        indicator: {
-                            expression: 'volume',
-                            interval: {value: 'd1'}
-                        },
-                        lower: 415800
-                    }]
-                },
+                [{
+                    indicator: {
+                        expression: 'volume',
+                        interval: {value: 'd1'}
+                    },
+                    lower: 415800
+                }],
                 new Date(2014, 0, 13),new Date(2014, 0, 14),
                 [{symbol: 'XNGS:YHOO', d1: {volume: 16047200}}]
             ]
@@ -186,14 +184,12 @@ describe("Macro", function(){
             screener.signals([{
                 exchange: getExchange("Toronto Stock Exchange"),
                 includes:[getExchange("Toronto Stock Exchange").iri + "/BB"]
-            }],{
-                watch:[{
-                    indicator:{
-                        expression:"F-Score()",
-                        interval: {value: 'annual'}
-                    }
-                }]
-            },new Date(2015, 0, 1),new Date(2015, 3, 4)).then(function(result){
+            }],[{
+                indicator:{
+                    expression:"F-Score()",
+                    interval: {value: 'annual'}
+                }
+            }],new Date(2015, 0, 1),new Date(2015, 3, 4)).then(function(result){
                 expect(result).not.toEqual([]);
                 expect(result[0].annual['F-Score()']).not.toBeUndefined();
             }).then(done, unexpected(done));
@@ -206,30 +202,27 @@ describe("Macro", function(){
                 screener.signals([{
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-                }],{
-                    watch:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        upper: "135.00"
-                    }],
-                    hold:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        differenceWatch: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        percentWatch: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        upper: "4"
-                    }]
-                }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+                }],[{
+                    indicatorWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    upper: "135.00"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    differenceWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    percentWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    upper: "4"
+                }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 133.83
@@ -244,31 +237,28 @@ describe("Macro", function(){
                 screener.signals([{
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-                }],{
-                    watch:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        upper: "135.00"
-                    }],
-                    hold:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        differenceWatch: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        percentWatch: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        upper: "4"
-                    }]
-                }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
-                    expect(result.length).toEqual(2);
+                }],[{
+                    indicatorWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    upper: "135.00"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    differenceWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    percentWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    upper: "4"
+                }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+                    expect(result.length).toEqual(8);
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 133.83
@@ -283,23 +273,20 @@ describe("Macro", function(){
                 screener.signals([{
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-                }],{
-                    watch:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        lower: "140.00"
-                    }],
-                    hold:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        lower: "140.00"
-                    }]
-                }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
-                    expect(result.length).toEqual(4);
+                }],[{
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    lower: "140.00"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    lower: "140.00"
+                }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+                    expect(result.length).toEqual(9);
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 140.93
@@ -318,39 +305,36 @@ describe("Macro", function(){
                 screener.signals([{
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-                }],{
-                    watch:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        difference: {
-                            expression: "close",
-                            interval: {value: 'd5'}
-                        },
-                        percent: {
-                            expression: "close",
-                            interval: {value: 'd5'}
-                        },
-                        upper: "-4"
-                    }],
-                    hold:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        differenceWatch: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        percentWatch: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        upper: "4",
-                        lower: "-4"
-                    }]
-                }, new Date('2014-10-01'),new Date('2014-11-01')).then(function(result){
+                }],[{
+                    indicatorWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    differenceWatch: {
+                        expression: "close",
+                        interval: {value: 'd5'}
+                    },
+                    percentWatch: {
+                        expression: "close",
+                        interval: {value: 'd5'}
+                    },
+                    upper: "-4"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    differenceWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    percentWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    upper: "4",
+                    lower: "-4"
+                }], new Date('2014-10-01'),new Date('2014-11-01')).then(function(result){
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 133.83
@@ -367,24 +351,21 @@ describe("Macro", function(){
                 screener.screen([{
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-                }],{
-                    watch:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        lower: "140.00",
-                        upper: "145.00"
-                    }],
-                    hold:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        },
-                        lower: "135.00",
-                        upper: "150.00"
-                    }]
-                }, new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+                }],[{
+                    indicatorWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    lower: "140.00",
+                    upper: "145.00"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    lower: "135.00",
+                    upper: "150.00"
+                }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                     expect(result.length).toEqual(1);
                     expect(result[0].performance.length).toBe(1);
                     expect(result[0].watch.price).toBeCloseTo(140.93,2);
@@ -399,14 +380,12 @@ describe("Macro", function(){
                 screener.screen([{
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
-                }],{
-                    watch:[{
-                        indicator: {
-                            expression: "close",
-                            interval: {value: 'd1'}
-                        }
-                    }]
-                }, new Date('2014-10-10'),new Date('2014-10-11')).then(function(result){
+                }],[{
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    }
+                }], new Date('2014-10-10'),new Date('2014-10-11')).then(function(result){
                     expect(result.length).toEqual(1);
                     expect(result[0].performance.length).toBe(1);
                 }).then(done, unexpected(done));
