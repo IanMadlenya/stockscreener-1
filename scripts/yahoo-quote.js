@@ -275,6 +275,7 @@ function lookupSymbol(listSymbols, exchange, ticker) {
     var url = [
         "http://d.yimg.com/aq/autoc?callback=YAHOO.util.ScriptNodeDataSource.callbacks",
         "&lang=", exchange.marketLang,
+        "&region=", exchange.marketLang.replace(/.*-/,'') || 'US',
         "&query=", encodeURIComponent(root)
     ].join('');
     return listSymbols(url, root).then(function(results){
