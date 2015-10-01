@@ -312,9 +312,13 @@ function lookupSymbol(listSymbols, exchange, ticker) {
 
 function listSymbols(url, root) {
     return promiseText(url).then(function(jsonp) {
-        return jsonp.replace(/^\s*YAHOO.util.ScriptNodeDataSource.callbacks\((.*)\)\s*$/, '$1');
+        return jsonp.replace(/^\s*YAHOO.util.ScriptNodeDataSource.callbacks\((.*)\);?\s*$/, '$1');
     }).then(parseJSON).then(function(json) {
-        return json.ResultSet.Result;
+        return json.ResultSet.Result.map(function(object){
+            return _.mapObject(object, function(value) {
+                return value.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>');
+            });
+        });
     });
 }
 
