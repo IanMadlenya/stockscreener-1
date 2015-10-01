@@ -233,7 +233,7 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
             });
             else return _.extend({}, data, {
                 result: _.clone(data.result[i]),
-                until: period.inc(asof, 1)
+                until: maxDate(period.inc(data.result[i].asof, 1), period.ceil(asof))
             });
         });
     };
@@ -249,8 +249,8 @@ function screenPeriods(intervals, exchange, filters) {
 }
 
 function findAllSignals(periods, load, security, criteria, begin, end) {
-    var watch = findSignal.bind(this, periods, load, security, 'watch', criteria);
-    var stop = findSignal.bind(this, periods, load, security, 'stop', criteria);
+    var watch = findWatchSignal.bind(this, periods, load, security, criteria);
+    var stop = findStopSignal.bind(this, periods, load, security, criteria);
     var hold = function(watching, begin, end) {
         return findAllHoldSignals(periods, load, security, criteria, watching, watching.asof, end);
     };
@@ -258,14 +258,14 @@ function findAllSignals(periods, load, security, criteria, begin, end) {
 }
 
 function findPositionSignals(periods, load, security, criteria, begin, end) {
-    var watch = findSignal.bind(this, periods, load, security, 'watch', criteria);
-    var stop = findSignal.bind(this, periods, load, security, 'stop', criteria);
+    var watch = findWatchSignal.bind(this, periods, load, security, criteria);
+    var stop = findStopSignal.bind(this, periods, load, security, criteria);
     var hold = findLastHoldSignals.bind(this, periods, load, security, criteria);
     return screenSignals(watch, hold, stop, begin, end);
 }
 
 function screenSignals(watch, hold, stop, begin, end) {
-    return watch({}, begin, end).then(function(ws){
+    return watch(begin, end).then(function(ws){
         if (!ws.result) return _.extend(ws, {
             result: []
         });
@@ -297,6 +297,19 @@ function screenSignals(watch, hold, stop, begin, end) {
     });
 }
 
+function findWatchSignal(periods, load, security, filters, begin, end){
+    return findSignal(periods, load, security, 'watch', filters, {}, begin, end).then(function(data){
+        if (_.isEmpty(data.result)) return data;
+        return _.extend(data, {
+            result: addGainPain(filters, data.result, data.result)
+        });
+    });
+}
+
+function findStopSignal(periods, load, security, filters, watching, begin, end){
+    return findSignal(periods, load, security, 'stop', filters, watching, begin, end);
+}
+
 function findAllHoldSignals(periods, load, security, filters, watching, begin, end) {
     return findSignal(periods, load, security, 'hold', filters, watching, begin, end).then(function(first) {
         if (!first.result) return _.extend(first, {
@@ -309,6 +322,11 @@ function findAllHoldSignals(periods, load, security, filters, watching, begin, e
             rest.result.unshift(first.result);
             return rest;
         });
+    }).then(function(data){
+        if (_.isEmpty(data.result)) return data;
+        return _.extend(data, {
+            result: data.result.map(addGainPain.bind(this, filters, watching))
+        });
     });
 }
 
@@ -317,6 +335,11 @@ function findLastHoldSignals(periods, load, security, filters, watching, begin, 
         if (!first.result || ltDate(end, first.until)) return first;
         return findLastHoldSignals(periods, load, security, filters, watching, first.until, end).then(function(last) {
             return deepExtend(first, last);
+        });
+    }).then(function(data){
+        if (_.isEmpty(data.result)) return data;
+        return _.extend(data, {
+            result: addGainPain(filters, watching, data.result)
         });
     });
 }
@@ -330,6 +353,42 @@ function deepExtend(target, source) {
         else if (src !== undefined) target[prop] = src;
     }
     return target;
+}
+
+function addGainPain(filters, watch, hold) {
+    return addGain(filters, watch, addPain(filters, watch, hold));
+}
+
+function addPain(filters, watch, hold) {
+    hold.pain = filters.reduce(function(avg, criteria){
+        if (_.isFinite(criteria.painIntercept)) {
+            var intercept = +criteria.painIntercept;
+            var slope = +(criteria.painSlope || 0);
+            var weight = +(criteria.weight || 1);
+            var value = valueOfCriteria(criteria, watch, hold);
+            var perf = value * slope + intercept;
+            avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
+            avg.weight += weight;
+        }
+        return avg;
+    }, {weight:0,value:undefined}).value;
+    return hold;
+}
+
+function addGain(filters, watch, hold) {
+    hold.gain = filters.reduce(function(avg, criteria){
+        if (_.isFinite(criteria.gainIntercept)) {
+            var intercept = +criteria.gainIntercept;
+            var slope = +(criteria.gainSlope || 0);
+            var weight = +(criteria.weight || 1);
+            var value = valueOfCriteria(criteria, watch, hold);
+            var perf = value * slope + intercept;
+            avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
+            avg.weight += weight;
+        }
+        return avg;
+    }, {weight:0,value:undefined}).value;
+    return hold;
 }
 
 function findSignal(periods, load, security, signal, filters, watching, begin, end){
@@ -380,44 +439,7 @@ function findSignal(periods, load, security, signal, filters, watching, begin, e
                 signal: signal
             })
         });
-    }).then(function(data){
-        if (_.isEmpty(data.result)) return data;
-        return _.extend({}, data, {
-            result: addGain(filters, watching, addPain(filters, watching, data.result))
-        });
     });
-}
-
-function addPain(filters, watch, hold) {
-    hold.pain = filters.reduce(function(avg, criteria){
-        if (_.isFinite(criteria.painIntercept)) {
-            var intercept = +criteria.painIntercept;
-            var slope = +(criteria.painSlope || 0);
-            var weight = +(criteria.weight || 1);
-            var value = valueOfCriteria(criteria, watch, hold);
-            var perf = value * slope + intercept;
-            avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
-            avg.weight += weight;
-        }
-        return avg;
-    }, {weight:0,value:undefined}).value;
-    return hold;
-}
-
-function addGain(filters, watch, hold) {
-    hold.gain = filters.reduce(function(avg, criteria){
-        if (_.isFinite(criteria.gainIntercept)) {
-            var intercept = +criteria.gainIntercept;
-            var slope = +(criteria.gainSlope || 0);
-            var weight = +(criteria.weight || 1);
-            var value = valueOfCriteria(criteria, watch, hold);
-            var perf = value * slope + intercept;
-            avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
-            avg.weight += weight;
-        }
-        return avg;
-    }, {weight:0,value:undefined}).value;
-    return hold;
 }
 
 function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, begin, upper) {
