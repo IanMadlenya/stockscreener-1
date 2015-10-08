@@ -202,7 +202,9 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
     }, {});
     return function(period, after, asof, until) {
         var next = period.inc(asof, 1);
-        if (!datasets[period.value] || ltDate(datasets[period.value].upper, next)) {
+        if (!datasets[period.value] ||
+                ltDate(datasets[period.value].upper, next) ||
+                ltDate(asof, datasets[period.value].lower)) {
             var begin = asof;
             var end = minDate(period.inc(asof, 100), period.inc(upper, 1));
             datasets[period.value] = {
@@ -528,15 +530,17 @@ function loadFilteredPoint(load, period, filters, watching, holding, after, begi
 
 function valueOfCriteria(crt, watch, hold) {
     var primary = valueOfIndicator(crt.indicator, hold) || valueOfIndicator(crt.indicatorWatch, watch);
-    var diff = valueOfIndicator(crt.difference, hold) + valueOfIndicator(crt.differenceWatch, watch);
+    var diff = valueOfIndicator(crt.difference, hold) || valueOfIndicator(crt.differenceWatch, watch) || 0;
     var of = valueOfIndicator(crt.percent, hold) || valueOfIndicator(crt.percentWatch, watch);
-    return of ? (primary - diff) * 100 / Math.abs(of) : (primary - diff);
+    if (!_.isFinite(primary)) return undefined;
+    else if (!of) return primary - diff;
+    else return (primary - diff) * 100 / Math.abs(of);
 }
 
 function valueOfIndicator(indicator, reference) {
     var int = indicator && indicator.interval.value;
-    if (!int || !reference[int]) return 0;
-    return reference[int][indicator.expression];
+    if (int && reference[int]) return reference[int][indicator.expression];
+    else return undefined;
 }
 
 function loadData(parseCalculation, open, failfast, security, length, lower, upper, period, expressions) {
