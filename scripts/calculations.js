@@ -109,6 +109,7 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        /* Hour of day */
         HOUR: function(ex, interval, asof) {
             return {
                 getErrorMessage: function() {
@@ -124,7 +125,7 @@ var parseCalculation = (function(_) {
                 },
                 getValue: function(points) {
                     // pivot around noon as leap seconds/hours occur at night
-                    var start = moment(points[0][asof]).tz(ex.tz);
+                    var start = moment(_.last(points).asof).tz(ex.tz);
                     var noon = moment(start).millisecond(0).second(0).minute(0).hour(12);
                     return (start.valueOf() - noon.valueOf()) /1000 /60 /60 +12;
                 }
@@ -175,15 +176,11 @@ var parseCalculation = (function(_) {
                     return ['asof'].concat(calc.getFields());
                 },
                 getDataLength: function() {
-                    var opens = moment.tz('2010-03-01T' + ex.premarketOpensAt, ex.tz);
-                    var closes = moment.tz('2010-03-01T' + ex.afterHoursClosesAt, ex.tz);
-                    var dayLength = interval.diff(ex, closes, opens);
-                    var n = Math.ceil((d + 1) * dayLength * 2); // extra for after hours activity
-                    return Math.max(n, calc.getDataLength());
+                    return calc.getDataLength();
                 },
                 getValue: function(points) {
                     if (_.isEmpty(points)) return getValue(calc, points);
-                    var asof = moment.tz(_.last(points).asof, ex.tz);
+                    var asof = moment(_.last(points).asof).tz(ex.tz);
                     var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
                     var since = intervals.d1.dec(ex, opens, d-1).toISOString();
                     var start = _.sortedIndex(points, {
@@ -209,8 +206,8 @@ var parseCalculation = (function(_) {
                     if (_.isEmpty(points))
                         return getValue(calc, points);
                     var start = "2000-01-01T".length;
-                    var first = moment.tz(_.first(points).asof, ex.tz);
-                    var last = moment.tz(_.last(points).asof, ex.tz);
+                    var first = moment(_.first(points).asof).tz(ex.tz);
+                    var last = moment(_.last(points).asof).tz(ex.tz);
                     var opens = moment.tz(first.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
                     var closes = moment.tz(last.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
                     var ohms = opens.hour() *60 *60 + opens.minute() *60 + opens.seconds();
@@ -230,11 +227,64 @@ var parseCalculation = (function(_) {
                         }));
                     } else {
                         return getValue(calc, points.filter(function(point){
-                            var asof = moment.tz(point.asof, ex.tz);
+                            var asof = moment(point.asof).tz(ex.tz);
                             var hms = asof.hour() *60 *60 + asof.minute() *60 + asof.seconds();
                             return ohms < hms && hms <= chms;
                         }));
                     }
+                }
+            };
+        },
+        /* use only this Time Of Day */
+        TOD: function(ex, interval, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 3);
+            return {
+                getErrorMessage: calc.getErrorMessage.bind(calc),
+                getFields: calc.getFields.bind(calc),
+                getDataLength: function() {
+                    return calc.getDataLength();
+                },
+                getValue: function(points) {
+                    if (_.isEmpty(points))
+                        return getValue(calc, points);
+                    var start = "2000-01-01T".length;
+                    var first = moment(_.first(points).asof).tz(ex.tz);
+                    var last = moment(_.last(points).asof).tz(ex.tz);
+                    if (first.isDST() == last.isDST() && last.diff(first, 'months') < 2) {
+                        // Use string comparison for faster filter
+                        var time = last.toISOString().substring(start);
+                        return getValue(calc, points.filter(function(point){
+                            return point.asof.substring(start) == time;
+                        }));
+                    } else {
+                        var hms = last.hour() *60 *60 + last.minute() *60 + last.seconds();
+                        return getValue(calc, points.filter(function(point){
+                            var asof = moment(point.asof).tz(ex.tz);
+                            var ahms = asof.hour() *60 *60 + asof.minute() *60 + asof.seconds();
+                            return ahms == hms;
+                        }));
+                    }
+                }
+            };
+        },
+        /* Offset value N periods ago */
+        OFFSET: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return calc.getErrorMessage();
+                },
+                getFields: function(){
+                    return ['asof'].concat(calc.getFields());
+                },
+                getDataLength: function() {
+                    return n + calc.getDataLength();
+                },
+                getValue: function(points) {
+                    var end = points.splice(-n, n);
+                    return getValue(calc, points);
                 }
             };
         },
@@ -1360,7 +1410,7 @@ var parseCalculation = (function(_) {
             return calculations.FSCORE(ex, interval);
         },
         /* Annual Piotroski F-Score */
-        'FSCORE': function(ex, interval) {
+        FSCORE: function(ex, interval) {
             function long_term_debt_to_asset_ratio(point) {
                 if (!point['long-term_debt']) return 0;
                 return point['long-term_debt'] * point.return_on_assets /
