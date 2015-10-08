@@ -364,13 +364,15 @@ function addGainPain(filters, watch, hold) {
 function addPain(filters, watch, hold) {
     hold.pain = filters.reduce(function(avg, criteria){
         if (_.isFinite(criteria.painIntercept)) {
-            var intercept = +criteria.painIntercept;
-            var slope = +(criteria.painSlope || 0);
-            var weight = +(criteria.weight || 1);
             var value = valueOfCriteria(criteria, watch, hold);
-            var perf = value * slope + intercept;
-            avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
-            avg.weight += weight;
+            if (_.isFinite(value)) {
+                var intercept = +criteria.painIntercept;
+                var slope = +(criteria.painSlope || 0);
+                var weight = +(criteria.weight || 1);
+                var perf = value * slope + intercept;
+                avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
+                avg.weight += weight;
+            }
         }
         return avg;
     }, {weight:0,value:undefined}).value;
@@ -380,13 +382,15 @@ function addPain(filters, watch, hold) {
 function addGain(filters, watch, hold) {
     hold.gain = filters.reduce(function(avg, criteria){
         if (_.isFinite(criteria.gainIntercept)) {
-            var intercept = +criteria.gainIntercept;
-            var slope = +(criteria.gainSlope || 0);
-            var weight = +(criteria.weight || 1);
             var value = valueOfCriteria(criteria, watch, hold);
-            var perf = value * slope + intercept;
-            avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
-            avg.weight += weight;
+            if (_.isFinite(value)) {
+                var intercept = +criteria.gainIntercept;
+                var slope = +(criteria.gainSlope || 0);
+                var weight = +(criteria.weight || 1);
+                var perf = value * slope + intercept;
+                avg.value = ((avg.value || 0) * avg.weight + perf * weight) / (avg.weight + weight);
+                avg.weight += weight;
+            }
         }
         return avg;
     }, {weight:0,value:undefined}).value;
