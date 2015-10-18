@@ -251,22 +251,22 @@ function screenPeriods(intervals, exchange, filters) {
 }
 
 function findAllSignals(periods, load, security, criteria, begin, end) {
-    var watch = findWatchSignal.bind(this, periods, load, security, criteria);
-    var stop = findStopSignal.bind(this, periods, load, security, criteria);
+    var watch = findWatchSignal.bind(this, periods, load, criteria);
+    var stop = findStopSignal.bind(this, periods, load, criteria);
     var hold = function(watching, begin, end) {
-        return findAllHoldSignals(periods, load, security, criteria, watching, watching.asof, end);
+        return findAllHoldSignals(periods, load, criteria, watching, watching.asof, end);
     };
-    return screenSignals(watch, hold, stop, begin, end);
+    return screenSignals(security, watch, hold, stop, begin, end);
 }
 
 function findPositionSignals(periods, load, security, criteria, begin, end) {
-    var watch = findWatchSignal.bind(this, periods, load, security, criteria);
-    var stop = findStopSignal.bind(this, periods, load, security, criteria);
-    var hold = findLastHoldSignals.bind(this, periods, load, security, criteria);
-    return screenSignals(watch, hold, stop, begin, end);
+    var watch = findWatchSignal.bind(this, periods, load, criteria);
+    var stop = findStopSignal.bind(this, periods, load, criteria);
+    var hold = findLastHoldSignals.bind(this, periods, load, criteria);
+    return screenSignals(security, watch, hold, stop, begin, end);
 }
 
-function screenSignals(watch, hold, stop, begin, end) {
+function screenSignals(security, watch, hold, stop, begin, end) {
     return watch(begin, end).then(function(ws){
         if (!ws.result) return _.extend(ws, {
             result: []
@@ -287,20 +287,23 @@ function screenSignals(watch, hold, stop, begin, end) {
     }).then(function(first){
         if (_.isEmpty(first.result) || _.last(first.result).signal != 'stop' || ltDate(end, first.until))
             return first;
-        return screenSignals(watch, hold, stop, first.until, end).then(function(rest){
+        return screenSignals(security, watch, hold, stop, first.until, end).then(function(rest){
             if (_.isEmpty(rest.result)) return first;
             return combineResult([first, rest]);
         });
-    }).then(function(signals){
-        return _.extend(signals, {
+    }).then(function(data){
+        return _.extend(data, {
+            result: data.result.map(function(datum){
+                return _.extend(datum, {security: security});
+            }),
             begin: begin,
             end: end
         });
     });
 }
 
-function findWatchSignal(periods, load, security, filters, begin, end){
-    return findSignal(periods, load, security, 'watch', filters, {}, begin, end).then(function(data){
+function findWatchSignal(periods, load, filters, begin, end){
+    return findSignal(periods, load, 'watch', filters, {}, begin, end).then(function(data){
         if (_.isEmpty(data.result)) return data;
         return _.extend(data, {
             result: addGainPain(filters, data.result, data.result)
@@ -308,19 +311,19 @@ function findWatchSignal(periods, load, security, filters, begin, end){
     });
 }
 
-function findStopSignal(periods, load, security, filters, watching, begin, end){
-    return findSignal(periods, load, security, 'stop', filters, watching, begin, end);
+function findStopSignal(periods, load, filters, watching, begin, end){
+    return findSignal(periods, load, 'stop', filters, watching, begin, end);
 }
 
-function findAllHoldSignals(periods, load, security, filters, watching, begin, end) {
-    return findSignal(periods, load, security, 'hold', filters, watching, begin, end).then(function(first) {
+function findAllHoldSignals(periods, load, filters, watching, begin, end) {
+    return findSignal(periods, load, 'hold', filters, watching, begin, end).then(function(first) {
         if (!first.result) return _.extend(first, {
             result: []
         });
         if (ltDate(end, first.until)) return _.extend(first, {
             result: [first.result]
         });
-        return findAllHoldSignals(periods, load, security, filters, watching, first.until, end).then(function(rest) {
+        return findAllHoldSignals(periods, load, filters, watching, first.until, end).then(function(rest) {
             rest.result.unshift(first.result);
             return rest;
         });
@@ -332,10 +335,10 @@ function findAllHoldSignals(periods, load, security, filters, watching, begin, e
     });
 }
 
-function findLastHoldSignals(periods, load, security, filters, watching, begin, end) {
-    return findSignal(periods, load, security, 'hold', filters, watching, begin, end).then(function(first) {
+function findLastHoldSignals(periods, load, filters, watching, begin, end) {
+    return findSignal(periods, load, 'hold', filters, watching, begin, end).then(function(first) {
         if (!first.result || ltDate(end, first.until)) return first;
-        return findLastHoldSignals(periods, load, security, filters, watching, first.until, end).then(function(last) {
+        return findLastHoldSignals(periods, load, filters, watching, first.until, end).then(function(last) {
             return deepExtend(first, last);
         });
     }).then(function(data){
@@ -397,7 +400,7 @@ function addGain(filters, watch, hold) {
     return hold;
 }
 
-function findSignal(periods, load, security, signal, filters, watching, begin, end){
+function findSignal(periods, load, signal, filters, watching, begin, end){
     if (ltDate(end, begin))
         throw Error("Assert error " + end + " is less than " + begin);
     if (!filters.length) return Promise.resolve({status: 'success'});
@@ -428,7 +431,7 @@ function findSignal(periods, load, security, signal, filters, watching, begin, e
         };
     }), new Date(0), begin, begin, end).then(function(data){
         if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.until, end) && ltDate(begin, data.until))
-            return findSignal(periods, load, security, signal, filters, watching, data.until, end);
+            return findSignal(periods, load, signal, filters, watching, data.until, end);
         if (!data.result || ltDate(data.result.asof, begin))
             return _.extend(data, {
                 passed: undefined,
@@ -441,7 +444,6 @@ function findSignal(periods, load, security, signal, filters, watching, begin, e
             });
         else return _.extend(data, {
             result: _.extend(data.result, {
-                security: security,
                 signal: signal
             })
         });
