@@ -211,7 +211,7 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
                 lower: begin,
                 upper: end,
                 promise: loadData(parseCalculation, open, failfast, security,
-                    1, begin, end, period, exprs[period.value])
+                    2, begin, end, period, exprs[period.value])
             };
         }
         return datasets[period.value].promise.then(function(data){
@@ -226,16 +226,19 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
             }
             var i = Math.max(startIndex, data.result[idx] && ltDate(data.result[idx].asof, asof, true) && idx || 0, idx - 1);
             if (!data.result[i] || ltDate(until, data.result[i].asof)) return _.extend({}, data, {
-                result: undefined,
-                until: i < data.result.length ? data.result[i].asof : period.inc(asof, 1)
+                result: undefined
             });
             else if (i+1 < data.result.length) return _.extend({}, data, {
-                result: _.clone(data.result[i]),
-                until: data.result[i+1].asof
+                result: _.extend(data.result[i], {
+                    since: data.result[i-1] ? data.result[i-1].asof : undefined,
+                    until: data.result[i+1].asof
+                })
             });
             else return _.extend({}, data, {
-                result: _.clone(data.result[i]),
-                until: maxDate(period.inc(data.result[i].asof, 1), period.ceil(asof))
+                result: _.extend(data.result[i], {
+                    since: data.result[i-1] ? data.result[i-1].asof : undefined,
+                    until: maxDate(period.inc(data.result[i].asof, 1), period.ceil(asof))
+                })
             });
         });
     };
@@ -285,9 +288,10 @@ function screenSignals(security, watch, hold, stop, begin, end) {
             });
         });
     }).then(function(first){
-        if (_.isEmpty(first.result) || _.last(first.result).signal != 'stop' || ltDate(end, first.until))
+        var firstStop = _.last(first.result);
+        if (!firstStop || firstStop.signal != 'stop' || ltDate(end, firstStop.until))
             return first;
-        return screenSignals(security, watch, hold, stop, first.until, end).then(function(rest){
+        return screenSignals(security, watch, hold, stop, firstStop.until, end).then(function(rest){
             if (_.isEmpty(rest.result)) return first;
             return combineResult([first, rest]);
         });
@@ -320,10 +324,10 @@ function findAllHoldSignals(periods, load, filters, watching, begin, end) {
         if (!first.result) return _.extend(first, {
             result: []
         });
-        if (ltDate(end, first.until)) return _.extend(first, {
+        if (ltDate(end, first.result.until)) return _.extend(first, {
             result: [first.result]
         });
-        return findAllHoldSignals(periods, load, filters, watching, first.until, end).then(function(rest) {
+        return findAllHoldSignals(periods, load, filters, watching, first.result.until, end).then(function(rest) {
             rest.result.unshift(first.result);
             return rest;
         });
@@ -337,8 +341,8 @@ function findAllHoldSignals(periods, load, filters, watching, begin, end) {
 
 function findLastHoldSignals(periods, load, filters, watching, begin, end) {
     return findSignal(periods, load, 'hold', filters, watching, begin, end).then(function(first) {
-        if (!first.result || ltDate(end, first.until)) return first;
-        return findLastHoldSignals(periods, load, filters, watching, first.until, end).then(function(last) {
+        if (!first.result || ltDate(end, first.result.until)) return first;
+        return findLastHoldSignals(periods, load, filters, watching, first.result.until, end).then(function(last) {
             return deepExtend(first, last);
         });
     }).then(function(data){
@@ -430,8 +434,8 @@ function findSignal(periods, load, signal, filters, watching, begin, end){
             filters: byInterval[interval] || []
         };
     }), new Date(0), begin, begin, end).then(function(data){
-        if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.until, end) && ltDate(begin, data.until))
-            return findSignal(periods, load, signal, filters, watching, data.until, end);
+        if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.result.until, end) && ltDate(begin, data.result.until))
+            return findSignal(periods, load, signal, filters, watching, data.result.until, end);
         if (!data.result || ltDate(data.result.asof, begin))
             return _.extend(data, {
                 passed: undefined,
@@ -458,7 +462,11 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
     var filters = _.first(periodsAndFilters).filters;
     return findNextSignal(load, signal, !rest.length, period, filters, watching, holding, after, begin, upper).then(function(data){
         if (!data.result) return data;
-        var result = _.object([period.value, 'price', 'asof'], [data.result, data.result.close, data.result.asof]);
+        var result = _.object([
+            period.value, 'price', 'asof', 'until'
+        ], [
+            data.result, data.result.close, data.result.asof, data.result.until
+        ]);
         if (data.passed === false || !rest.length) return _.extend({}, data, {
             result: result
         });
@@ -471,8 +479,8 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
                 result: result
             });
         }
-        return filterSecurityByPeriods(load, signal, watching, reference, rest, start, maxDate(lower, start), maxDate(start, begin), minDate(upper, data.until)).then(function(child){
-            if (ltDate(upper, data.until) || ltDate(data.until, begin, true) ||
+        return filterSecurityByPeriods(load, signal, watching, reference, rest, start, maxDate(lower, start), maxDate(start, begin), minDate(upper, data.result.until)).then(function(child){
+            if (ltDate(upper, data.result.until) || ltDate(data.result.until, begin, true) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
                     signal == 'hold') return _.extend({}, child, {
@@ -481,7 +489,7 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
                 result: _.extend(result, child.result)
             });
             // couldn't find a signal, try next period
-            return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, data.until, upper);
+            return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, data.result.until, upper);
         });
     });
 }
@@ -502,10 +510,10 @@ function findNextActiveFilter(pass, load, period, filters, watching, holding, af
     if (ltDate(until, begin))
         throw Error("Assert error " + until + " is less than " + begin);
     return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until).then(function(data){
-        if (ltDate(data.until, begin, true))
+        if (!data.result || ltDate(data.result.until, begin, true))
             return data; // Need more data points
-        if (pass != data.passed && ltDate(data.until, until, true))
-            return findNextActiveFilter(pass, load, period, filters, watching, holding, after, data.until, until);
+        if (pass != data.passed && ltDate(data.result.until, until, true))
+            return findNextActiveFilter(pass, load, period, filters, watching, holding, after, data.result.until, until);
         else return data;
     });
 }
