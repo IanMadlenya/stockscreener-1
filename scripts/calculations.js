@@ -176,7 +176,11 @@ var parseCalculation = (function(_) {
                     return ['asof'].concat(calc.getFields());
                 },
                 getDataLength: function() {
-                    return calc.getDataLength();
+                    var opens = moment.tz('2010-03-01T' + ex.premarketOpensAt, ex.tz);
+                    var closes = moment.tz('2010-03-01T' + ex.afterHoursClosesAt, ex.tz);
+                    var dayLength = interval.diff(ex, closes, opens);
+                    var n = Math.ceil((d + 1) * dayLength * 2); // extra for after hours activity
+                    return Math.max(n, calc.getDataLength());
                 },
                 getValue: function(points) {
                     if (_.isEmpty(points)) return getValue(calc, points);
