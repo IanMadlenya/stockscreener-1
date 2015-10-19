@@ -103,13 +103,13 @@ onmessage = handle.bind(this, {
         );
     },
     signals: function(data){
-        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, data.criteria, data.begin, data.end);
         var periods = screenPeriods(intervals, data.exchange, data.criteria);
+        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, periods, data.security, data.criteria, data.begin, data.end);
         return findAllSignals(periods, load, data.security, data.criteria, data.begin, data.end);
     },
     screen: function(data){
-        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security, data.criteria, data.begin, data.end);
         var periods = screenPeriods(intervals, data.exchange, data.criteria);
+        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, periods, data.security, data.criteria, data.begin, data.end);
         var annual = createPeriod(intervals, data.exchange, 'annual');
         var minute = _.last(_.sortBy(_.values(periods), function(period) {
             return period.millis * -1;
@@ -186,8 +186,11 @@ function sum(numbers) {
     }, 0);
 }
 
-function pointLoad(parseCalculation, open, failfast, security, filters, lower, upper) {
-    var datasets = {};
+function pointLoad(parseCalculation, open, failfast, periods, security, filters, lower, upper) {
+    var bar = loadBar.bind(this, {}, parseCalculation, open, failfast, security, upper);
+    var intervals = _.sortBy(_.keys(periods), function(interval){
+        return -periods[interval].millis;
+    });
     var exprs = _.compact(_.flatten(filters.map(function(criteria){
         return [
             criteria.indicator, criteria.difference, criteria.percent,
@@ -200,48 +203,69 @@ function pointLoad(parseCalculation, open, failfast, security, filters, lower, u
         if (exprs[interval].indexOf(expr) < 0) exprs[interval].push(expr);
         return exprs;
     }, {});
-    return function(period, after, asof, until) {
-        var next = period.inc(asof, 1);
-        if (!datasets[period.value] ||
-                ltDate(datasets[period.value].upper, next) ||
-                ltDate(asof, datasets[period.value].lower)) {
-            var begin = asof;
-            var end = minDate(period.inc(asof, 100), period.inc(upper, 1));
-            datasets[period.value] = {
-                lower: begin,
-                upper: end,
-                promise: loadData(parseCalculation, open, failfast, security,
-                    2, begin, end, period, exprs[period.value])
-            };
-        }
-        return datasets[period.value].promise.then(function(data){
-            var startIndex = _.sortedIndex(data.result, {
-                asof: toISOString(after)
-            }, 'asof');
-            var idx = _.sortedIndex(data.result, {
-                asof: toISOString(asof)
-            }, 'asof');
-            if (startIndex < data.result.length && ltDate(data.result[startIndex].asof, after)) {
-                startIndex++;
-            }
-            var i = Math.max(startIndex, data.result[idx] && ltDate(data.result[idx].asof, asof, true) && idx || 0, idx - 1);
-            if (!data.result[i] || ltDate(until, data.result[i].asof)) return _.extend({}, data, {
-                result: undefined
-            });
-            else if (i+1 < data.result.length) return _.extend({}, data, {
-                result: _.extend(data.result[i], {
-                    since: data.result[i-1] ? data.result[i-1].asof : undefined,
-                    until: data.result[i+1].asof
-                })
-            });
-            else return _.extend({}, data, {
-                result: _.extend(data.result[i], {
-                    since: data.result[i-1] ? data.result[i-1].asof : undefined,
-                    until: maxDate(period.inc(data.result[i].asof, 1), period.ceil(asof))
-                })
+    var epoc = new Date(0);
+    return function(afterPeriod, after, asof, until) {
+        return Promise.all(intervals.map(function(interval){
+            var a = afterPeriod.value == interval ? after : epoc;
+            return bar(periods[interval], a, exprs[interval], asof, until);
+        })).then(function(bars){
+            return _.extend(combineResult(bars), {
+                result: bars.reduce(function(result, bar, i) {
+                    if (!bar.result) return result;
+                    return _.extend(result, _.object([
+                        intervals[i], 'price', 'asof', 'until'
+                    ], [
+                        bar.result, bar.result.close, bar.result.asof, bar.result.until
+                    ]));
+                }, {})
             });
         });
     };
+}
+
+function loadBar(cache, parseCalculation, open, failfast, security, upper, period, after, expressions, asof, until) {
+    var next = period.inc(asof, 1);
+    if (!cache[period.value] ||
+            ltDate(cache[period.value].upper, next) ||
+            ltDate(asof, cache[period.value].lower)) {
+        var begin = asof;
+        var end = minDate(period.inc(asof, 100), period.inc(upper, 1));
+        cache[period.value] = {
+            lower: begin,
+            upper: end,
+            promise: loadData(parseCalculation, open, failfast, security,
+                2, begin, end, period, expressions)
+        };
+    }
+    return cache[period.value].promise.then(function(data){
+        if (_.isEmpty(data.result)) return _.extend({}, data, {
+            result: undefined
+        });
+        var idx = _.sortedIndex(data.result, {
+            asof: toISOString(asof)
+        }, 'asof');
+        if (idx >= data.result.length || idx && ltDate(asof, data.result[idx].asof)) {
+            idx--;
+        }
+        if (idx+1 < data.result.length && ltDate(data.result[idx].asof, after)) {
+            idx++;
+        }
+        if (ltDate(until, data.result[idx].asof)) return _.extend({}, data, {
+            result: undefined
+        });
+        else if (idx+1 < data.result.length) return _.extend({}, data, {
+            result: _.extend(data.result[idx], {
+                since: idx ? data.result[idx-1].asof : data.result[idx].since,
+                until: data.result[idx+1].asof
+            })
+        });
+        else return _.extend({}, data, {
+            result: _.extend(data.result[idx], {
+                since: idx ? data.result[idx-1].asof : data.result[idx].since,
+                until: maxDate(period.inc(data.result[idx].asof, 1), period.ceil(asof))
+            })
+        });
+    });
 }
 
 function screenPeriods(intervals, exchange, filters) {
@@ -461,35 +485,27 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
     var period = _.first(periodsAndFilters).period;
     var filters = _.first(periodsAndFilters).filters;
     return findNextSignal(load, signal, !rest.length, period, filters, watching, holding, after, begin, upper).then(function(data){
-        if (!data.result) return data;
-        var result = _.object([
-            period.value, 'price', 'asof', 'until'
-        ], [
-            data.result, data.result.close, data.result.asof, data.result.until
-        ]);
-        if (data.passed === false || !rest.length) return _.extend({}, data, {
-            result: result
-        });
-        var reference = _.extend(_.object([period.value],[data.result]), holding);
-        var start = period.ceil(data.result.asof);
+        if (!data.result || !data.result[period.value]) return data;
+        if (data.passed === false || !rest.length) return data;
+        var start = period.ceil(data.result[period.value].asof);
         if (ltDate(upper, start)) {
             // couldn't find signal, end of period
             return _.extend({}, data, {
-                passed: undefined,
-                result: result
+                passed: undefined
             });
         }
-        return filterSecurityByPeriods(load, signal, watching, reference, rest, start, maxDate(lower, start), maxDate(start, begin), minDate(upper, data.result.until)).then(function(child){
-            if (ltDate(upper, data.result.until) || ltDate(data.result.until, begin, true) ||
+        var through = data.result[period.value].until;
+        return filterSecurityByPeriods(load, signal, watching, data.result, rest, start, maxDate(lower, start), maxDate(start, begin), minDate(upper, through)).then(function(child){
+            if (ltDate(upper, through) || ltDate(through, begin, true) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
                     signal == 'hold') return _.extend({}, child, {
                 status: child.status == "success" ? data.status : child.status,
                 quote: _.compact(_.flatten([data.quote, child.quote])),
-                result: _.extend(result, child.result)
+                result: child.result
             });
             // couldn't find a signal, try next period
-            return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, data.result.until, upper);
+            return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, lower, through, upper);
         });
     });
 }
@@ -510,20 +526,21 @@ function findNextActiveFilter(pass, load, period, filters, watching, holding, af
     if (ltDate(until, begin))
         throw Error("Assert error " + until + " is less than " + begin);
     return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until).then(function(data){
-        if (!data.result || ltDate(data.result.until, begin, true))
+        var through = data.result[period.value].until;
+        if (!data.result || ltDate(through, begin, true))
             return data; // Need more data points
-        if (pass != data.passed && ltDate(data.result.until, until, true))
-            return findNextActiveFilter(pass, load, period, filters, watching, holding, after, data.result.until, until);
+        if (pass != data.passed && ltDate(through, until, true))
+            return findNextActiveFilter(pass, load, period, filters, watching, holding, after, through, until);
         else return data;
     });
 }
 
 function loadFilteredPoint(load, period, filters, watching, holding, after, begin, until) {
     return load(period, after, minDate(begin,until), until).then(function(data){
-        if (!data.result) return data;
+        if (!data.result || !data.result[period.value]) return data;
         var pass =_.reduce(filters, function(pass, criteria) {
             if (!pass) return false;
-            var hold = _.extend(_.object([period.value],[data.result]), holding);
+            var hold = data.result;
             var watch = _.isEmpty(watching) ? hold : watching; // is 'watch' signal?
             var value = valueOfCriteria(criteria, watch, hold);
             if (_.isFinite(criteria.lower)) {

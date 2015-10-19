@@ -337,11 +337,13 @@ describe("Macro", function(){
                 }], new Date('2014-10-01'),new Date('2014-11-01')).then(function(result){
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
-                        price: 133.83
+                        price: 134.18,
+                        asof: '2014-10-14T20:00:00.000Z'
                     }));
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'stop',
-                        price: 140.93
+                        price: 140.93,
+                        asof: '2014-10-21T20:00:00.000Z'
                     }));
                 }).then(done, unexpected(done));
             });

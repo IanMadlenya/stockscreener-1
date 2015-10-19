@@ -200,14 +200,17 @@ describe("Micro", function(){
                 upper:"0",
                 lower: "-15"
             }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
-                expect(result).toContain(jasmine.objectContaining({
+                var withoutHold = result.filter(function(point){
+                    return point.signal != 'hold';
+                });
+                expect(withoutHold).toContain(jasmine.objectContaining({
                     signal: 'watch',
                     price: 134.98,
                     asof: '2014-10-14T17:30:00.000Z'
                 }));
-                expect(result).toContain(jasmine.objectContaining({
+                expect(withoutHold).toContain(jasmine.objectContaining({
                     signal: 'stop',
-                    price: 140.93,
+                    price: 140.94,
                     asof: '2014-10-21T20:00:00.000Z'
                 }));
             }).then(done, unexpected(done));
@@ -326,7 +329,8 @@ describe("Micro", function(){
                 lower: "-15"
             }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
-                    price: 140.93,
+                    signal: 'stop',
+                    price: 140.94,
                     asof: '2014-10-21T20:00:00.000Z'
                 }));
                 expect(result[0].growth).toBeCloseTo(4,0);
