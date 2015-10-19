@@ -311,11 +311,11 @@ describe("Macro", function(){
                         interval: {value: 'd1'}
                     },
                     differenceWatch: {
-                        expression: "close",
+                        expression: "open",
                         interval: {value: 'd5'}
                     },
                     percentWatch: {
-                        expression: "close",
+                        expression: "open",
                         interval: {value: 'd5'}
                     },
                     upper: "-4"
