@@ -63,7 +63,7 @@ var handler = {
         if (interval != 'm1' && interval != 'm10' && interval != 'm60')
             return {status: 'success', result: []};
         var seconds = interval == 'm1' ? 60 : interval == 'm10' ? 600 : 3600;
-        var symbol = (data.exchange.dtnPrefix || '') + data.ticker;
+        var symbol = (data.security.exchange.dtnPrefix || '') + data.security.ticker;
         var asof = Date.now();
         console.log("Loading", interval, symbol);
         return hit({
@@ -76,7 +76,7 @@ var handler = {
                 var row = line.split(',');
                 return {
                     symbol: symbol,
-                    dateTime: moment.tz(row[1], 'America/New_York').tz(data.exchange.tz).format(),
+                    dateTime: moment.tz(row[1], 'America/New_York').tz(data.security.exchange.tz).format(),
                     high: parseFloat(row[2]),
                     low: parseFloat(row[3]),
                     open: parseFloat(row[4]),
@@ -93,8 +93,7 @@ var handler = {
             console.log("Read", results.length, interval, symbol);
             return {
                 status: 'success',
-                exchange: data.exchange,
-                ticker: data.ticker,
+                security: data.security,
                 symbol: symbol,
                 interval: interval,
                 start: data.start,

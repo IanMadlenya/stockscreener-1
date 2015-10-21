@@ -80,7 +80,7 @@ onmessage = handle.bind(this, {
     },
 
     'import': function(data) {
-        var period = createPeriod(intervals, data.exchange, data.interval);
+        var period = createPeriod(intervals, data.security.exchange, data.interval);
         if (!period) throw Error("Unknown interval: " + data.interval);
         return importData(open, period, data.security, data.points);
     },
@@ -96,21 +96,21 @@ onmessage = handle.bind(this, {
         });
     },
     load: function(data) {
-        var period = createPeriod(intervals, data.exchange, data.interval.value);
+        var period = createPeriod(intervals, data.security.exchange, data.interval.value);
         if (!period) throw Error("Unknown interval: " + data.interval.value);
-        return loadData(parseCalculation.bind(this, data.exchange), open, data.failfast, data.security,
+        return loadData(parseCalculation.bind(this, data.security.exchange), open, data.failfast, data.security,
             data.length, data.lower, data.upper, period, data.expressions
         );
     },
     signals: function(data){
-        var periods = screenPeriods(intervals, data.exchange, data.criteria);
-        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, periods, data.security, data.criteria, data.begin, data.end);
+        var periods = screenPeriods(intervals, data.security.exchange, data.criteria);
+        var load = pointLoad(parseCalculation.bind(this, data.security.exchange), open, data.failfast, periods, data.security, data.criteria, data.begin, data.end);
         return findAllSignals(periods, load, data.security, data.criteria, data.begin, data.end);
     },
     screen: function(data){
-        var periods = screenPeriods(intervals, data.exchange, data.criteria);
-        var load = pointLoad(parseCalculation.bind(this, data.exchange), open, data.failfast, periods, data.security, data.criteria, data.begin, data.end);
-        var annual = createPeriod(intervals, data.exchange, 'annual');
+        var periods = screenPeriods(intervals, data.security.exchange, data.criteria);
+        var load = pointLoad(parseCalculation.bind(this, data.security.exchange), open, data.failfast, periods, data.security, data.criteria, data.begin, data.end);
+        var annual = createPeriod(intervals, data.security.exchange, 'annual');
         var minute = _.last(_.sortBy(_.values(periods), function(period) {
             return period.millis * -1;
         }));
@@ -322,7 +322,7 @@ function screenSignals(security, watch, hold, stop, begin, end) {
     }).then(function(data){
         return _.extend(data, {
             result: data.result.map(function(datum){
-                return _.extend(datum, {security: security});
+                return _.extend(datum, {security: security.iri});
             }),
             begin: begin,
             end: end
@@ -857,7 +857,7 @@ function bounds(open, security, period) {
 
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security, 10);
+        var request = indexedDB.open(security.iri, 10);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {

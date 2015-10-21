@@ -83,21 +83,21 @@ onmessage = handle.bind(this, {
 
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, data) {
         var interval = data.interval;
-        if (interval != 'd1' || !data.exchange.exch)
+        if (interval != 'd1' || !data.security.exchange.exch)
             return {status: 'success', result: []};
-        var symbol = guessSymbol(data.exchange, data.ticker);
+        var symbol = guessSymbol(data.security);
         var mapped = symbolMap[symbol];
         return loadSymbol(data, mapped || symbol).catch(function(error) {
             if (mapped || data.ticker.match(/^[A-Z]+$/))
                 return Promise.reject(error);
-            return lookupSymbol(data.exchange, data.ticker).then(function(results){
+            return lookupSymbol(data.security.exchange, data.security.ticker).then(function(results){
                 if (!results.length) return undefined;
                 return results[0].symbol;
             }).then(function(lookup){
                 if (!lookup || symbol == lookup)
                     return Promise.reject(error);
                 symbolMap[symbol] = lookup;
-                console.log("Using Yahoo! symbol " + lookup + " for security " + data.exchange.mic + ':' + data.ticker);
+                console.log("Using Yahoo! symbol " + lookup + " for security " + data.security.exchange.mic + ':' + data.ticker);
                 return loadSymbol(data, lookup);
             });
         }).catch(
@@ -105,8 +105,7 @@ onmessage = handle.bind(this, {
         ).then(function(result){
             return {
                 status: 'success',
-                exchange: data.exchange,
-                ticker: data.ticker,
+                security: data.security,
                 interval: interval,
                 start: data.start,
                 end: data.end,
@@ -137,7 +136,7 @@ function loadSymbol(loadQuotes, readStartDate, deleteStartDateIfAfter, data, sym
             symbol: symbol,
             start: data.start,
             end: data.end,
-            marketClosesAt: data.exchange.marketClosesAt
+            marketClosesAt: data.security.exchange.marketClosesAt
         }]).then(function(results) {
             return results.filter(function(result){
                 return result.symbol == symbol;
@@ -261,13 +260,13 @@ function parseCurrency(string) {
     return Math.round(parseFloat(string) * 100) / 100;
 }
 
-function guessSymbol(exchange, ticker) {
-    return ticker
+function guessSymbol(security) {
+    return security.ticker
         .replace(/\^/, '-P')
         .replace(/[\.\-\/]/, '-')
         .replace(/-PR./, '-P')
         .replace(/\./g, '') +
-        (exchange.yahooSuffix ? exchange.yahooSuffix : '');
+        (security.exchange.yahooSuffix ? security.exchange.yahooSuffix : '');
 }
 
 function lookupSymbol(listSymbols, exchange, ticker) {

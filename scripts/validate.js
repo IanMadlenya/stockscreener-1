@@ -89,11 +89,19 @@ function isInterval(object, path) {
 function isSecurityClass(object, path) {
     return validate(object, path, _.isObject) &&
         validate(object, path, isExchange, 'exchange') &&
+        validate(object, path, optional(isSecurity), 'correlated') &&
         validate(object, path, isArrayOf(_.isString), 'includes') &&
         validate(object, path, isArrayOf(function(iri){
             return iri.indexOf(object.exchange.iri) == 0 ||
                 "must start with " + object.exchange.iri + " not " + iri;
         }), 'includes');
+}
+
+function isSecurity(object, path) {
+    return validate(object, path, _.isObject) &&
+        validate(object, path, _.isString, 'iri') &&
+        validate(object, path, _.isString, 'ticker') &&
+        validate(object, path, isExchange, 'exchange');
 }
 
 function isExchange(object, path) {

@@ -169,8 +169,12 @@ dispatch({
     },
 
     load: (function(services, data) {
-        validate(data.exchange, 'data.exchange', isExchange);
-        validate(data.security, 'data.security', _.isString);
+        if (_.isString(data.security) && data.exchange && data.exchange.iri) data.security = {
+            ticker: decodeURI(data.security.substring(data.exchange.iri.length + 1)),
+            iri: data.security,
+            exchange: data.exchange
+        };
+        validate(data.security, 'data.security', isSecurity);
         validate(data.interval, 'data.interval', isInterval);
         validate(data.length, 'data.length', _.isFinite);
         validate(data.lower, 'data.lower', isISOString);
@@ -187,6 +191,16 @@ dispatch({
     }).bind(this, services),
 
     signals: function(data) {
+        if (_.isArray(data.securityClasses)) {
+            data.securityClasses = data.securityClasses.map(function(data){
+                if (_.isString(data.correlated) && data.exchange && data.exchange.iri && data.correlated.indexOf(data.exchange.iri) === 0) data.correlated = {
+                    ticker: decodeURI(data.correlated.substring(data.exchange.iri.length + 1)),
+                    iri: data.correlated,
+                    exchange: data.exchange
+                };
+                return data;
+            });
+        }
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
         if (!data.criteria && data.screen) validate(data.screen, 'data.screen', isScreen);
         else validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
@@ -202,13 +216,12 @@ dispatch({
                 percentWatch: filter.percentWatch || filter.percent
             });
         }), data.screen.hold || data.screen.watch)) : data.criteria;
-        return promiseSecurities(services, data.securityClasses, function(exchange, security) {
+        return promiseSecurities(services, data.securityClasses, function(security) {
             return retryAfterImport(services, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
                 criteria: criteria,
-                exchange: exchange,
                 security: security
             }, data.load).catch(function(error){
                 console.log("Could not load", security, error.status, error);
@@ -221,6 +234,16 @@ dispatch({
     },
 
     screen: function(data) {
+        if (_.isArray(data.securityClasses)) {
+            data.securityClasses = data.securityClasses.map(function(data){
+                if (_.isString(data.correlated) && data.exchange && data.exchange.iri && data.correlated.indexOf(data.exchange.iri) === 0) data.correlated = {
+                    ticker: decodeURI(data.correlated.substring(data.exchange.iri.length + 1)),
+                    iri: data.correlated,
+                    exchange: data.exchange
+                };
+                return data;
+            });
+        }
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
         if (!data.criteria && data.screen) validate(data.screen, 'data.screen', isScreen);
         else validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
@@ -236,13 +259,12 @@ dispatch({
                 percentWatch: filter.percentWatch || filter.percent
             });
         }), data.screen.hold || data.screen.watch)) : data.criteria;
-        return promiseSecurities(services, data.securityClasses, function(exchange, security) {
+        return promiseSecurities(services, data.securityClasses, function(security) {
             return retryAfterImport(services, {
                 cmd: 'screen',
                 begin: data.begin,
                 end: data.end,
                 criteria: criteria,
-                exchange: exchange,
                 security: security
             }, data.load).catch(function(error){
                 console.log("Could not load", security, error.status, error);
@@ -261,7 +283,11 @@ function promiseSecurities(services, securityClasses, iteratee) {
         var exchange = securityClasses[0].exchange;
         return listSecurities(services, securityClasses).then(function(securities) {
             return Promise.all(securities.map(function(security){
-                return iteratee(exchange, security);
+                return iteratee({
+                    ticker: decodeURI(security.substring(exchange.iri.length + 1)),
+                    iri: security,
+                    exchange: exchange
+                });
             }));
         });
     })).then(function(results){
@@ -310,9 +336,7 @@ function retryAfterImport(services, data, load) {
 }
 
 function importAndRun(services, data, port, quotes) {
-    var exchange = data.exchange;
-    var ticker = decodeURI(data.security.substring(exchange.iri.length + 1));
-    return importQuotes(services, exchange, ticker, quotes, port).then(function(imported){
+    return importQuotes(services, data.security, quotes, port).then(function(imported){
         return port.promiseMessage(data).catch(function(error){
             var minStart = _.compose(_.property('start'), _.first, _.partial(_.sortBy, _, 'start'));
             var earliest = _.mapObject(_.groupBy(quotes, 'interval'), minStart);
@@ -332,13 +356,11 @@ function importAndRun(services, data, port, quotes) {
     });
 }
 
-function importQuotes(services, exchange, ticker, quotes, port) {
+function importQuotes(services, security, quotes, port) {
     return Promise.all(quotes.map(function(request){
         return Promise.all(_.map(services.quote, function(quote, quoteName){
             return quote.promiseMessage(_.extend({
-                cmd: 'quote',
-                exchange: exchange,
-                ticker: ticker
+                cmd: 'quote'
             }, request)).then(function(data){
                 return data.result;
             }).then(function(result){
@@ -347,9 +369,6 @@ function importQuotes(services, exchange, ticker, quotes, port) {
                     throw Error("Data is NaN " + JSON.stringify(result[0]));
                 return port.promiseMessage(_.extend({}, request, {
                     cmd: 'import',
-                    security: request.security,
-                    interval: request.interval,
-                    exchange: exchange,
                     points: result
                 }));
             });

@@ -81,8 +81,6 @@ onmessage = handle.bind(this, {
     },
 
     quote: (function(loadCSV, lookupSymbol, data) {
-        var exchange = data.exchange;
-        var ticker = data.ticker;
         var interval = data.interval;
         if (interval != 'annual' && interval != 'quarter')
             return {status: 'success', result: []};
@@ -95,15 +93,14 @@ onmessage = handle.bind(this, {
             return {status: 'success', result: []};
         else if (interval == 'quarter' && data.end && new Date(data.end).valueOf() < oneYearAgo.valueOf())
             return {status: 'success', result: []};
-        var symbol = guessSymbol(exchange, ticker);
+        var symbol = guessSymbol(data.security);
         return loadCSVFiles(loadCSV, urls, symbol).then(function(result){
             if (result.length) return result;
-            return lookupSymbol(exchange, ticker).then(loadCSVFiles.bind(this, loadCSV, urls));
+            return lookupSymbol(data.security).then(loadCSVFiles.bind(this, loadCSV, urls));
         }).then(function(result) {
             return {
                 status: 'success',
-                exchange: data.exchange,
-                ticker: data.ticker,
+                security: data.security,
                 interval: interval,
                 result: result
             };
@@ -165,18 +162,19 @@ function loadCSV(url) {
     return promiseText(url).then(parseCSV);
 }
 
-function guessSymbol(exchange, ticker) {
-    return exchange.morningstarCode + ':' + ticker.replace(/\^/, 'PR');
+function guessSymbol(security) {
+    return security.exchange.morningstarCode + ':' + security.ticker.replace(/\^/, 'PR');
 }
 
-function lookupSymbol(promiseText, exchange, ticker) {
+function lookupSymbol(promiseText, security) {
+    var ticker = security.ticker;
     var root = ticker.replace(/^\W+/, '').replace(/\W.*$/, '');
     var url = LOOKUP_URL.replace(/{t}/, encodeURIComponent(root.toLowerCase()));
     return Promise.all([promiseText(url + '.'), promiseText(url)]).then(function(two) {
         return two[0] + two[1];
     }).then(function(text){
         return text.split(';[').filter(function(line){
-            return line.indexOf(exchange.morningstarCode) >= 0;
+            return line.indexOf(security.exchange.morningstarCode) >= 0;
         }).map(function(line) {
             return line.substring(line.lastIndexOf(';') + 1);
         });
@@ -206,8 +204,8 @@ function lookupSymbol(promiseText, exchange, ticker) {
         return results[0];
     }).then(function(symbol){
         if (symbol != ticker)
-            console.log("Using Morningstar symbol " + symbol + " for security " + exchange.mic + ':' + ticker);
-        return exchange.morningstarCode + ':' + symbol;
+            console.log("Using Morningstar symbol " + symbol + " for security " + security.exchange.mic + ':' + ticker);
+        return security.exchange.morningstarCode + ':' + symbol;
     });
 }
 
