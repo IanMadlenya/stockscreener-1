@@ -347,6 +347,62 @@ describe("Macro", function(){
                     }));
                 }).then(done, unexpected(done));
             });
+            it("correlated", function(done){
+                screener.signals([{
+                    exchange: getExchange("New York Stock Exchange"),
+                    includes:[getExchange("New York Stock Exchange").iri + "/MMM"],
+                    correlated: {
+                        exchange: getExchange("ARCX"),
+                        ticker: "SPY",
+                        iri: getExchange("ARCX").iri + "/SPY"
+                    }
+                }],[{
+                    indicatorWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    differenceWatch: {
+                        expression: "open",
+                        interval: {value: 'd5'}
+                    },
+                    percentWatch: {
+                        expression: "open",
+                        interval: {value: 'd5'}
+                    },
+                    againstCorrelated: true,
+                    upper: "-4"
+                }, {
+                    indicator: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    differenceWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    percentWatch: {
+                        expression: "close",
+                        interval: {value: 'd1'}
+                    },
+                    upper: "4",
+                    lower: "-4"
+                }], new Date('2014-10-01'),new Date('2014-11-01')).then(function(result){
+                    return result.filter(function(point){
+                        return point.signal != 'hold';
+                    });
+                }).then(function(result){
+                    expect(result).toContain(jasmine.objectContaining({
+                        signal: 'watch',
+                        price: 132.9,
+                        asof: '2014-10-13T20:00:00.000Z'
+                    }));
+                    expect(result).toContain(jasmine.objectContaining({
+                        signal: 'stop',
+                        price: 140.93,
+                        asof: '2014-10-21T20:00:00.000Z'
+                    }));
+                }).then(done, unexpected(done));
+            });
         });
         describe("screen", function(){
             it("d1 close", function(done){

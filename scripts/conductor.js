@@ -216,13 +216,14 @@ dispatch({
                 percentWatch: filter.percentWatch || filter.percent
             });
         }), data.screen.hold || data.screen.watch)) : data.criteria;
-        return promiseSecurities(services, data.securityClasses, function(security) {
+        return promiseSecurities(services, data.securityClasses, function(security, correlated) {
             return retryAfterImport(services, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
                 criteria: criteria,
-                security: security
+                security: security,
+                correlated: correlated
             }, data.load).catch(function(error){
                 console.log("Could not load", security, error.status, error);
                 return normalizedError(error);
@@ -259,13 +260,14 @@ dispatch({
                 percentWatch: filter.percentWatch || filter.percent
             });
         }), data.screen.hold || data.screen.watch)) : data.criteria;
-        return promiseSecurities(services, data.securityClasses, function(security) {
+        return promiseSecurities(services, data.securityClasses, function(security, correlated) {
             return retryAfterImport(services, {
                 cmd: 'screen',
                 begin: data.begin,
                 end: data.end,
                 criteria: criteria,
-                security: security
+                security: security,
+                correlated: correlated
             }, data.load).catch(function(error){
                 console.log("Could not load", security, error.status, error);
                 return normalizedError(error);
@@ -278,16 +280,15 @@ dispatch({
 });
 
 function promiseSecurities(services, securityClasses, iteratee) {
-    var byExchange = _.groupBy(securityClasses, _.compose(_.property('iri'), _.property('exchange')));
-    return Promise.all(_.map(byExchange, function(securityClasses) {
-        var exchange = securityClasses[0].exchange;
-        return listSecurities(services, securityClasses).then(function(securities) {
+    return Promise.all(securityClasses.map(function(securityClass){
+        var exchange = securityClass.exchange;
+        return listSecurities(services, securityClass).then(function(securities) {
             return Promise.all(securities.map(function(security){
                 return iteratee({
                     ticker: decodeURI(security.substring(exchange.iri.length + 1)),
                     iri: security,
                     exchange: exchange
-                });
+                }, securityClass.correlated);
             }));
         });
     })).then(function(results){
@@ -295,37 +296,35 @@ function promiseSecurities(services, securityClasses, iteratee) {
     });
 }
 
-function listSecurities(services, securityClasses) {
-    return Promise.all(securityClasses.map(function(securityClass){
-        return Promise.resolve(securityClass).then(function(securityClass){
-            if (!securityClass.sectors)
-                return [];
-            return Promise.all(securityClass.sectors.map(function(sector){
-                return serviceMessage(services, 'list', {
-                    cmd: 'security-list',
-                    exchange: securityClass.exchange,
-                    sector: sector,
-                    industries: securityClass.industries,
-                    countries: securityClass.countries,
-                    mincap: securityClass.mincap,
-                    maxcap: securityClass.maxcap
-                }).then(_.property('result'));
-            }));
-        }).then(_.flatten).then(function(result){
-            var includes = securityClass.includes || [];
-            var excludes = securityClass.excludes || [];
-            return includes.concat(_.difference(result, excludes));
-        });
-    })).then(_.flatten).then(_.uniq);
+function listSecurities(services, securityClass) {
+    return Promise.resolve(securityClass).then(function(securityClass){
+        if (!securityClass.sectors)
+            return [];
+        return Promise.all(securityClass.sectors.map(function(sector){
+            return serviceMessage(services, 'list', {
+                cmd: 'security-list',
+                exchange: securityClass.exchange,
+                sector: sector,
+                industries: securityClass.industries,
+                countries: securityClass.countries,
+                mincap: securityClass.mincap,
+                maxcap: securityClass.maxcap
+            }).then(_.property('result'));
+        }));
+    }).then(_.flatten).then(function(result){
+        var includes = securityClass.includes || [];
+        var excludes = securityClass.excludes || [];
+        return includes.concat(_.difference(result, excludes));
+    });
 }
 
 function retryAfterImport(services, data, load) {
     var failfast = load !== false;
-    var primary = services.mentat[getWorker(services.mentat, data.security + failfast)];
+    var primary = services.mentat[getWorker(services.mentat, data.security.iri + failfast)];
     return primary.promiseMessage(_.extend({
         failfast: failfast
     }, data)).catch(function(error){
-        var port = services.mentat[getWorker(services.mentat, data.security)];
+        var port = services.mentat[getWorker(services.mentat, data.security.iri)];
         if (load === false && error.quote && error.status == 'warning')
             return error; // just use what we have
         if (_.isEmpty(error.quote) || load === false)
@@ -341,6 +340,7 @@ function importAndRun(services, data, port, quotes) {
             var minStart = _.compose(_.property('start'), _.first, _.partial(_.sortBy, _, 'start'));
             var earliest = _.mapObject(_.groupBy(quotes, 'interval'), minStart);
             var intervals = error.quote && _.mapObject(_.groupBy(error.quote, 'interval'), minStart);
+            // TODO try again if requesting different security
             if (intervals && _.some(intervals, function(start, interval){
                 return !earliest[interval] || start < earliest[interval];
             })) {
