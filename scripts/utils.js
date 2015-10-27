@@ -177,7 +177,7 @@ function promiseBinaryString(url) {
             if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 203)) {
                 resolve(xhr.responseText);
             } else if (xhr.readyState == 4) {
-                reject({status: xhr.statusText, message: titleOf(xhr.responseText), url: url});
+                reject({status: xhr.statusText, message: titleOf(xhr.responseText, xhr.statusText), url: url});
             }
         };
         xhr.open("GET", url, true);
@@ -193,7 +193,7 @@ function promiseText(url) {
             if (xhr.readyState == 4 && (xhr.status == 200 || xhr.status == 203)) {
                 resolve(xhr.responseText);
             } else if (xhr.readyState == 4) {
-                reject({status: xhr.statusText, statusCode: xhr.status, message: titleOf(xhr.responseText), url: url});
+                reject({status: xhr.statusText, statusCode: xhr.status, message: titleOf(xhr.responseText, xhr.statusText), url: url});
             }
         };
         xhr.open("GET", url, true);
@@ -201,13 +201,15 @@ function promiseText(url) {
     });
 }
 
-function titleOf(html) {
+function titleOf(html, status) {
     var lower = html.toLowerCase();
     var start = lower.indexOf('<title');
     var end = lower.indexOf('</title>');
-    if (start < 0 || end < 0) return html;
+    if (start < 0 || end < 0) return status;
     var text = html.substring(html.indexOf('>', start) + 1, end);
-    return text.replace('&lt;','<').replace('&gt;', '>').replace('&amp;', '&');
+    var decoded = text.replace('&lt;','<').replace('&gt;', '>').replace('&amp;', '&');
+    if (decoded.indexOf(status) >= 0) return decoded;
+    else return decoded + ' ' + status;
 }
 
 function handle(handler, event){

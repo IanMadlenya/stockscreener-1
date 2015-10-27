@@ -248,6 +248,7 @@ function openHIT(blacklist){
                                 if (pending[id])
                                     pending[id].callback(pending[id].buffer);
                             } else if (line.indexOf(id + ',E,') === 0) {
+                                console.log(line);
                                 if (pending[id]) {
                                     var error = line.replace(/\w+,E,!?/,'').replace(/!?,*$/,'');
                                     if ("NO_DATA" != error) {
