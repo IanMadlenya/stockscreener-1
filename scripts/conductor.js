@@ -198,6 +198,13 @@ dispatch({
                     iri: data.correlated,
                     exchange: data.exchange
                 };
+                if (_.isArray(data.includes)) data.includes = data.includes.map(function(security){
+                    if (_.isString(security) && data.exchange && data.exchange.iri && security.indexOf(data.exchange.iri) === 0) return {
+                        ticker: decodeURI(security.substring(data.exchange.iri.length + 1)),
+                        iri: security,
+                        exchange: data.exchange
+                    }; else return security;
+                });
                 return data;
             });
         }
@@ -242,6 +249,13 @@ dispatch({
                     iri: data.correlated,
                     exchange: data.exchange
                 };
+                if (_.isArray(data.includes)) data.includes = data.includes.map(function(security){
+                    if (_.isString(security) && data.exchange && data.exchange.iri && security.indexOf(data.exchange.iri) === 0) return {
+                        ticker: decodeURI(security.substring(data.exchange.iri.length + 1)),
+                        iri: security,
+                        exchange: data.exchange
+                    }; else return security;
+                });
                 return data;
             });
         }
@@ -284,11 +298,7 @@ function promiseSecurities(services, securityClasses, iteratee) {
         var exchange = securityClass.exchange;
         return listSecurities(services, securityClass).then(function(securities) {
             return Promise.all(securities.map(function(security){
-                return iteratee({
-                    ticker: decodeURI(security.substring(exchange.iri.length + 1)),
-                    iri: security,
-                    exchange: exchange
-                }, securityClass.correlated);
+                return iteratee(security, securityClass.correlated);
             }));
         });
     })).then(function(results){
@@ -312,9 +322,18 @@ function listSecurities(services, securityClass) {
             }).then(_.property('result'));
         }));
     }).then(_.flatten).then(function(result){
-        var includes = securityClass.includes || [];
-        var excludes = securityClass.excludes || [];
-        return includes.concat(_.difference(result, excludes));
+        return _.difference(result, securityClass.excludes || []);
+    }).then(_.flatten).then(function(result){
+        var exchange = securityClass.exchange;
+        return result.map(function(security){
+            return {
+                ticker: decodeURI(security.substring(exchange.iri.length + 1)),
+                iri: security,
+                exchange: exchange
+            };
+        });
+    }).then(function(result){
+        return result.concat(securityClass.includes || []);
     });
 }
 
