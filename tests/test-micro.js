@@ -210,8 +210,8 @@ describe("Micro", function(){
                 }));
                 expect(withoutHold).toContain(jasmine.objectContaining({
                     signal: 'stop',
-                    price: 140.94,
-                    asof: '2014-10-21T20:00:00.000Z'
+                    price: 140.93,
+                    asof: '2014-10-22T04:00:00.000Z'
                 }));
             }).then(done, unexpected(done));
         });
@@ -330,8 +330,8 @@ describe("Micro", function(){
             }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
                     signal: 'stop',
-                    price: 140.94,
-                    asof: '2014-10-21T20:00:00.000Z'
+                    price: 140.93,
+                    asof: '2014-10-22T04:00:00.000Z'
                 }));
                 expect(result[0].growth).toBeCloseTo(4,0);
                 expect(result[0].performance.length).toBe(1);

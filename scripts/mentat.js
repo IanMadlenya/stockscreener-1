@@ -235,7 +235,11 @@ function pointLoadSecurity(bar, periods, security, filters) {
                     return _.extend(result, _.object([
                         intervals[i], 'price', 'asof', 'until'
                     ], [
-                        bar.result, bar.result.close, bar.result.asof, bar.result.until
+                        bar.result,
+                        result.asof && ltDate(bar.result.asof, result.asof) ?
+                            result.price : bar.result.close,
+                        maxDate(bar.result.asof, result.asof || bar.result.asof),
+                        minDate(bar.result.until, result.until || bar.result.until)
                     ]));
                 }, {})
             });
@@ -507,8 +511,7 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
     return findNextSignal(load, signal, !rest.length, period, filters, watching, holding, after, begin, upper).then(function(data){
         if (!data.result || !data.result[period.value]) return data;
         if (data.passed === false || !rest.length) return data;
-        var asof = data.result[period.value].asof;
-        var start = period.ceil(asof);
+        var start = data.result[period.value].asof;
         if (ltDate(upper, start)) {
             // couldn't find signal, end of period
             return _.extend({}, data, {
@@ -516,7 +519,7 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
             });
         }
         var through = data.result[period.value].until;
-        return filterSecurityByPeriods(load, signal, watching, data.result, rest, asof, maxDate(start, begin), minDate(upper, through)).then(function(child){
+        return filterSecurityByPeriods(load, signal, watching, data.result, rest, start, maxDate(start, begin), minDate(upper, through)).then(function(child){
             if (ltDate(upper, through) || ltDate(through, begin, true) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
@@ -552,7 +555,7 @@ function findNextActiveFilter(pass, load, period, filters, watching, holding, af
         var through = data.result[period.value].until;
         if (ltDate(through, begin, true))
             return data;
-        if (pass != data.passed && ltDate(through, until, true))
+        if (pass != data.passed && ltDate(through, until))
             return findNextActiveFilter(pass, load, period, filters, watching, holding, after, through, until);
         else return data;
     });
@@ -710,7 +713,7 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
                 count = 0;
             } else {
                 result[result.length-1] = {
-                    asof: point.asof,
+                    asof: upper,
                     open: preceding.open,
                     close: point.close,
                     total_volume: point.total_volume,
@@ -725,7 +728,7 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
         }, []);
         if (result.length && ltDate(_.last(result).asof, upper)) {
             result.pop(); // last period is beyond upper
-        } else if (result.length && ltDate(_.last(result).asof, period.ceil(_.last(result).asof))) {
+        } else if (result.length && ltDate(_.last(result).asof, _.last(result).asof)) {
             result.pop(); // last period is not yet complete
         }
         return _.extend(data, {
@@ -813,10 +816,10 @@ function importData(open, period, security, result) {
         var obj = {};
         var tz = point.tz || period.tz;
         if (point.dateTime) {
-            obj.asof = moment.tz(point.dateTime, tz).toISOString();
+            obj.asof = period.ceil(moment.tz(point.dateTime, tz));
         } else if (point.date) {
             var time = point.date + ' ' + period.marketClosesAt;
-            obj.asof = moment.tz(time, tz).toISOString();
+            obj.asof = period.ceil(moment.tz(time, tz));
         }
         for (var prop in point) {
             if (_.isNumber(point[prop]))
@@ -884,7 +887,7 @@ function bounds(open, security, period) {
 
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security.iri, 10);
+        var request = indexedDB.open(security.iri, 11);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {
@@ -892,7 +895,7 @@ function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callb
                 // Clear the database to re-download everything
                 for (var i=db.objectStoreNames.length -1; i>=0; i--) {
                     var name = db.objectStoreNames[i];
-                    if (name != "annual" && name != "quarter") {
+                    if (storeNames.indexOf(name) >= 0 && name != "annual" && name != "quarter") {
                         // annual and quarter history is limited
                         db.deleteObjectStore(db.objectStoreNames[i]);
                     }

@@ -57,27 +57,27 @@ describe("Macro", function(){
             ['XNGS', 'YHOO', ['asof', 'open', 'high', 'low', 'close'],
                 21, 'd1', new Date(2014, 1, 1),
                 [
-                    [new Date(2014, 0, 2, 16, 0, 0).toISOString(),40.37,40.49,39.31,39.59],
-                    [new Date(2014, 0, 3, 16, 0, 0).toISOString(),40.16,40.44,39.82,40.12],
-                    [new Date(2014, 0, 6, 16, 0, 0).toISOString(),40.05,40.32,39.75,39.93],
-                    [new Date(2014, 0, 7, 16, 0, 0).toISOString(),40.08,41.20,40.08,40.92],
-                    [new Date(2014, 0, 8, 16, 0, 0).toISOString(),41.29,41.72,41.02,41.02],
-                    [new Date(2014, 0, 9, 16, 0, 0).toISOString(),41.33,41.35,40.61,40.92],
-                    [new Date(2014, 0, 10, 16, 0, 0).toISOString(),40.95,41.35,40.82,41.23],
-                    [new Date(2014, 0, 13, 16, 0, 0).toISOString(),41.16,41.22,39.80,39.99],
-                    [new Date(2014, 0, 14, 16, 0, 0).toISOString(),40.21,41.14,40.04,41.14],
-                    [new Date(2014, 0, 15, 16, 0, 0).toISOString(),41.06,41.31,40.76,41.07],
-                    [new Date(2014, 0, 16, 16, 0, 0).toISOString(),40.43,40.75,40.11,40.34],
-                    [new Date(2014, 0, 17, 16, 0, 0).toISOString(),40.12,40.44,39.47,40.01],
-                    [new Date(2014, 0, 21, 16, 0, 0).toISOString(),39.98,40.05,38.86,39.52],
-                    [new Date(2014, 0, 22, 16, 0, 0).toISOString(),39.66,40.40,39.32,40.18],
-                    [new Date(2014, 0, 23, 16, 0, 0).toISOString(),39.31,39.77,39.14,39.39],
-                    [new Date(2014, 0, 24, 16, 0, 0).toISOString(),38.67,38.98,37.62,37.91],
-                    [new Date(2014, 0, 27, 16, 0, 0).toISOString(),37.60,37.94,36.62,36.65],
-                    [new Date(2014, 0, 28, 16, 0, 0).toISOString(),36.83,38.32,36.52,38.22],
-                    [new Date(2014, 0, 29, 16, 0, 0).toISOString(),35.77,36.31,34.82,34.89],
-                    [new Date(2014, 0, 30, 16, 0, 0).toISOString(),34.89,35.81,34.45,35.31],
-                    [new Date(2014, 0, 31, 16, 0, 0).toISOString(),34.69,36.33,34.55,36.01]
+                    [new Date(2014, 0, 3, 0, 0, 0).toISOString(),40.37,40.49,39.31,39.59],
+                    [new Date(2014, 0, 4, 0, 0, 0).toISOString(),40.16,40.44,39.82,40.12],
+                    [new Date(2014, 0, 7, 0, 0, 0).toISOString(),40.05,40.32,39.75,39.93],
+                    [new Date(2014, 0, 8, 0, 0, 0).toISOString(),40.08,41.20,40.08,40.92],
+                    [new Date(2014, 0, 9, 0, 0, 0).toISOString(),41.29,41.72,41.02,41.02],
+                    [new Date(2014, 0, 10, 0, 0, 0).toISOString(),41.33,41.35,40.61,40.92],
+                    [new Date(2014, 0, 11, 0, 0, 0).toISOString(),40.95,41.35,40.82,41.23],
+                    [new Date(2014, 0, 14, 0, 0, 0).toISOString(),41.16,41.22,39.80,39.99],
+                    [new Date(2014, 0, 15, 0, 0, 0).toISOString(),40.21,41.14,40.04,41.14],
+                    [new Date(2014, 0, 16, 0, 0, 0).toISOString(),41.06,41.31,40.76,41.07],
+                    [new Date(2014, 0, 17, 0, 0, 0).toISOString(),40.43,40.75,40.11,40.34],
+                    [new Date(2014, 0, 18, 0, 0, 0).toISOString(),40.12,40.44,39.47,40.01],
+                    [new Date(2014, 0, 22, 0, 0, 0).toISOString(),39.98,40.05,38.86,39.52],
+                    [new Date(2014, 0, 23, 0, 0, 0).toISOString(),39.66,40.40,39.32,40.18],
+                    [new Date(2014, 0, 24, 0, 0, 0).toISOString(),39.31,39.77,39.14,39.39],
+                    [new Date(2014, 0, 25, 0, 0, 0).toISOString(),38.67,38.98,37.62,37.91],
+                    [new Date(2014, 0, 28, 0, 0, 0).toISOString(),37.60,37.94,36.62,36.65],
+                    [new Date(2014, 0, 29, 0, 0, 0).toISOString(),36.83,38.32,36.52,38.22],
+                    [new Date(2014, 0, 30, 0, 0, 0).toISOString(),35.77,36.31,34.82,34.89],
+                    [new Date(2014, 0, 31, 0, 0, 0).toISOString(),34.89,35.81,34.45,35.31],
+                    [new Date(2014, 1, 1, 0, 0, 0).toISOString(),34.69,36.33,34.55,36.01]
                 ]
             ]
         ], loadQuotes);
@@ -85,10 +85,10 @@ describe("Macro", function(){
             ['XNGS', 'YHOO', ['asof', 'open', 'high', 'low', 'close'],
                 4, 'd5', new Date(2014, 1, 3),
                 [
-                    [new Date(2014, 0, 10, 16, 0, 0).toISOString(),40.05,41.72,39.75,41.23],
-                    [new Date(2014, 0, 17, 16, 0, 0).toISOString(),41.16,41.31,39.47,40.01],
-                    [new Date(2014, 0, 24, 16, 0, 0).toISOString(),39.98,40.40,37.62,37.91],
-                    [new Date(2014, 0, 31, 16, 0, 0).toISOString(),37.60,38.32,34.45,36.01]
+                    [new Date(2014, 0, 13, 0, 0, 0).toISOString(),40.05,41.72,39.75,41.23],
+                    [new Date(2014, 0, 20, 0, 0, 0).toISOString(),41.16,41.31,39.47,40.01],
+                    [new Date(2014, 0, 27, 0, 0, 0).toISOString(),39.98,40.40,37.62,37.91],
+                    [new Date(2014, 1, 3, 0, 0, 0).toISOString(),37.60,38.32,34.45,36.01]
                 ]
             ]
         ], loadQuotes);
@@ -124,7 +124,7 @@ describe("Macro", function(){
             ['XNYS', 'BRK/A', ['asof', 'open', 'high', 'low', 'close'],
                 1, 'd1', new Date(2014, 1, 1),
                 [
-                    [new Date(2014, 0, 31, 16, 0, 0).toISOString(), 168017.00,    169625.00,    167638.00,    169511.00]
+                    [new Date(2014, 1, 1, 0, 0, 0).toISOString(), 168017.00,    169625.00,    167638.00,    169511.00]
                 ]
             ]
         ], loadQuotes);
@@ -132,7 +132,7 @@ describe("Macro", function(){
             ['XNYS', 'C^K', ['asof', 'open', 'high', 'low', 'close'],
                 1, 'd1', new Date(2014, 1, 1),
                 [
-                    [new Date(2014, 0, 31, 16, 0, 0).toISOString(), 25.72,25.75,25.65,25.70]
+                    [new Date(2014, 1, 1, 0, 0, 0).toISOString(), 25.72,25.75,25.65,25.70]
                 ]
             ]
         ], loadQuotes);
@@ -176,7 +176,7 @@ describe("Macro", function(){
                     },
                     lower: 415800
                 }],
-                new Date(2014, 0, 13),new Date(2014, 0, 14),
+                new Date(2014, 0, 13),new Date(2014, 0, 15),
                 [{symbol: 'XNGS:YHOO', d1: {volume: 16047200}}]
             ]
         ], signalsCheck);
@@ -285,7 +285,7 @@ describe("Macro", function(){
                         interval: {value: 'd1'}
                     },
                     lower: "140.00"
-                }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
+                }], new Date('2014-10-10'),new Date('2014-11-02')).then(function(result){
                     expect(result.length).toEqual(9);
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
@@ -338,12 +338,12 @@ describe("Macro", function(){
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 134.18,
-                        asof: '2014-10-14T20:00:00.000Z'
+                        asof: '2014-10-15T04:00:00.000Z'
                     }));
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'stop',
                         price: 140.93,
-                        asof: '2014-10-21T20:00:00.000Z'
+                        asof: '2014-10-22T04:00:00.000Z'
                     }));
                 }).then(done, unexpected(done));
             });
@@ -394,12 +394,12 @@ describe("Macro", function(){
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'watch',
                         price: 132.9,
-                        asof: '2014-10-13T20:00:00.000Z'
+                        asof: '2014-10-14T04:00:00.000Z'
                     }));
                     expect(result).toContain(jasmine.objectContaining({
                         signal: 'stop',
                         price: 140.93,
-                        asof: '2014-10-21T20:00:00.000Z'
+                        asof: '2014-10-22T04:00:00.000Z'
                     }));
                 }).then(done, unexpected(done));
             });
