@@ -361,11 +361,7 @@ describe("Micro", function(){
                   },
                   "includes": [
                     "http://localhost/screener/exchanges/ngm/TQQQ"
-                  ],
-                  "sectors": [],
-                  "industries": [],
-                  "countries": [],
-                  "excludes": []
+                  ]
                 }
             ],[
               {
@@ -438,11 +434,7 @@ describe("Micro", function(){
                   },
                   "includes": [
                     "http://localhost/screener/exchanges/ngm/TQQQ"
-                  ],
-                  "sectors": [],
-                  "industries": [],
-                  "countries": [],
-                  "excludes": []
+                  ]
                 }
             ],[
               {

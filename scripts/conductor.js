@@ -358,7 +358,7 @@ function importAndRun(services, data, port, quotes) {
         return port.promiseMessage(data).catch(function(error){
             var minStart = _.compose(_.property('start'), _.first, _.partial(_.sortBy, _, 'start'));
             var earliest = _.mapObject(_.groupBy(quotes, 'interval'), minStart);
-            var intervals = error.quote && _.mapObject(_.groupBy(error.quote, 'interval'), minStart);
+            var intervals = !_.isEmpty(error.quote) && _.mapObject(_.groupBy(error.quote, 'interval'), minStart);
             // TODO try again if requesting different security
             if (intervals && _.some(intervals, function(start, interval){
                 return !earliest[interval] || start < earliest[interval];

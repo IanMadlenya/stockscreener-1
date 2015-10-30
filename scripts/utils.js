@@ -263,7 +263,7 @@ function combineResult(results){
         status: results[0].status,
         result: [],
         message: _.compact(_.uniq(_.flatten(_.pluck(results, 'message')).sort(), true)) || undefined,
-        quote: _.isEmpty(errors) ? undefined : _.uniq(_.flatten(_.pluck(errors, 'quote')), false, function(quote){
+        quote: _.isEmpty(errors) ? undefined : _.uniq(_.compact(_.flatten(_.pluck(errors, 'quote'))), false, function(quote){
             return JSON.stringify(quote);
         })
     });
