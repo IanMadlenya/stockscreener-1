@@ -103,91 +103,143 @@ onmessage = handle.bind(this, {
         );
     },
     signals: function(data){
-        var periods = screenPeriods(intervals, data.security.exchange, data.criteria);
+        var security = data.security;
+        var periods = screenPeriods(intervals, security.exchange, data.criteria);
         var load = pointLoad(parseCalculation, open, data.failfast, periods, data);
-        return findAllSignals(periods, load, data.security, data.criteria, data.begin, data.end);
+        var reduce = findSignals(periods, load, security, data.criteria, data.begin, data.end);
+        return reduce(function(memo, data) {
+            if (!memo) return data;
+            if (_.isEmpty(data.result)) return memo;
+            return combineResult([memo, data]);
+        }).then(function(data){
+            return _.extend(data, {
+                result: data.result.map(function(datum){
+                    return _.extend(datum, {security: security.iri});
+                }),
+                begin: data.begin,
+                end: data.end
+            });
+        });
     },
     screen: function(data){
-        var periods = screenPeriods(intervals, data.security.exchange, data.criteria);
+        var security = data.security;
+        var periods = screenPeriods(intervals, security.exchange, data.criteria);
         var load = pointLoad(parseCalculation, open, data.failfast, periods, data);
-        var annual = createPeriod(intervals, data.security.exchange, 'annual');
-        var minute = _.last(_.sortBy(_.values(periods), function(period) {
-            return period.millis * -1;
-        }));
-        return findPositionSignals(periods, load, data.security, data.criteria, data.begin, data.end).then(function(data){
-            if (_.isEmpty(data.result)) return data;
-            var watch;
-            var duration = minute.diff(data.end, data.begin);
-            var firstYear = annual.floor(data.begin);
-            var lastYear = annual.ceil(data.end);
-            var yearLength = minute.diff(lastYear,firstYear) / annual.diff(lastYear,firstYear);
-            var exposure = data.result.reduce(function(exposure, signal, i, signals){
-                if (signal.signal == 'watch') {
-                    watch = signal;
-                }
-                if (signal.signal == 'stop' || i == signals.length-1) {
-                    return exposure + minute.diff(signal.asof, watch.asof);
-                } else return exposure;
-            }, 0);
-            var performance = data.result.reduce(function(performance, signal, i, signals){
-                if (signal.signal == 'watch') {
-                    watch = signal;
-                }
-                if (signal.signal == 'stop' || i == signals.length-1) {
-                    performance.push(100 * (signal.price - watch.price) / watch.price);
-                }
-                return performance;
-            }, []);
-            var drawup = data.result.reduce(function(drawup, item){
-                if (item.signal == 'watch') {
-                    watch = item;
-                }
-                var high = Math.max.apply(Math, _.compact(_.values(_.pick(item,_.keys(intervals))).map(function(point){
-                    return point.high;
-                }).concat(item.price)));
-                return Math.max((high - watch.price) / watch.price * 100, drawup);
-            }, 0);
-            var drawdown = data.result.reduce(function(drawdown, item){
-                if (item.signal == 'watch') {
-                    watch = item;
-                }
-                var low = Math.min.apply(Math, _.compact(_.values(_.pick(item,_.keys(intervals))).map(function(point){
-                    return point.low;
-                }).concat(item.price)));
-                return Math.min((low - watch.price) / watch.price * 100, drawdown);
-            }, 0);
-            var growth = performance.reduce(function(profit, ret){
-                return profit + profit * ret / 100;
-            }, 1) * 100 - 100;
-            var exposed_growth = Math.pow(performance.reduce(function(profit, ret){
-                return profit + profit * ret / 100;
-            }, 1), yearLength / exposure) * 100 - 100;
+        var reduce = findSignals(periods, load, security, data.criteria, data.begin, data.end);
+        return summarizeSignals(periods, security.exchange, data.begin, data.end, reduce).then(function(data){
             return _.extend(data, {
-                result: _.extend({
-                    watch: _.last(data.result.filter(function(item){
-                        return item.signal == 'watch';
-                    })),
-                    positive_excursion: drawup,
-                    negative_excursion: drawdown,
-                    performance: performance,
-                    growth: growth,
-                    exposure: (exposure / duration) * 100,
-                    duration: duration / yearLength,
-                    exposed_growth: exposed_growth
-                }, _.last(data.result))
+                result: _.extend(data.result, {
+                    security: security.iri
+                }),
+                begin: data.begin,
+                end: data.end
             });
         });
     }
 });
 
-function sum(numbers) {
+function summarizeSignals(periods, exchange, begin, end, reduce) {
+    var annual = createPeriod(intervals, exchange, 'annual');
+    var minute = _.min(_.values(periods), 'millis');
+    var duration = minute.diff(end, begin);
+    var firstYear = annual.floor(begin);
+    var lastYear = annual.ceil(end);
+    var yearLength = minute.diff(lastYear,firstYear) / annual.diff(lastYear,firstYear);
+    return reduce(function(memo, data) {
+        if (!memo.status && _.isEmpty(data.result)) return _.extend(data, memo);
+        else if (_.isEmpty(data.result)) return memo;
+        var watch = _.first(data.result);
+        var stop = _.last(data.result);
+        var exposure = minute.diff(stop.asof, watch.asof) / duration *100;
+        var performance = 100 * (stop.price - watch.price) / watch.price;
+        var growth = memo.result.growth + (memo.result.growth +100) * performance/100;
+        var exposed_growth = Math.pow(growth/100 +1, yearLength / exposure) *100 -100;
+        var positive_excursions = runup(minute.value, data.result, memo.result.positive_excursions);
+        var negative_excursions = drawdown(minute.value, data.result, memo.result.negative_excursions);
+        return _.extend(combineResult([memo, _.omit(data,'result')]), {
+            result: _.extend({
+                watch: watch,
+                duration: duration / yearLength,
+                exposure: exposure + memo.result.exposure,
+                performance: memo.result.performance.concat(performance),
+                growth: growth,
+                exposed_growth: exposed_growth,
+                positive_excursions: positive_excursions,
+                negative_excursions: negative_excursions,
+                positive_excursion: avg(_.values(positive_excursions)),
+                negative_excursion: avg(_.values(negative_excursions))
+            }, stop)
+        });
+    }, {
+        result: {
+            duration: duration / yearLength,
+            exposure: 0,
+            performance: [],
+            growth: 0,
+            exposed_growth: 0,
+            positive_excursions: {},
+            negative_excursions: {},
+            positive_excursion: 0,
+            negative_excursion: 0
+        }
+    }).then(function(data){
+        if (data.result.asof) return data;
+        else return _.extend(data, {result: []});
+    });
+}
+
+function runup(interval, signals, runup) {
+    var lowest;
+    return signals.reduce(function(runup, item){
+        if (item.signal == 'watch') {
+            lowest = item[interval].close;
+            return runup;
+        }
+        var point = item[interval];
+        return [point.open, point.high, point.low, point.close].reduce(function(runup, price){
+            if (price < lowest) {
+                lowest = price;
+            } else {
+                var year = point.asof.substring(0, 4);
+                var value = (price - lowest) / lowest * 100;
+                runup[year] = Math.max(value, runup[year] || 0);
+            }
+            return runup;
+        }, runup);
+    }, runup);
+}
+
+function drawdown(interval, signals, drawdown) {
+    var highest;
+    return signals.reduce(function(drawdown, item){
+        if (item.signal == 'watch') {
+            highest = item[interval].close;
+            return drawdown;
+        }
+        var point = item[interval];
+        return [point.open, point.low, point.high, point.close].reduce(function(drawdown, price){
+            if (price > highest) {
+                highest = price;
+            } else {
+                var year = point.asof.substring(0, 4);
+                var value = (price - highest) / highest * 100;
+                drawdown[year] = Math.min(value, drawdown[year] || 0);
+            }
+            return drawdown;
+        }, drawdown);
+    }, drawdown);
+}
+
+function avg(numbers) {
     return numbers.reduce(function(sum, num){
         return sum + num;
-    }, 0);
+    }, 0) / numbers.length;
 }
 
 function pointLoad(parseCalculation, open, failfast, periods, data) {
-    var bar = loadBar.bind(this, parseCalculation, open, failfast, data.end);
+    var advance = periods.d1 ? _.partial(periods.d1.inc, _, 2) :
+        _.partial(_.max(periods, 'millis').inc, _, 1);
+    var bar = loadBar.bind(this, parseCalculation, open, failfast, data.end, advance);
     var securityFilters = data.criteria.filter(_.negate(_.property('againstCorrelated')));
     var correlatedFilters = data.criteria.filter(_.property('againstCorrelated'));
     var loadSecurity = pointLoadSecurity(bar, periods, data.security, securityFilters);
@@ -247,18 +299,16 @@ function pointLoadSecurity(bar, periods, security, filters) {
     };
 }
 
-function loadBar(parseCalculation, open, failfast, upper, cache, security, period, after, expressions, asof, until) {
-    var next = period.inc(asof, 1);
+function loadBar(parseCalculation, open, failfast, upper, advance, cache, security, period, after, expressions, asof, until) {
     if (!cache[period.value] ||
-            ltDate(cache[period.value].upper, next) ||
+            ltDate(cache[period.value].upper, asof) ||
             ltDate(asof, cache[period.value].lower)) {
-        var begin = asof;
-        var end = minDate(period.inc(asof, 100), period.inc(upper, 1));
+        var end = minDate(period.inc(asof, 100), upper);
         cache[period.value] = {
-            lower: begin,
-            upper: end,
+            lower: asof,
+            upper: period.dec(end,1),
             promise: loadData(parseCalculation.bind(this, security.exchange), open, failfast, security,
-                2, begin, end, period, expressions)
+                2, asof, advance(end), period, expressions)
         };
     }
     return cache[period.value].promise.then(function(data){
@@ -301,23 +351,14 @@ function screenPeriods(intervals, exchange, filters) {
     }, []).map(createPeriod.bind(this, intervals, exchange)), 'value');
 }
 
-function findAllSignals(periods, load, security, criteria, begin, end) {
+function findSignals(periods, load, security, criteria, begin, end, reduce, memo) {
     var watch = findWatchSignal.bind(this, periods, load, criteria);
     var stop = findStopSignal.bind(this, periods, load, criteria);
-    var hold = function(watching, begin, end) {
-        return findAllHoldSignals(periods, load, criteria, watching, watching.asof, end);
-    };
-    return screenSignals(security, watch, hold, stop, begin, end);
+    var hold = findHoldSignals.bind(this, periods, load, criteria);
+    return screenSignals.bind(this, security, watch, hold, stop, begin, end);
 }
 
-function findPositionSignals(periods, load, security, criteria, begin, end) {
-    var watch = findWatchSignal.bind(this, periods, load, criteria);
-    var stop = findStopSignal.bind(this, periods, load, criteria);
-    var hold = findLastHoldSignals.bind(this, periods, load, criteria);
-    return screenSignals(security, watch, hold, stop, begin, end);
-}
-
-function screenSignals(security, watch, hold, stop, begin, end) {
+function screenSignals(security, watch, hold, stop, begin, end, reduce, memo) {
     return watch(begin, end).then(function(ws){
         if (!ws.result) return _.extend(ws, {
             result: []
@@ -325,32 +366,22 @@ function screenSignals(security, watch, hold, stop, begin, end) {
         return stop(ws.result, ws.result.asof, end).then(function(ss){
             var last = ss.result ? ss.result.asof : ws.result.asof;
             var stopped = ss.result ? ss.result.asof : end;
-            return hold(ws.result, last, stopped).then(function(hs) {
+            return hold(ws.result, ws.result.asof, stopped).then(function(hs) {
                 if (_.isEmpty(hs.result) && _.isEmpty(ss.result))
                     return combineResult([ws]);
                 else if (!_.isArray(hs.result))
                     return combineResult([ws, deepExtend(hs,ss)]);
-                deepExtend(_.last(hs.result), ss.result);
                 deepExtend(_.first(hs.result), ws.result);
+                deepExtend(_.last(hs.result), ss.result);
                 return combineResult([hs]);
             });
         });
     }).then(function(first){
+        var reduced = reduce(memo, first);
         var firstStop = _.last(first.result);
         if (!firstStop || firstStop.signal != 'stop' || ltDate(end, firstStop.until))
-            return first;
-        return screenSignals(security, watch, hold, stop, firstStop.until, end).then(function(rest){
-            if (_.isEmpty(rest.result)) return first;
-            return combineResult([first, rest]);
-        });
-    }).then(function(data){
-        return _.extend(data, {
-            result: data.result.map(function(datum){
-                return _.extend(datum, {security: security.iri});
-            }),
-            begin: begin,
-            end: end
-        });
+            return reduced;
+        return screenSignals(security, watch, hold, stop, firstStop.until, end, reduce, reduced);
     });
 }
 
@@ -367,7 +398,7 @@ function findStopSignal(periods, load, filters, watching, begin, end){
     return findSignal(periods, load, 'stop', filters, watching, begin, end);
 }
 
-function findAllHoldSignals(periods, load, filters, watching, begin, end) {
+function findHoldSignals(periods, load, filters, watching, begin, end) {
     return findSignal(periods, load, 'hold', filters, watching, begin, end).then(function(first) {
         if (!first.result) return _.extend(first, {
             result: []
@@ -375,7 +406,7 @@ function findAllHoldSignals(periods, load, filters, watching, begin, end) {
         if (ltDate(end, first.result.until)) return _.extend(first, {
             result: [first.result]
         });
-        return findAllHoldSignals(periods, load, filters, watching, first.result.until, end).then(function(rest) {
+        return findHoldSignals(periods, load, filters, watching, first.result.until, end).then(function(rest) {
             rest.result.unshift(first.result);
             return rest;
         });
@@ -383,20 +414,6 @@ function findAllHoldSignals(periods, load, filters, watching, begin, end) {
         if (_.isEmpty(data.result)) return data;
         return _.extend(data, {
             result: data.result.map(addGainPain.bind(this, filters, watching))
-        });
-    });
-}
-
-function findLastHoldSignals(periods, load, filters, watching, begin, end) {
-    return findSignal(periods, load, 'hold', filters, watching, begin, end).then(function(first) {
-        if (!first.result || ltDate(end, first.result.until)) return first;
-        return findLastHoldSignals(periods, load, filters, watching, first.result.until, end).then(function(last) {
-            return deepExtend(first, last);
-        });
-    }).then(function(data){
-        if (_.isEmpty(data.result)) return data;
-        return _.extend(data, {
-            result: addGainPain(filters, watching, data.result)
         });
     });
 }
