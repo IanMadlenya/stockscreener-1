@@ -315,7 +315,7 @@ function listSymbols(url, root) {
     }).then(parseJSON).then(function(json) {
         return json.ResultSet.Result.map(function(object){
             return _.mapObject(object, function(value) {
-                return value.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>');
+                return value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
             });
         });
     });

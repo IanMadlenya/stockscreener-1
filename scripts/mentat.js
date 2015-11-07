@@ -237,9 +237,7 @@ function avg(numbers) {
 }
 
 function pointLoad(parseCalculation, open, failfast, periods, data) {
-    var advance = periods.d1 ? _.partial(periods.d1.inc, _, 2) :
-        _.partial(_.max(periods, 'millis').inc, _, 1);
-    var bar = loadBar.bind(this, parseCalculation, open, failfast, data.end, advance);
+    var bar = loadBar.bind(this, parseCalculation, open, failfast, data.end);
     var securityFilters = data.criteria.filter(_.negate(_.property('againstCorrelated')));
     var correlatedFilters = data.criteria.filter(_.property('againstCorrelated'));
     var loadSecurity = pointLoadSecurity(bar, periods, data.security, securityFilters);
@@ -299,16 +297,21 @@ function pointLoadSecurity(bar, periods, security, filters) {
     };
 }
 
-function loadBar(parseCalculation, open, failfast, upper, advance, cache, security, period, after, expressions, asof, until) {
+function loadBar(parseCalculation, open, failfast, upper, cache, security, period, after, expressions, asof, until) {
     if (!cache[period.value] ||
             ltDate(cache[period.value].upper, asof) ||
             ltDate(asof, cache[period.value].lower)) {
         var end = minDate(period.inc(asof, 100), upper);
+        var date = new Date(end);
+        var day = date.getDay(); // skip over weekends and holidays
+        var inc = day === 0 ? 3 : day == 4 ? 4 : day == 5 ? 3 : 2;
+        date.setDate(date.getDate() + inc);
+        var advance = date.toISOString();
         cache[period.value] = {
             lower: asof,
             upper: period.dec(end,1),
             promise: loadData(parseCalculation.bind(this, security.exchange), open, failfast, security,
-                2, asof, advance(end), period, expressions)
+                2, asof, advance, period, expressions)
         };
     }
     return cache[period.value].promise.then(function(data){
@@ -336,7 +339,8 @@ function loadBar(parseCalculation, open, failfast, upper, advance, cache, securi
         else return _.extend({}, data, {
             result: _.extend(data.result[idx], {
                 since: idx ? data.result[idx-1].asof : data.result[idx].since,
-                until: maxDate(period.inc(data.result[idx].asof, 1), period.ceil(asof))
+                until: maxDate(period.inc(data.result[idx].asof, 1), period.ceil(asof)),
+                latest: true
             })
         });
     });
@@ -570,7 +574,7 @@ function findNextActiveFilter(pass, load, period, filters, watching, holding, af
         if (!data.result || !data.result[period.value])
             return data;
         var through = data.result[period.value].until;
-        if (ltDate(through, begin, true))
+        if (data.result[period.value].latest)
             return data;
         if (pass != data.passed && ltDate(through, until))
             return findNextActiveFilter(pass, load, period, filters, watching, holding, after, through, until);
@@ -745,7 +749,7 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
         }, []);
         if (result.length && ltDate(_.last(result).asof, upper)) {
             result.pop(); // last period is beyond upper
-        } else if (result.length && ltDate(_.last(result).asof, _.last(result).asof)) {
+        } else if (result.length && ltDate(_.last(data.result).asof, _.last(result).asof)) {
             result.pop(); // last period is not yet complete
         }
         return _.extend(data, {
@@ -904,7 +908,7 @@ function bounds(open, security, period) {
 
 function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security.iri, 11);
+        var request = indexedDB.open(security.iri, 12);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {
