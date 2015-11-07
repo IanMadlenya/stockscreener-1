@@ -90,7 +90,11 @@ describe("Micro", function(){
         it("signals", function(done){
             screener.signals([{
                 exchange: getExchange("New York Stock Exchange"),
-                includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
+                    includes:[{
+                        exchange: getExchange("New York Stock Exchange"),
+                        iri: getExchange("New York Stock Exchange").iri + "/MMM",
+                        ticker: "MMM"
+                    }]
             }], [{
                 indicatorWatch: {
                     expression: "F-Score()",
@@ -200,25 +204,28 @@ describe("Micro", function(){
                 upper:"0",
                 lower: "-15"
             }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
-                var withoutHold = result.filter(function(point){
-                    return point.signal != 'hold';
-                });
-                expect(withoutHold).toContain(jasmine.objectContaining({
-                    signal: 'watch',
-                    price: 134.98,
-                    asof: '2014-10-14T17:30:00.000Z'
+                expect(result).toContain(jasmine.objectContaining({
+                    watch: jasmine.objectContaining({
+                        price: 134.98,
+                        asof: '2014-10-14T17:30:00.000Z'
+                    })
                 }));
-                expect(withoutHold).toContain(jasmine.objectContaining({
-                    signal: 'stop',
-                    price: 140.93,
-                    asof: '2014-10-22T04:00:00.000Z'
+                expect(result).toContain(jasmine.objectContaining({
+                    stop: jasmine.objectContaining({
+                        price: 140.93,
+                        asof: '2014-10-22T04:00:00.000Z'
+                    })
                 }));
             }).then(done, unexpected(done));
         });
         it("screen", function(done){
             screener.screen([{
                 exchange: getExchange("New York Stock Exchange"),
-                includes:[getExchange("New York Stock Exchange").iri + "/MMM"]
+                    includes:[{
+                        exchange: getExchange("New York Stock Exchange"),
+                        iri: getExchange("New York Stock Exchange").iri + "/MMM",
+                        ticker: "MMM"
+                    }]
             }], [{
                 indicatorWatch: {
                     expression: "F-Score()",
@@ -329,13 +336,12 @@ describe("Micro", function(){
                 lower: "-15"
             }], new Date('2014-10-10'),new Date('2014-11-01')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
-                    signal: 'stop',
-                    price: 140.93,
-                    asof: '2014-10-22T04:00:00.000Z'
+                    stop: jasmine.objectContaining({
+                        price: 140.93,
+                        asof: '2014-10-22T04:00:00.000Z'
+                    })
                 }));
-                expect(result[0].growth).toBeCloseTo(4,0);
-                expect(result[0].performance.length).toBe(1);
-                expect(result[0].performance[0]).toBeCloseTo(4,0);
+                expect(result[0].performance).toBeCloseTo(4,0);
             }).then(done, unexpected(done));
         });
     });
@@ -359,9 +365,11 @@ describe("Micro", function(){
                     "yahooSuffix": null,
                     "dtnPrefix": null
                   },
-                  "includes": [
-                    "http://localhost/screener/exchanges/ngm/TQQQ"
-                  ]
+                  includes: [{
+                    exchange: getExchange("NASDAQ Global Market"),
+                    iri: "http://localhost/screener/exchanges/ngm/TQQQ",
+                    ticker: "TQQQ"
+                  }]
                 }
             ],[
               {
@@ -432,9 +440,11 @@ describe("Micro", function(){
                     "yahooSuffix": null,
                     "dtnPrefix": null
                   },
-                  "includes": [
-                    "http://localhost/screener/exchanges/ngm/TQQQ"
-                  ]
+                  includes: [{
+                    exchange: getExchange("NASDAQ Global Market"),
+                    iri: "http://localhost/screener/exchanges/ngm/TQQQ",
+                    ticker: "TQQQ"
+                  }]
                 }
             ],[
               {
@@ -595,14 +605,16 @@ describe("Micro", function(){
               }
           ], new Date('2015-03-12'),new Date('2015-03-13')).then(function(result){
                 expect(result).toContain(jasmine.objectContaining({
-                    price: 102.57,
-                    asof: '2015-03-12T13:50:00.000Z',
-                    signal: 'watch'
+                    watch: jasmine.objectContaining({
+                        price: 102.57,
+                        asof: '2015-03-12T13:50:00.000Z'
+                    })
                 }));
                 expect(result).toContain(jasmine.objectContaining({
-                    price: 103.22,
-                    asof: '2015-03-12T20:00:00.000Z',
-                    signal: 'stop'
+                    stop: jasmine.objectContaining({
+                        price: 103.22,
+                        asof: '2015-03-12T20:00:00.000Z'
+                    })
                 }));
             }).then(done, unexpected(done));
         });

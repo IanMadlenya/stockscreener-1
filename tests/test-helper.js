@@ -474,7 +474,13 @@ function signalsCheck(securityClasses, screen, begin, end, points) {
                     includes: securityClass.includes.map(function(symbol){
                         var mic = symbol.substring(0, symbol.indexOf(':'));
                         var prefix = exchanges[mic].iri;
-                        return prefix + '/' + encodeURI(symbol.substring(symbol.indexOf(':') + 1));
+                        var ticker = symbol.substring(symbol.indexOf(':') + 1);
+                        var iri = prefix + '/' + encodeURI(ticker);
+                        return {
+                            ticker: ticker,
+                            iri: iri,
+                            exchange: exchanges[securityClass.ofExchange]
+                        };
                     })
                 });
             });
@@ -492,7 +498,7 @@ function signalsCheck(securityClasses, screen, begin, end, points) {
                 expected.forEach(function(point, i){
                     for (var key in point) {
                         if (typeof point[key] == 'object') {
-                            expect(result[i][key]).toEqual(jasmine.objectContaining(point[key]));
+                            expect(result[i].watch[key]).toEqual(jasmine.objectContaining(point[key]));
                         } else {
                             expect(result[i][key]).toEqual(point[key]);
                         }

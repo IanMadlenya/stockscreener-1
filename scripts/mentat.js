@@ -106,134 +106,78 @@ onmessage = handle.bind(this, {
         var security = data.security;
         var periods = screenPeriods(intervals, security.exchange, data.criteria);
         var load = pointLoad(parseCalculation, open, data.failfast, periods, data);
-        var reduce = findSignals(periods, load, security, data.criteria, data.begin, data.end);
-        return reduce(function(memo, data) {
-            if (!memo) return data;
-            if (_.isEmpty(data.result)) return memo;
-            return combineResult([memo, data]);
-        }).then(function(data){
-            return _.extend(data, {
-                result: data.result.map(function(datum){
-                    return _.extend(datum, {security: security.iri});
-                }),
-                begin: data.begin,
-                end: data.end
-            });
-        });
-    },
-    screen: function(data){
-        var security = data.security;
-        var periods = screenPeriods(intervals, security.exchange, data.criteria);
-        var load = pointLoad(parseCalculation, open, data.failfast, periods, data);
-        var reduce = findSignals(periods, load, security, data.criteria, data.begin, data.end);
-        return summarizeSignals(periods, security.exchange, data.begin, data.end, reduce).then(function(data){
-            return _.extend(data, {
-                result: _.extend(data.result, {
-                    security: security.iri
-                }),
-                begin: data.begin,
-                end: data.end
-            });
-        });
+        return findSignals(periods, load, security, data.criteria, data.begin, data.end)
+        .then(summarizeSignals.bind(this, periods, security.exchange, data.begin, data.end));
     }
 });
 
-function summarizeSignals(periods, exchange, begin, end, reduce) {
+function summarizeSignals(periods, exchange, begin, end, data) {
+    if (_.isEmpty(data.result)) return data;
     var annual = createPeriod(intervals, exchange, 'annual');
     var minute = _.min(_.values(periods), 'millis');
-    var duration = minute.diff(end, begin);
     var firstYear = annual.floor(begin);
     var lastYear = annual.ceil(end);
     var yearLength = minute.diff(lastYear,firstYear) / annual.diff(lastYear,firstYear);
-    return reduce(function(memo, data) {
-        if (!memo.status && _.isEmpty(data.result)) return _.extend(data, memo);
-        else if (_.isEmpty(data.result)) return memo;
-        var watch = _.first(data.result);
-        var stop = _.last(data.result);
-        var exposure = minute.diff(stop.asof, watch.asof) / duration *100;
-        var performance = 100 * (stop.price - watch.price) / watch.price;
-        var growth = memo.result.growth + (memo.result.growth +100) * performance/100;
-        var exposed_growth = Math.pow(growth/100 +1, yearLength / exposure) *100 -100;
-        var positive_excursions = runup(minute.value, data.result, memo.result.positive_excursions);
-        var negative_excursions = drawdown(minute.value, data.result, memo.result.negative_excursions);
-        return _.extend(combineResult([memo, _.omit(data,'result')]), {
-            result: _.extend({
-                watch: watch,
-                duration: duration / yearLength,
-                exposure: exposure + memo.result.exposure,
-                performance: memo.result.performance.concat(performance),
-                growth: growth,
-                exposed_growth: exposed_growth,
-                positive_excursions: positive_excursions,
-                negative_excursions: negative_excursions,
-                positive_excursion: avg(_.values(positive_excursions)),
-                negative_excursion: avg(_.values(negative_excursions))
-            }, stop)
-        });
-    }, {
-        result: {
-            duration: duration / yearLength,
-            exposure: 0,
-            performance: [],
-            growth: 0,
-            exposed_growth: 0,
-            positive_excursions: {},
-            negative_excursions: {},
-            positive_excursion: 0,
-            negative_excursion: 0
-        }
-    }).then(function(data){
-        if (data.result.asof) return data;
-        else return _.extend(data, {result: []});
+    var watch = data.result.watch;
+    var stop = data.result.stop || _.last(data.result.hold) || watch;
+    var exposure = minute.diff(stop.asof, watch.asof) / yearLength *100;
+    var performance = 100 * (stop.price - watch.price) / watch.price;
+    var positive_excursion = runup(minute.value, watch.price, data.result.hold);
+    var negative_excursion = drawdown(minute.value, watch.price, data.result.hold);
+    return _.extend(data, {
+        result: _.extend(data.result, {
+            exposure: exposure,
+            performance: performance,
+            positive_excursion: positive_excursion,
+            negative_excursion: negative_excursion
+        })
     });
 }
 
-function runup(interval, signals, runup) {
-    var lowest;
-    return signals.reduce(function(runup, item){
-        if (item.signal == 'watch') {
-            lowest = item[interval].close;
-            return runup;
-        }
+function runup(interval, entry, signals) {
+    var lowest = entry;
+    return avg(signals.reduce(function(runup, item){
         var point = item[interval];
+        var year = point.asof.substring(0, 4);
+        if (_.isUndefined(runup[year]) && !_.isEmpty(runup)) {
+            lowest = point.open;
+        }
         return [point.open, point.high, point.low, point.close].reduce(function(runup, price){
             if (price < lowest) {
                 lowest = price;
             } else {
-                var year = point.asof.substring(0, 4);
                 var value = (price - lowest) / lowest * 100;
                 runup[year] = Math.max(value, runup[year] || 0);
             }
             return runup;
         }, runup);
-    }, runup);
+    }, {}));
 }
 
-function drawdown(interval, signals, drawdown) {
-    var highest;
-    return signals.reduce(function(drawdown, item){
-        if (item.signal == 'watch') {
-            highest = item[interval].close;
-            return drawdown;
-        }
+function drawdown(interval, entry, signals) {
+    var highest = entry;
+    return avg(signals.reduce(function(drawdown, item){
         var point = item[interval];
+        var year = point.asof.substring(0, 4);
+        if (_.isUndefined(drawdown[year]) && !_.isEmpty(drawdown)) {
+            highest = point.open;
+        }
         return [point.open, point.low, point.high, point.close].reduce(function(drawdown, price){
             if (price > highest) {
                 highest = price;
             } else {
-                var year = point.asof.substring(0, 4);
                 var value = (price - highest) / highest * 100;
                 drawdown[year] = Math.min(value, drawdown[year] || 0);
             }
             return drawdown;
         }, drawdown);
-    }, drawdown);
+    }, {}));
 }
 
 function avg(numbers) {
-    return numbers.reduce(function(sum, num){
+    return _.reduce(numbers, function(sum, num){
         return sum + num;
-    }, 0) / numbers.length;
+    }, 0) / _.size(numbers);
 }
 
 function pointLoad(parseCalculation, open, failfast, periods, data) {
@@ -355,37 +299,35 @@ function screenPeriods(intervals, exchange, filters) {
     }, []).map(createPeriod.bind(this, intervals, exchange)), 'value');
 }
 
-function findSignals(periods, load, security, criteria, begin, end, reduce, memo) {
+function findSignals(periods, load, security, criteria, begin, end) {
     var watch = findWatchSignal.bind(this, periods, load, criteria);
     var stop = findStopSignal.bind(this, periods, load, criteria);
     var hold = findHoldSignals.bind(this, periods, load, criteria);
-    return screenSignals.bind(this, security, watch, hold, stop, begin, end);
+    return screenSignals(security, watch, hold, stop, begin, end);
 }
 
-function screenSignals(security, watch, hold, stop, begin, end, reduce, memo) {
+function screenSignals(security, watch, hold, stop, begin, end) {
     return watch(begin, end).then(function(ws){
-        if (!ws.result) return _.extend(ws, {
-            result: []
-        });
+        if (!ws.result) return ws;
         return stop(ws.result, ws.result.asof, end).then(function(ss){
             var last = ss.result ? ss.result.asof : ws.result.asof;
             var stopped = ss.result ? ss.result.asof : end;
             return hold(ws.result, ws.result.asof, stopped).then(function(hs) {
                 if (_.isEmpty(hs.result) && _.isEmpty(ss.result))
-                    return combineResult([ws]);
-                else if (!_.isArray(hs.result))
-                    return combineResult([ws, deepExtend(hs,ss)]);
-                deepExtend(_.first(hs.result), ws.result);
-                deepExtend(_.last(hs.result), ss.result);
-                return combineResult([hs]);
+                    return _.extend(ws, {
+                        result: {watch: ws.result}
+                    });
+                var w = deepExtend(hs.result.shift(), ws.result);
+                var s = ss.result ? deepExtend(_.last(hs.result), ss.result) : undefined;
+                return _.extend(combineResult([ws, ss]), {
+                    result: {
+                        watch: w,
+                        hold: hs.result,
+                        stop: s
+                    }
+                });
             });
         });
-    }).then(function(first){
-        var reduced = reduce(memo, first);
-        var firstStop = _.last(first.result);
-        if (!firstStop || firstStop.signal != 'stop' || ltDate(end, firstStop.until))
-            return reduced;
-        return screenSignals(security, watch, hold, stop, firstStop.until, end, reduce, reduced);
     });
 }
 
@@ -515,11 +457,7 @@ function findSignal(periods, load, signal, filters, watching, begin, end){
             return _.extend(data, {
                 result: undefined
             });
-        else return _.extend(data, {
-            result: _.extend(data.result, {
-                signal: signal
-            })
-        });
+        else return data;
     });
 }
 

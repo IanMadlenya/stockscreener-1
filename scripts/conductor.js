@@ -68,7 +68,7 @@ dispatch({
         return new Promise(function(callback){
             chrome.storage.local.get(["launch"], callback);
         }).then(function(items){
-            if (!data.launch || items.launch == data.launch)
+            if (!data.launch || items.launch == data.launch || data.launch.indexOf(items.launch) === 0)
                 return {status: "success", result: items.launch};
             else if (items.launch && data.launch)
                 throw Error("Reinstall Chrome App to change profile");
@@ -191,44 +191,16 @@ dispatch({
     }).bind(this, services),
 
     signals: function(data) {
-        if (_.isArray(data.securityClasses)) {
-            data.securityClasses = data.securityClasses.map(function(data){
-                if (_.isString(data.correlated) && data.exchange && data.exchange.iri && data.correlated.indexOf(data.exchange.iri) === 0) data.correlated = {
-                    ticker: decodeURI(data.correlated.substring(data.exchange.iri.length + 1)),
-                    iri: data.correlated,
-                    exchange: data.exchange
-                };
-                if (_.isArray(data.includes)) data.includes = data.includes.map(function(security){
-                    if (_.isString(security) && data.exchange && data.exchange.iri && security.indexOf(data.exchange.iri) === 0) return {
-                        ticker: decodeURI(security.substring(data.exchange.iri.length + 1)),
-                        iri: security,
-                        exchange: data.exchange
-                    }; else return security;
-                });
-                return data;
-            });
-        }
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
-        if (!data.criteria && data.screen) validate(data.screen, 'data.screen', isScreen);
-        else validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
+        validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
-        var criteria = !data.criteria ? _.compact([].concat(data.screen.watch.map(function(filter){
-            return _.extend({}, filter, {
-                indicator: undefined,
-                difference: undefined,
-                percent: undefined,
-                indicatorWatch: filter.indicatorWatch || filter.indicator,
-                differenceWatch: filter.differenceWatch || filter.difference,
-                percentWatch: filter.percentWatch || filter.percent
-            });
-        }), data.screen.hold || data.screen.watch)) : data.criteria;
         return promiseSecurities(services, data.securityClasses, function(security, correlated) {
-            return retryAfterImport(services, {
+            return promiseSignals(services, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
-                criteria: criteria,
+                criteria: data.criteria,
                 security: security,
                 correlated: correlated
             }, data.load).catch(function(error){
@@ -242,56 +214,50 @@ dispatch({
     },
 
     screen: function(data) {
-        if (_.isArray(data.securityClasses)) {
-            data.securityClasses = data.securityClasses.map(function(data){
-                if (_.isString(data.correlated) && data.exchange && data.exchange.iri && data.correlated.indexOf(data.exchange.iri) === 0) data.correlated = {
-                    ticker: decodeURI(data.correlated.substring(data.exchange.iri.length + 1)),
-                    iri: data.correlated,
-                    exchange: data.exchange
-                };
-                if (_.isArray(data.includes)) data.includes = data.includes.map(function(security){
-                    if (_.isString(security) && data.exchange && data.exchange.iri && security.indexOf(data.exchange.iri) === 0) return {
-                        ticker: decodeURI(security.substring(data.exchange.iri.length + 1)),
-                        iri: security,
-                        exchange: data.exchange
-                    }; else return security;
-                });
-                return data;
-            });
-        }
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
-        if (!data.criteria && data.screen) validate(data.screen, 'data.screen', isScreen);
-        else validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
+        validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
-        var criteria = !data.criteria ? _.compact([].concat(data.screen.watch.map(function(filter){
-            return _.extend({}, filter, {
-                indicator: undefined,
-                difference: undefined,
-                percent: undefined,
-                indicatorWatch: filter.indicatorWatch || filter.indicator,
-                differenceWatch: filter.differenceWatch || filter.difference,
-                percentWatch: filter.percentWatch || filter.percent
-            });
-        }), data.screen.hold || data.screen.watch)) : data.criteria;
         return promiseSecurities(services, data.securityClasses, function(security, correlated) {
-            return retryAfterImport(services, {
-                cmd: 'screen',
+            return promiseSignals(services, {
+                cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
-                criteria: criteria,
+                criteria: data.criteria,
                 security: security,
                 correlated: correlated
-            }, data.load).catch(function(error){
+            }, data.load, true).catch(function(error){
                 console.log("Could not load", security, error.status, error);
                 return normalizedError(error);
             });
-        }).then(combineResult).then(function(data){
-            if (data.status != 'error' && data.result) return data;
-            return Promise.reject(data);
+        }).then(combineResult).then(function(response){
+            if (response.status != 'error' && response.result)
+                return _.extend(response, data);
+            else return Promise.reject(response);
         });
     }
 });
+
+function promiseSignals(services, data, load, strip) {
+    return retryAfterImport(services, data, load).then(function(data){
+        if (!data.result) return data;
+        else return _.extend(data, {
+            result: _.extend(data.result, {
+                security: data.security.iri,
+                hold: strip ? _.last(data.result.hold) : data.result.hold
+            })
+        });
+    }).then(function(first){
+        if (_.isEmpty(first.result)) return combineResult([first]);
+        else if (_.isEmpty(first.result.stop)) return combineResult([first]);
+        else if (data.end < first.result.stop.until) return combineResult([first]);
+        else return promiseSignals(services, _.extend({}, data, {
+            begin: first.result.stop.until
+        }), load, strip).then(function(rest){
+            return combineResult([first, rest]);
+        });
+    });
+}
 
 function promiseSecurities(services, securityClasses, iteratee) {
     return Promise.all(securityClasses.map(function(securityClass){
