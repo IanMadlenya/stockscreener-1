@@ -679,6 +679,39 @@ var parseCalculation = (function(_) {
                 }
             };
         },
+        SLOPE: function(ex, interval, n, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(n))
+                        return "Must be a positive integer: " + n;
+                    return calc.getErrorMessage();
+                },
+                getFields: calc.getFields.bind(calc),
+                getDataLength: function() {
+                    return n + calc.getDataLength() - 1;
+                },
+                getValue: function(points) {
+                    var values = getValues(n, calc, points);
+                    var sx = values.reduce(function(sum, value, i){
+                        return sum + value;
+                    }, 0);
+                    var sy = values.reduce(function(sum, value, i){
+                        return sum + i;
+                    }, 0);
+                    var sxx = values.reduce(function(sum, value, i){
+                        return sum + value * value;
+                    }, 0);
+                    var sxy = values.reduce(function(sum, value, i){
+                        return sum + value * i;
+                    }, 0);
+                    var syy = values.reduce(function(sum, value, i){
+                        return sum + i * i;
+                    }, 0);
+                    return (sxy*values.length - sx*sy) / (sxx*values.length - sx*sx);
+                }
+            };
+        },
         /* Weighted On Blanance Volume */
         OBV: function(ex, interval, n) {
             return {
