@@ -41,7 +41,7 @@ var handler = {
     },
 
     validate: function(data) {
-        if ('m1' != data.interval && 'm10' != data.interval && 'm60' != data.interval)
+        if (!data.interval.match(/^m[0-9]+$/))
             return Promise.reject({status: 'error'});
         return (data.fields || []).reduce(function(memo, field){
             if (['open','high','low','close','volume','total_volume'].indexOf(field) >= 0)
@@ -58,14 +58,18 @@ var handler = {
         return {status: 'success', result: []};
     },
 
+    security: function(data) {
+        return {status: 'success'};
+    },
+
     quote: function(data) {
         var interval = data.interval;
-        if (interval != 'm1' && interval != 'm10' && interval != 'm60')
+        if (!interval.match(/^m[0-9]+$/))
             return {status: 'success', result: []};
-        var seconds = interval == 'm1' ? 60 : interval == 'm10' ? 600 : 3600;
+        var seconds = 60 * parseInt(interval.match(/^m([0-9]+)$/)[1]);
         var symbol = (data.security.exchange.dtnPrefix || '') + data.security.ticker;
-        var asof = Date.now();
-        console.log("Loading", interval, symbol);
+        var now = new Date();
+        console.log("Loading", interval, symbol, data.start);
         return hit({
             symbol: symbol,
             seconds: seconds,
@@ -87,8 +91,9 @@ var handler = {
             }).filter(function(result){
                 return result.close > 0 && result.close < 10000 && result.total_volume > 0;
             });
-            if (results.length && moment(results[0].dateTime).valueOf() > asof - (seconds * 1000)) {
-                results = results.slice(1); // first line might yet be incomplete
+            if (results.length && moment(results[0].dateTime).valueOf() > now.valueOf() - (seconds * 1000)) {
+                results[0].incomplete = true; // first line might yet be incomplete
+                results[0].lastTrade = now.toISOString();
             }
             console.log("Read", results.length, interval, symbol);
             return {

@@ -3,7 +3,7 @@
     "name": "Probability Stock Screener",
     "short_name": "Screener",
     "description": "Search, sort, and compare stocks across a variety of criteria. Evaluate and compare strategies using historic market data.",
-    "version": "0.16.18.20",
+    "version": "0.17.18.20",
     "author": "James Leigh",
     "offline_enabled": false,
     "minimum_chrome_version": "33",
@@ -66,6 +66,7 @@
         "http://query.yahooapis.com/*",
         "http://ichart.finance.yahoo.com/*",
         "http://financials.morningstar.com/*",
+        "http://download.finance.yahoo.com/*",
         "http://qt.morningstar.com/*",
         "http://www.nasdaq.com/*",
         "http://www.tmx.com/*"

@@ -56,8 +56,8 @@ onmessage = handle.bind(this, {
     },
 
     reset: function(data) {
-        return openStartDateDatabase(indexedDB).then(function(db){
-            db.transaction(['startDate'], "readwrite").objectStore('startDate').clear();
+        return openSecurityDatabase('readwrite', function(store, resolve, reject){
+            store.clear();
         }).then(function(){
             return {
                 status: 'success'
@@ -74,14 +74,26 @@ onmessage = handle.bind(this, {
                 var endsWith = suffix && result.symbol.lastIndexOf(suffix) == idx;
                 return {
                     ticker: endsWith ? result.symbol.substring(0, idx) : result.symbol,
-                    name: result.name,
-                    type: result.typeDisp.toUpperCase()
+                    name: result.name
                 };
             });
         });
     }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols)))),
 
-    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, data) {
+    security: (function(getSecurity, data) {
+        if (!data.security.exchange.exch) return [];
+        var suffix = data.security.exchange.yahooSuffix || '';
+        return getSecurity(data.security).then(function(result){
+            if (!result) return result;
+            var idx = result.symbol.length - suffix.length;
+            var endsWith = suffix && result.symbol.lastIndexOf(suffix) == idx;
+            return _.extend(result, {
+                ticker: endsWith ? result.symbol.substring(0, idx) : result.symbol
+            });
+        });
+    }).bind(this, getSecurity.bind(this, queue(loadSecurity, 100))),
+
+    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, getSecurityQuote, data) {
         var interval = data.interval;
         if (interval != 'd1' || !data.security.exchange.exch)
             return {status: 'success', result: []};
@@ -103,6 +115,13 @@ onmessage = handle.bind(this, {
         }).catch(
             loadPriceTable.bind(this, data, symbolMap[symbol] || symbol)
         ).then(function(result){
+            return getSecurityQuote(data.security).then(function(quote){
+                if (_.isEmpty(result) || quote.date != _.first(result).date) {
+                    result.unshift(quote);
+                }
+                return result;
+            });
+        }).then(function(result){
             return {
                 status: 'success',
                 security: data.security,
@@ -116,19 +135,16 @@ onmessage = handle.bind(this, {
         {},
         lookupSymbol.bind(this, memoize(synchronized(listSymbols))),
         loadSymbol.bind(this,
-            queue(loadQuotes, 100),
-            readStartDate.bind(this, indexedDB),
-            deleteStartDateIfAfter.bind(this, indexedDB)
+            queue(loadQuotes, 100)
         ),
         loadPriceTable.bind(this,
-            synchronized(loadCSV),
-            recordStartDate.bind(this, indexedDB),
-            deleteStartDateIfAfter.bind(this, indexedDB)
-        )
+            synchronized(loadCSV)
+        ),
+        getSecurityQuote.bind(this, queue(loadSecurity, 100))
     )
 });
 
-function loadSymbol(loadQuotes, readStartDate, deleteStartDateIfAfter, data, symbol){
+function loadSymbol(loadQuotes, data, symbol){
     if (data.end && data.start > data.end) throw Error(data.start + " is after " + data.end);
     return readStartDate(symbol).then(function(startDate){
         if (data.end && data.end < startDate) return [];
@@ -137,11 +153,7 @@ function loadSymbol(loadQuotes, readStartDate, deleteStartDateIfAfter, data, sym
             start: data.start,
             end: data.end,
             marketClosesAt: data.security.exchange.marketClosesAt
-        }]).then(function(results) {
-            return results.filter(function(result){
-                return result.symbol == symbol;
-            });
-        }).then(function(results){
+        }]).then(function(results){
             if (results.length)
                 deleteStartDateIfAfter(symbol, results[results.length-1].Date);
             if (results.length) return results;
@@ -154,8 +166,11 @@ function loadQuotes(queue) {
     var filters = [];
     var byFilter = queue.reduce(function(byFilter, item) {
         var end = item.end || new Date().toISOString();
+        var endYear = end.substring(0, 4);
+        var startYear = item.start.substring(0, 4);
+        var start = endYear == startYear ? item.start : (startYear + "-01-01");
         var filter = [
-            'startDate="', item.start.substring(0, 10), '"',
+            'startDate="', start.substring(0, 10), '"',
             ' and endDate="', end.substring(0, 10), '"'
         ].join('');
         var ar = byFilter[filter];
@@ -182,7 +197,7 @@ function loadQuotes(queue) {
             ].join('')).replace(/%2C/g, ','),
             "&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys"
         ].join('');
-        return promise.then(function(array){
+        return promise.then(function(hash){
             return promiseText(url).then(parseJSON).then(function(result){
                 if (result.query.results)
                     return result.query.results.quote;
@@ -217,15 +232,26 @@ function loadQuotes(queue) {
                     };
                 });
             }).then(function(results){
-                return array.concat(results);
+                return results.reduce(function(hash, result){
+                    if (!hash[result.symbol]) hash[result.symbol] = [];
+                    hash[result.symbol].push(result);
+                    return hash;
+                }, hash);
             });
         });
-    }, Promise.resolve([]));
+    }, Promise.resolve({})).then(function(hash){
+        return queue.map(function(item){
+            return hash[item.symbol];
+        });
+    });
 }
 
-function loadPriceTable(loadCSV, recordStartDate, deleteStartDateIfAfter, data, symbol) {
-    var start = data.start.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
+function loadPriceTable(loadCSV, data, symbol) {
     var end = (data.end || new Date().toISOString()).match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
+    var endYear = end[1];
+    var startYear = data.start.substring(0, 4);
+    var startDate = endYear == startYear ? data.start : (startYear + "-01-01");
+    var start = startDate.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var url = [
         "http://ichart.finance.yahoo.com/table.csv?s=", encodeURIComponent(symbol),
         "&a=", parseInt(start[2], 10) - 1, "&b=", start[3], "&c=", start[1],
@@ -258,15 +284,6 @@ function loadPriceTable(loadCSV, recordStartDate, deleteStartDateIfAfter, data, 
 
 function parseCurrency(string) {
     return Math.round(parseFloat(string) * 100) / 100;
-}
-
-function guessSymbol(security) {
-    return security.ticker
-        .replace(/\^/, '-P')
-        .replace(/[\.\-\/]/, '-')
-        .replace(/-PR./, '-P')
-        .replace(/\./g, '') +
-        (security.exchange.yahooSuffix ? security.exchange.yahooSuffix : '');
 }
 
 function lookupSymbol(listSymbols, exchange, ticker) {
@@ -343,6 +360,72 @@ function parseJSON(text) {
     }
 }
 
+function getSecurityQuote(loadSecurity, security) {
+    var now = new Date().toISOString();
+    return readSecurity(security.symbol || guessSymbol(security)).then(function(result){
+        if (result && result.expires > now) return result;
+        else return loadSecurity(security);
+    });
+}
+
+function getSecurity(loadSecurity, security) {
+    return readSecurity(security.symbol || guessSymbol(security)).then(function(result){
+        if (!_.isEmpty(result)) return result;
+        else return loadSecurity(security);
+    }).then(function(result){
+        return _.extend(result, security);
+    });
+}
+
+function loadSecurity(securities) {
+    if (!_.isArray(securities)) return loadSecurity(writeSecurity, [securities]).then(_.first);
+    var symbols = securities.reduce(function(symbols, security){
+        symbols[guessSymbol(security)] = security;
+        return symbols;
+    }, {});
+    var now = new Date().toISOString();
+    var in5min = new Date(Date.now()+5*60*1000).toISOString();
+    var url = "http://download.finance.yahoo.com/d/quotes.csv?f=snxd1t1ol1mv&s="
+        + _.keys(symbols).map(encodeURIComponent).join(',');
+    return promiseText(url).then(parseCSV).then(function(rows){
+        return Promise.all(rows.map(function(row){
+            var object = _.object(
+                ["symbol", "name", "exch", "date", "time", "open", "close", "range", "volume"], row);
+            var low = object.range.replace(/[^\d\.].*$/,'');
+            var high = object.range.replace(/^.*[^\d\.]/,'');
+            var m = (object.date + ' ' + object.time).match(/(\d+)\/(\d+)\/(\d+) (\d+):(\d+)(am|pm)/);
+            var hour = 'pm' == m[6] ? 12 + +m[4] : m[4];
+            var date = (m[3]+'-'+m[1]+'-'+m[2]).replace(/\b(\d)\b/g,'0$1');
+            var lastTrade = date + ' ' + (hour+':'+m[5]+':00').replace(/\b(\d)\b/g,'0$1');
+            return writeSecurity({
+                symbol: object.symbol,
+                name: object.name,
+                exch: object.exch,
+                open: _.isFinite(object.open) ? +object.open : undefined,
+                high: _.isFinite(high) ? +high : undefined,
+                low: _.isFinite(low) ? +low : undefined,
+                close: _.isFinite(object.close) ? +object.close : undefined,
+                volume: _.isFinite(object.volume) ? +object.volume : undefined,
+                adj_close: +object.close,
+                date: date,
+                lastTrade: lastTrade,
+                tz: 'America/New_York',
+                expires: in5min,
+                incomplete: true
+            });
+        }));
+    }).then(function(list){
+        return list.reduce(function(hash, security){
+            hash[security.symbol] = security;
+            return hash;
+        }, {});
+    }).then(function(hash){
+        return securities.map(function(security){
+            return hash[guessSymbol(security)];
+        });
+    });
+}
+
 function queue(func, batchSize) {
     var context, promise = Promise.resolve();
     var queue = [], listeners = [];
@@ -358,7 +441,7 @@ function queue(func, batchSize) {
                 if (!taken.length) return undefined;
                 return func.call(context, taken).then(function(result) {
                     for (var i=0; i<notifications.length; i++) {
-                        notifications[i].resolve(result);
+                        notifications[i].resolve(result[i]);
                     }
                 }, function(error) {
                     for (var i=0; i<notifications.length; i++) {
@@ -370,7 +453,16 @@ function queue(func, batchSize) {
     };
 }
 
-function recordStartDate(indexedDB, symbol, date) {
+function guessSymbol(security) {
+    return security.ticker
+        .replace(/\^/, '-P')
+        .replace(/[\.\-\/]/, '-')
+        .replace(/-PR./, '-P')
+        .replace(/\./g, '') +
+        (security.exchange.yahooSuffix ? security.exchange.yahooSuffix : '');
+}
+
+function recordStartDate(symbol, date) {
     var parsed = date.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var year = parseInt(parsed[1], 10);
     var month = parseInt(parsed[2], 10);
@@ -387,12 +479,12 @@ function recordStartDate(indexedDB, symbol, date) {
         var startDate = rows.length && rows[rows.length - 1].Date;
         if (startDate && startDate > parsed[0]) {
             // no data before startDate appears to be available
-            return writeStartDate(indexedDB, symbol, startDate);
+            return writeStartDate(symbol, startDate);
         } else {
             // recent symbol data is not available, blacklist until tomorrow
             var tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
-            return writeStartDate(indexedDB, symbol, formatDate(tomorrow));
+            return writeStartDate(symbol, tomorrow);
         }
     }, function(error){
         if (error.statusCode == 404 && end.valueOf() < Date.now()) {
@@ -402,70 +494,90 @@ function recordStartDate(indexedDB, symbol, date) {
             // ignore any future requests for this symbol for one month
             var nextMonth = new Date();
             nextMonth.setMonth(nextMonth.getMonth() + 1);
-            return writeStartDate(indexedDB, symbol, formatDate(nextMonth));
+            return writeStartDate(symbol, nextMonth);
         } else {
             return Promise.reject(error);
         }
     });
 }
 
+function writeStartDate(symbol, date) {
+    if (_.isDate(date)) return writeStartDate(symbol, formatDate(date));
+    return writeSecurity({symbol: symbol, inception: date});
+}
+
 function formatDate(date) {
     return [date.getFullYear(), date.getMonth()+1, date.getDate()].join('-');
 }
 
-function writeStartDate(indexedDB, symbol, date) {
-    new Promise(function(resolve, reject){
-        return openStartDateDatabase(indexedDB).then(function(db){
-            var store = db.transaction(['startDate'], "readwrite").objectStore('startDate');
-            var request = store.put(date, symbol);
-            request.onsuccess = resolve;
+function writeSecurity(security) {
+    return openSecurityDatabase('readwrite', function(store, resolve, reject){
+        var request = store.get(security.symbol);
+        request.onerror = reject;
+        request.onsuccess = function(event){
+            var object = _.extend(event.target.result || {}, security);
+            var request = store.put(object, security.symbol);
             request.onerror = reject;
-        });
-    });
-}
-
-function deleteStartDateIfAfter(indexedDB, symbol, date) {
-    return new Promise(function(resolve, reject){
-        return openStartDateDatabase(indexedDB).then(function(db){
-            var store = db.transaction(['startDate'], "readwrite").objectStore('startDate');
-            var request = store.get(symbol);
-            request.onerror = reject;
-            request.onsuccess = function(event){
-                var startDate = event.target.result;
-                if (date < startDate) {
-                    var request = store.delete(symbol);
-                    request.onerror = reject;
-                    request.onsuccess = resolve;
-                }
+            request.onsuccess = function(){
+                resolve(object);
             };
-        });
+        };
     });
 }
 
-function readStartDate(indexedDB, symbol) {
-    return new Promise(function(resolve, reject){
-        return openStartDateDatabase(indexedDB).then(function(db){
-            var store = db.transaction(['startDate']).objectStore('startDate');
-            var request = store.get(symbol);
-            request.onsuccess = resolve;
-            request.onerror = reject;
-        });
+function deleteStartDateIfAfter(symbol, date) {
+    return openSecurityDatabase('readwrite', function(store, resolve, reject){
+        var request = store.get(symbol);
+        request.onerror = reject;
+        request.onsuccess = function(event){
+            var security = event.target.result;
+            if (date < security.inception) {
+                var request = store.put(_.omit(security, 'inception'), symbol);
+                request.onerror = reject;
+                request.onsuccess = resolve;
+            }
+        };
+    });
+}
+
+function readStartDate(symbol) {
+    return readSecurity(symbol).then(function(security){
+        return security.inception;
+    });
+}
+
+function readSecurity(symbol) {
+    return openSecurityDatabase('readonly', function(store, resolve, reject){
+        var request = store.get(symbol);
+        request.onsuccess = resolve;
+        request.onerror = reject;
     }).then(function(event){
         return event.target.result;
     });
 }
 
-function openStartDateDatabase(indexedDB) {
+function openSecurityDatabase(mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open('yahoo-quote');
-        request.onsuccess = resolve;
+        var request = indexedDB.open('yahoo-quote', 2);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             var db = event.target.result;
-            db.createObjectStore('startDate');
+            // Clear the database to re-download everything
+            for (var i=db.objectStoreNames.length -1; i>=0; i--) {
+                var name = db.objectStoreNames[i];
+                db.deleteObjectStore(db.objectStoreNames[i]);
+            }
+            db.createObjectStore('security');
         };
-    }).then(function(event){
-        return event.target.result;
+        request.onsuccess = function(event){
+            try {
+                var db = event.target.result;
+                var trans = db.transaction(['security'], mode);
+                return callback(trans.objectStore('security'), resolve, reject);
+            } catch(e) {
+                reject(e);
+            }
+        };
     });
 }
 

@@ -168,6 +168,15 @@ dispatch({
         });
     },
 
+    security: function(data) {
+        validate(data.security, 'data.security', isSecurity);
+        return serviceMessage(services, 'quote', data).then(function(resp){
+            return _.extend(resp, {
+                result: _.first(resp.result)
+            });
+        });
+    },
+
     load: (function(services, data) {
         if (_.isString(data.security) && data.exchange && data.exchange.iri) data.security = {
             ticker: decodeURI(data.security.substring(data.exchange.iri.length + 1)),
@@ -179,7 +188,8 @@ dispatch({
         validate(data.length, 'data.length', _.isFinite);
         validate(data.lower, 'data.lower', isISOString);
         validate(data.upper, 'data.upper', isISOString);
-        return retryAfterImport(services, data).then(function(data){
+        var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
+        return retryAfterImport(services, incomplete, new Date(), data).then(function(data){
             return data.result;
         });
     }).bind(this, services),
@@ -195,8 +205,10 @@ dispatch({
         validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
+        var now = new Date();
+        var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
         return promiseSecurities(services, data.securityClasses, function(security, correlated) {
-            return promiseSignals(services, {
+            return promiseSignals(services, incomplete, now, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
@@ -207,9 +219,10 @@ dispatch({
                 console.log("Could not load", security, error.status, error);
                 return normalizedError(error);
             });
-        }).then(combineResult).then(function(data){
-            if (data.status != 'error' && data.result) return data;
-            return Promise.reject(data);
+        }).then(combineResult).then(function(response){
+            if (response.status != 'error' && response.result)
+                return _.extend(response, data);
+            return Promise.reject(response);
         });
     },
 
@@ -218,8 +231,9 @@ dispatch({
         validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
+        var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
         return promiseSecurities(services, data.securityClasses, function(security, correlated) {
-            return promiseSignals(services, {
+            return promiseSignals(services, incomplete, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
@@ -238,20 +252,20 @@ dispatch({
     }
 });
 
-function promiseSignals(services, data, load, strip) {
-    return retryAfterImport(services, data, load).then(function(data){
+function promiseSignals(services, incomplete, data, load, strip) {
+    return retryAfterImport(services, incomplete, data, load).then(function(data){
         if (!data.result) return data;
-        else return _.extend(data, {
-            result: _.extend(data.result, {
-                security: data.security.iri,
-                hold: strip ? _.last(data.result.hold) : data.result.hold
+        var result = strip ? _.omit(data.result, 'holding') : data.result;
+        return _.extend(data, {
+            result: _.extend(result, {
+                security: data.security.iri
             })
         });
     }).then(function(first){
         if (_.isEmpty(first.result)) return combineResult([first]);
         else if (_.isEmpty(first.result.stop)) return combineResult([first]);
         else if (data.end < first.result.stop.until) return combineResult([first]);
-        else return promiseSignals(services, _.extend({}, data, {
+        else return promiseSignals(services, incomplete, _.extend({}, data, {
             begin: first.result.stop.until
         }), load, strip).then(function(rest){
             return combineResult([first, rest]);
@@ -303,24 +317,50 @@ function listSecurities(services, securityClass) {
     });
 }
 
-function retryAfterImport(services, data, load) {
+function retryAfterImport(services, incomplete, data, load) {
     var failfast = load !== false;
     var primary = services.mentat[getWorker(services.mentat, data.security.iri + failfast)];
-    return primary.promiseMessage(_.extend({
-        failfast: failfast
-    }, data)).catch(function(error){
-        var port = services.mentat[getWorker(services.mentat, data.security.iri)];
+    var port = services.mentat[getWorker(services.mentat, data.security.iri)];
+    return refresh(services, incomplete, data, primary, port).then(function(){
+        return primary.promiseMessage(_.extend({
+            failfast: failfast
+        }, data));
+    }).catch(function(error){
         if (load === false && error.quote && error.status == 'warning')
             return error; // just use what we have
         if (_.isEmpty(error.quote) || load === false)
             return Promise.reject(error);
         // try to load more
-        return importAndRun(services, data, port, error.quote);
+        return importAndRun(services, incomplete, data, port, error.quote);
     });
 }
 
-function importAndRun(services, data, port, quotes) {
-    return importQuotes(services, data.security, quotes, port).then(function(imported){
+function refresh(services, incomplete, data, primary, port) {
+    var intervals = data.interval ? _.object([data.interval.value],[data.interval]) : data.criteria.reduce(function(intervals, criteria){
+        return _.compact([
+            criteria.indicator, criteria.difference, criteria.percent,
+            criteria.indicatorWatch, criteria.differenceWatch, criteria.percentWatch
+        ]).reduce(function(intervals, indicator){
+            intervals[indicator.interval.value] = indicator.interval;
+            return intervals;
+        }, intervals);
+    }, {});
+    return Promise.all(_.compact([data.security, data.correlated]).map(function(security){
+        return primary.promiseMessage({
+            cmd: 'refresh',
+            security: data.security,
+            intervals: _.values(intervals),
+            upper: data.end,
+            includeIncomplete: incomplete
+        }).then(function(data){
+            if (_.isEmpty(data.result)) return;
+            else return importQuotes(services, incomplete, security, data.result, port);
+        });
+    }));
+}
+
+function importAndRun(services, incomplete, data, port, quotes) {
+    return importQuotes(services, incomplete, data.security, quotes, port).then(function(imported){
         return port.promiseMessage(data).catch(function(error){
             var minStart = _.compose(_.property('start'), _.first, _.partial(_.sortBy, _, 'start'));
             var earliest = _.mapObject(_.groupBy(quotes, 'interval'), minStart);
@@ -330,7 +370,7 @@ function importAndRun(services, data, port, quotes) {
                 return !earliest[interval] || start < earliest[interval];
             })) {
                 // asking for different invervals or start dates this time
-                return importAndRun(services, data, port, error.quote);
+                return importAndRun(services, incomplete, data, port, error.quote);
             } else if (error.status == 'warning') {
                 // just use what we have
                 return Promise.resolve(error);
@@ -341,7 +381,7 @@ function importAndRun(services, data, port, quotes) {
     });
 }
 
-function importQuotes(services, security, quotes, port) {
+function importQuotes(services, incomplete, security, quotes, port) {
     return Promise.all(quotes.map(function(request){
         return Promise.all(_.map(services.quote, function(quote, quoteName){
             return quote.promiseMessage(_.extend({
@@ -352,6 +392,11 @@ function importQuotes(services, security, quotes, port) {
                 if (result.length === 0) return null;
                 if (result[0].close !== undefined && isNaN(result[0].close))
                     throw Error("Data is NaN " + JSON.stringify(result[0]));
+                if (!incomplete && _.first(result).incomplete) {
+                    result.shift();
+                } else if (!incomplete && _.last(result).incomplete) {
+                    result.pop();
+                }
                 return port.promiseMessage(_.extend({}, request, {
                     cmd: 'import',
                     points: result

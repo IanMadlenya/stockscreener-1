@@ -33,7 +33,7 @@
 
 function parseCSV(text) {
     if (!text) return [];
-    return text.split(/\r?\n/).map(function(line) {
+    return _.compact(text.split(/\r?\n/)).map(function(line) {
         if (line.indexOf(',') < 0) return [line];
         var m;
         var row = [];

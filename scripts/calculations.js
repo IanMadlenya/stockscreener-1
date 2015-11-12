@@ -151,8 +151,8 @@ var parseCalculation = (function(_) {
                     return n + calc.getDataLength();
                 },
                 getValue: function(points) {
-                    var prior = intervals.d1.dec(ex, _.last(points).asof, d);
-                    var closes = prior.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
+                    var asof = intervals.d1.dec(ex, _.last(points).asof, d);
+                    var closes = asof.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
                     var prior = moment.tz(closes, ex.tz).toISOString();
                     var end = _.sortedIndex(points, {
                         asof: prior

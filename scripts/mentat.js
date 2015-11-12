@@ -38,7 +38,7 @@ importScripts('intervals.js');
 importScripts('calculations.js'); // parseCalculation
 importScripts('utils.js');
 
-var open = _.partial(openSymbolDatabase, indexedDB, _.map(intervals, 'storeName'));
+var open = _.partial(openSymbolDatabase, indexedDB, _.map(intervals, 'value'));
 onmessage = handle.bind(this, {
     start: function() {
         return "started";
@@ -86,7 +86,7 @@ onmessage = handle.bind(this, {
     },
     reset: function(data) {
         return Promise.all(intervals.map(function(interval){
-            return open(data.security, interval, "readwrite", function(store, resolve, reject) {
+            return open(data.security, interval.value, "readwrite", function(store, resolve, reject) {
                 return resolve(store.clear());
             });
         })).then(function(){
@@ -102,14 +102,62 @@ onmessage = handle.bind(this, {
             data.length, data.lower, data.upper, period, data.expressions
         );
     },
+    refresh: function(data){
+        var ex = data.security.exchange;
+        var periods = _.sortBy(data.intervals.map(function(interval){
+            var derivedFrom = intervals[interval.value].derivedFrom;
+            var value = derivedFrom ? derivedFrom.value : interval.value;
+            return createPeriod(intervals, ex, value);
+        }), 'millis');
+        var next = _.first(periods).ceil(data.upper);
+        return Promise.all(periods.map(function(period){
+            var collect3 = collect.bind(this, 3, null, null);
+            return open(data.security, period.value, "readonly", collect3).then(function(last3){
+                if (_.isEmpty(last3)) return {
+                    security: data.security,
+                    interval: period.value,
+                    start: period.format(period.dec(data.upper, 1000))
+                };
+                var lastComplete = _.last(_.reject(last3, 'incomplete'));
+                var outdated = ltDate(period.inc(lastComplete.asof, 1), data.upper, true);
+                var soon = data.includeIncomplete && ltDate(period.ceil(data.upper), next, true);
+                var lastTrade = _.last(last3).lastTrade || _.last(last3).asof;
+                var afterLast = ltDate(lastTrade, data.upper);
+                if (outdated || soon && afterLast && isMarketOpen(ex, data.upper)) return {
+                    security: data.security,
+                    interval: period.value,
+                    start: period.format(_.first(last3).asof)
+                };
+            });
+        })).then(_.compact).then(function(results){
+            return {
+                status: 'success',
+                result: results
+            };
+        });
+    },
     signals: function(data){
         var security = data.security;
         var periods = screenPeriods(intervals, security.exchange, data.criteria);
         var load = pointLoad(parseCalculation, open, data.failfast, periods, data);
-        return findSignals(periods, load, security, data.criteria, data.begin, data.end)
-        .then(summarizeSignals.bind(this, periods, security.exchange, data.begin, data.end));
+        var minute = _.min(_.values(periods), 'millis');
+        var end = minute.inc(data.end, 1);
+        return findSignals(periods, load, security, data.criteria, data.begin, end)
+        .then(summarizeSignals.bind(this, periods, security.exchange, data.begin, end));
     }
 });
+
+function isMarketOpen(ex, asof) {
+    var now = moment(asof);
+    var closesAt = now.tz(ex.tz).format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt;
+    var closes = moment.tz(closesAt, ex.tz);
+    if (now.isAfter(closes)) {
+        closes.add(1, 'days');
+    }
+    var opensAt = closes.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt;
+    var opens = moment.tz(opensAt, ex.tz);
+    return opens.isSame(closes) || opens.isBefore(now);
+}
 
 function summarizeSignals(periods, exchange, begin, end, data) {
     if (_.isEmpty(data.result)) return data;
@@ -119,11 +167,11 @@ function summarizeSignals(periods, exchange, begin, end, data) {
     var lastYear = annual.ceil(end);
     var yearLength = minute.diff(lastYear,firstYear) / annual.diff(lastYear,firstYear);
     var watch = data.result.watch;
-    var stop = data.result.stop || _.last(data.result.hold) || watch;
+    var stop = data.result.stop || _.last(data.result.holding) || watch;
     var exposure = minute.diff(stop.asof, watch.asof) / yearLength *100;
     var performance = 100 * (stop.price - watch.price) / watch.price;
-    var positive_excursion = runup(minute.value, watch.price, data.result.hold);
-    var negative_excursion = drawdown(minute.value, watch.price, data.result.hold);
+    var positive_excursion = runup(minute.value, watch.price, data.result.holding);
+    var negative_excursion = drawdown(minute.value, watch.price, data.result.holding);
     return _.extend(data, {
         result: _.extend(data.result, {
             exposure: exposure,
@@ -138,6 +186,7 @@ function runup(interval, entry, signals) {
     var lowest = entry;
     return avg(signals.reduce(function(runup, item){
         var point = item[interval];
+        if (!point) return runup;
         var year = point.asof.substring(0, 4);
         if (_.isUndefined(runup[year]) && !_.isEmpty(runup)) {
             lowest = point.open;
@@ -158,6 +207,7 @@ function drawdown(interval, entry, signals) {
     var highest = entry;
     return avg(signals.reduce(function(drawdown, item){
         var point = item[interval];
+        if (!point) return drawdown;
         var year = point.asof.substring(0, 4);
         if (_.isUndefined(drawdown[year]) && !_.isEmpty(drawdown)) {
             highest = point.open;
@@ -223,17 +273,24 @@ function pointLoadSecurity(bar, periods, security, filters) {
             var a = afterPeriod.millis >= periods[interval].millis ? after : epoc;
             return bar(cache, security, periods[interval], a, exprs[interval], asof, until);
         })).then(function(bars){
+            var results = _.pluck(bars, 'result');
             return _.extend(combineResult(bars), {
-                result: bars.reduce(function(result, bar, i) {
-                    if (!bar.result) return result;
+                result: results.reduce(function(result, bar, i) {
+                    if (!bar) return result;
+                    var lastTrade = bar.lastTrade && result.lastTrade ?
+                        minDate(bar.lastTrade, result.lastTrade) :
+                        bar.lastTrade || result.lastTrade || undefined;
                     return _.extend(result, _.object([
-                        intervals[i], 'price', 'asof', 'until'
+                        intervals[i], 'incomplete', 'latest', 'lastTrade', 'price', 'asof', 'until'
                     ], [
-                        bar.result,
-                        result.asof && ltDate(bar.result.asof, result.asof) ?
-                            result.price : bar.result.close,
-                        maxDate(bar.result.asof, result.asof || bar.result.asof),
-                        minDate(bar.result.until, result.until || bar.result.until)
+                        bar,
+                        bar.incomplete || result.incomplete,
+                        bar.latest,
+                        lastTrade,
+                        result.asof && ltDate(bar.asof, result.asof) ?
+                            result.price : bar.close,
+                        maxDate(bar.asof, result.asof || bar.asof),
+                        minDate(bar.until, result.until || bar.until)
                     ]));
                 }, {})
             });
@@ -245,7 +302,7 @@ function loadBar(parseCalculation, open, failfast, upper, cache, security, perio
     if (!cache[period.value] ||
             ltDate(cache[period.value].upper, asof) ||
             ltDate(asof, cache[period.value].lower)) {
-        var end = minDate(period.inc(asof, 100), upper);
+        var end = maxDate(asof, minDate(period.inc(asof, 100), upper));
         var date = new Date(end);
         var day = date.getDay(); // skip over weekends and holidays
         var inc = day === 0 ? 3 : day == 4 ? 4 : day == 5 ? 3 : 2;
@@ -253,7 +310,7 @@ function loadBar(parseCalculation, open, failfast, upper, cache, security, perio
         var advance = date.toISOString();
         cache[period.value] = {
             lower: asof,
-            upper: period.dec(end,1),
+            upper: maxDate(asof, period.dec(end,1)),
             promise: loadData(parseCalculation.bind(this, security.exchange), open, failfast, security,
                 2, asof, advance, period, expressions)
         };
@@ -262,28 +319,29 @@ function loadBar(parseCalculation, open, failfast, upper, cache, security, perio
         if (_.isEmpty(data.result)) return _.extend({}, data, {
             result: undefined
         });
-        var idx = _.sortedIndex(data.result, {
+        var ar = data.result;
+        var idx = _.sortedIndex(ar, {
             asof: toISOString(asof)
         }, 'asof');
-        if (idx >= data.result.length || idx && ltDate(asof, data.result[idx].asof)) {
+        if (idx && (idx >= ar.length || ltDate(asof, ar[idx].asof))) {
             idx--;
         }
-        if (idx+1 < data.result.length && ltDate(data.result[idx].asof, after)) {
+        if (idx+1 < ar.length && ltDate(ar[idx].asof, after)) {
             idx++;
         }
-        if (ltDate(until, data.result[idx].asof)) return _.extend({}, data, {
+        if (ltDate(until, ar[idx].asof)) return _.extend({}, data, {
             result: undefined
         });
-        else if (idx+1 < data.result.length) return _.extend({}, data, {
-            result: _.extend(data.result[idx], {
-                since: idx ? data.result[idx-1].asof : data.result[idx].since,
-                until: data.result[idx+1].asof
+        else if (idx+1 < ar.length) return _.extend({}, data, {
+            result: _.extend(ar[idx], {
+                since: idx ? ar[idx-1].asof : ar[idx].since,
+                until: ar[idx+1].asof
             })
         });
         else return _.extend({}, data, {
-            result: _.extend(data.result[idx], {
-                since: idx ? data.result[idx-1].asof : data.result[idx].since,
-                until: maxDate(period.inc(data.result[idx].asof, 1), period.ceil(asof)),
+            result: _.extend(ar[idx], {
+                since: idx ? ar[idx-1].asof : ar[idx].since,
+                until: ar[idx].until || period.inc(ar[idx].asof, 1),
                 latest: true
             })
         });
@@ -311,7 +369,7 @@ function screenSignals(security, watch, hold, stop, begin, end) {
         if (!ws.result) return ws;
         return stop(ws.result, ws.result.asof, end).then(function(ss){
             var last = ss.result ? ss.result.asof : ws.result.asof;
-            var stopped = ss.result ? ss.result.asof : end;
+            var stopped = ss.result ? ss.result.until : end;
             return hold(ws.result, ws.result.asof, stopped).then(function(hs) {
                 if (_.isEmpty(hs.result) && _.isEmpty(ss.result))
                     return _.extend(ws, {
@@ -319,10 +377,12 @@ function screenSignals(security, watch, hold, stop, begin, end) {
                     });
                 var w = deepExtend(hs.result.shift(), ws.result);
                 var s = ss.result ? deepExtend(_.last(hs.result), ss.result) : undefined;
+                var secondLast = hs.result.length > 1 ? hs.result[hs.result.length-2] : undefined;
                 return _.extend(combineResult([ws, ss]), {
                     result: {
                         watch: w,
-                        hold: hs.result,
+                        holding: hs.result,
+                        hold: s ? secondLast : _.last(hs.result),
                         stop: s
                     }
                 });
@@ -340,26 +400,27 @@ function findWatchSignal(periods, load, filters, begin, end){
     });
 }
 
-function findStopSignal(periods, load, filters, watching, begin, end){
-    return findSignal(periods, load, 'stop', filters, watching, begin, end);
+function findStopSignal(periods, load, filters, watch, begin, end){
+    return findSignal(periods, load, 'stop', filters, watch, begin, end);
 }
 
-function findHoldSignals(periods, load, filters, watching, begin, end) {
-    return findSignal(periods, load, 'hold', filters, watching, begin, end).then(function(first) {
+function findHoldSignals(periods, load, filters, watch, begin, end) {
+    return findSignal(periods, load, 'hold', filters, watch, begin, end).then(function(first) {
         if (!first.result) return _.extend(first, {
             result: []
         });
-        if (ltDate(end, first.result.until)) return _.extend(first, {
-            result: [first.result]
-        });
-        return findHoldSignals(periods, load, filters, watching, first.result.until, end).then(function(rest) {
+        if (ltDate(end, first.result.until, true) || ltDate(first.result.until, begin, true))
+            return _.extend(first, {
+                result: [first.result]
+            });
+        return findHoldSignals(periods, load, filters, watch, first.result.until, end).then(function(rest) {
             rest.result.unshift(first.result);
             return rest;
         });
     }).then(function(data){
         if (_.isEmpty(data.result)) return data;
         return _.extend(data, {
-            result: data.result.map(addGainPain.bind(this, filters, watching))
+            result: data.result.map(addGainPain.bind(this, filters, watch))
         });
     });
 }
@@ -415,7 +476,7 @@ function addGain(filters, watch, hold) {
     return hold;
 }
 
-function findSignal(periods, load, signal, filters, watching, begin, end){
+function findSignal(periods, load, signal, filters, watch, begin, end){
     if (ltDate(end, begin))
         throw Error("Assert error " + end + " is less than " + begin);
     if (!filters.length) return Promise.resolve({status: 'success'});
@@ -439,14 +500,14 @@ function findSignal(periods, load, signal, filters, watching, begin, end){
             return periods[interval].millis;
         });
     });
-    return filterSecurityByPeriods(load, signal, watching, {}, sorted.map(function(interval) {
+    return filterSecurityByPeriods(load, signal, watch, sorted.map(function(interval) {
         return {
             period: periods[interval],
             filters: byInterval[interval] || []
         };
     }), new Date(0), begin, end).then(function(data){
         if ((!data.result || ltDate(data.result.asof, begin)) && ltDate(data.result.until, end) && ltDate(begin, data.result.until))
-            return findSignal(periods, load, signal, filters, watching, data.result.until, end);
+            return findSignal(periods, load, signal, filters, watch, data.result.until, end);
         if (!data.result || ltDate(data.result.asof, begin))
             return _.extend(data, {
                 passed: undefined,
@@ -461,24 +522,24 @@ function findSignal(periods, load, signal, filters, watching, begin, end){
     });
 }
 
-function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, begin, upper) {
+function filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, begin, upper) {
     if (ltDate(upper, begin))
         throw Error("Assert error " + upper + " is less than " + begin);
     var rest = _.rest(periodsAndFilters);
     var period = _.first(periodsAndFilters).period;
     var filters = _.first(periodsAndFilters).filters;
-    return findNextSignal(load, signal, !rest.length, period, filters, watching, holding, after, begin, upper).then(function(data){
+    return findNextSignal(load, signal, !rest.length, period, filters, watch, after, begin, upper).then(function(data){
         if (!data.result || !data.result[period.value]) return data;
         if (data.passed === false || !rest.length) return data;
         var start = data.result[period.value].asof;
-        if (ltDate(upper, start)) {
+        if (ltDate(upper, maxDate(start, begin), true)) {
             // couldn't find signal, end of period
             return _.extend({}, data, {
                 passed: undefined
             });
         }
         var through = data.result[period.value].until;
-        return filterSecurityByPeriods(load, signal, watching, data.result, rest, start, maxDate(start, begin), minDate(upper, through)).then(function(child){
+        return filterSecurityByPeriods(load, signal, watch, rest, start, maxDate(start, begin), minDate(upper, through)).then(function(child){
             if (ltDate(upper, through) || ltDate(through, begin, true) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
@@ -488,46 +549,46 @@ function filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilt
                 result: child.result
             });
             // couldn't find a signal, try next period
-            return filterSecurityByPeriods(load, signal, watching, holding, periodsAndFilters, after, through, upper);
+            return filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, through, upper);
         });
     });
 }
 
-function findNextSignal(load, signal, leaf, period, filters, watching, holding, after, begin, until) {
+function findNextSignal(load, signal, leaf, period, filters, watch, after, begin, until) {
     if (signal == 'watch')
-        return findNextActiveFilter(true, load, period, filters, watching, holding, after, begin, until);
+        return findNextActiveFilter(true, load, period, filters, watch, after, begin, until);
     else if (signal == 'stop' && leaf)
-        return findNextActiveFilter(false, load, period, filters, watching, holding, after, begin, until);
+        return findNextActiveFilter(false, load, period, filters, watch, after, begin, until);
     else if (signal == 'stop')
-        return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until);
+        return loadFilteredPoint(load, period, filters, watch, after, begin, until);
     else if (signal == 'hold')
-        return load(period, after, minDate(begin,until));
+        return load(period, after, begin, until);
     else throw Error("Unknown signal: " + signal);
 }
 
-function findNextActiveFilter(pass, load, period, filters, watching, holding, after, begin, until) {
+function findNextActiveFilter(pass, load, period, filters, watch, after, begin, until) {
     if (ltDate(until, begin))
         throw Error("Assert error " + until + " is less than " + begin);
-    return loadFilteredPoint(load, period, filters, watching, holding, after, begin, until).then(function(data){
+    return loadFilteredPoint(load, period, filters, watch, after, begin, until).then(function(data){
         if (!data.result || !data.result[period.value])
             return data;
         var through = data.result[period.value].until;
         if (data.result[period.value].latest)
             return data;
         if (pass != data.passed && ltDate(through, until))
-            return findNextActiveFilter(pass, load, period, filters, watching, holding, after, through, until);
+            return findNextActiveFilter(pass, load, period, filters, watch, after, through, until);
         else return data;
     });
 }
 
-function loadFilteredPoint(load, period, filters, watching, holding, after, begin, until) {
+function loadFilteredPoint(load, period, filters, watch, after, begin, until) {
     return load(period, after, minDate(begin,until), until).then(function(data){
         if (!data.result || !data.result[period.value]) return data;
         var pass =_.reduce(filters, function(pass, criteria) {
             if (!pass) return false;
             var hold = data.result;
-            var watch = _.isEmpty(watching) ? hold : watching; // is 'watch' signal?
-            var value = valueOfCriteria(criteria, watch, hold);
+            var w = _.isEmpty(watch) ? hold : watch; // is 'watch' signal?
+            var value = valueOfCriteria(criteria, w, hold);
             if (_.isFinite(criteria.lower)) {
                 if (value < +criteria.lower)
                     return false;
@@ -608,8 +669,8 @@ function loadData(parseCalculation, open, failfast, security, length, lower, upp
 function collectIntervalRange(open, failfast, security, period, length, lower, upper) {
     if (!period.derivedFrom)
         return collectRawRange(open, failfast, security, period, length, lower, upper);
-    return open(security, period, 'readonly', collect.bind(this, length, lower, upper)).then(function(result){
-        var next = result.length ? period.inc(result[result.length - 1].asof, 1) : null;
+    return open(security, period.value, 'readonly', collect.bind(this, length, lower, upper)).then(function(result){
+        var next = result.length ? period.inc(_.last(result).asof, 1) : null;
         var below = lengthBelow(result, lower);
         if (below >= length && next && (ltDate(upper, next) || ltDate(Date.now(), next))) {
             // result complete
@@ -619,10 +680,10 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
             };
         } else if (result.length && below >= length) {
             // need to update with newer data
-            var last = result[result.length - 1];
-            return collectAggregateRange(open, failfast, security, period, 1, last.asof, upper).then(function(aggregated){
+            var last = _.last(result);
+            return collectAggregateRange(open, failfast, security, period, 2, last.asof, upper).then(function(aggregated){
                 return storeNewData(open, security, period, aggregated.result).then(function(){
-                    return open(security, period, 'readonly', collect.bind(this, length, lower, upper));
+                    return open(security, period.value, 'readonly', collect.bind(this, length, lower, upper));
                 }).then(function(result){
                     return _.extend(aggregated, {
                         result: result
@@ -644,7 +705,7 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
                 return storeNewData(open, security, period, aggregated.result).then(function(){
                     var first = _.first(aggregated.result).asof;
                     var last = _.last(aggregated.result).asof;
-                    return open(security, period, 'readonly', collect.bind(this, 1, first, last));
+                    return open(security, period.value, 'readonly', collect.bind(this, 1, first, last));
                 }).then(function(result){
                     // return the merged result
                     return _.extend(aggregated, {
@@ -665,12 +726,17 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
         var upper, count, discard = ceil(data.result[0].asof);
         var result = data.result.reduce(function(result, point){
             if (ltDate(point.asof, discard, true)) return result;
-            var preceding = result[result.length-1];
+            var preceding = _.last(result);
             if (!preceding || ltDate(upper, point.asof)) {
-                result.push(point);
                 upper = ceil(point.asof);
+                result.push(_.extend({}, point, {
+                    asof: upper
+                }));
                 count = 0;
             } else {
+                var lastTrade = point.lastTrade && preceding.lastTrade ?
+                    minDate(point.lastTrade, preceding.lastTrade) :
+                    point.lastTrade || preceding.lastTrade || undefined;
                 result[result.length-1] = {
                     asof: upper,
                     open: preceding.open,
@@ -680,7 +746,9 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
                     low: Math.min(preceding.low, point.low),
                     volume: period.value.charAt(0) == 'd' ?
                         Math.round((preceding.volume * count + point.volume) / (++count)) :
-                        (preceding.volume + point.volume)
+                        (preceding.volume + point.volume),
+                    incomplete: preceding.incomplete || point.incomplete || undefined,
+                    lastTrade: lastTrade
                 };
             }
             return result;
@@ -688,7 +756,7 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
         if (result.length && ltDate(_.last(result).asof, upper)) {
             result.pop(); // last period is beyond upper
         } else if (result.length && ltDate(_.last(data.result).asof, _.last(result).asof)) {
-            result.pop(); // last period is not yet complete
+            _.last(result).incomplete = true; // last period is not yet complete
         }
         return _.extend(data, {
             result: result
@@ -697,9 +765,9 @@ function collectAggregateRange(open, failfast, security, period, length, lower, 
 }
 
 function collectRawRange(open, failfast, security, period, length, lower, upper) {
-    return open(security, period, 'readonly', collect.bind(this, length, lower, upper)).then(function(result){
+    return open(security, period.value, 'readonly', collect.bind(this, Math.max(length,3), lower, upper)).then(function(result){
         var conclude = failfast ? Promise.reject.bind(Promise) : Promise.resolve.bind(Promise);
-        var next = result.length ? period.inc(result[result.length - 1].asof, 1) : null;
+        var next = result.length ? period.inc(_.last(result).asof, 1) : null;
         var below = lengthBelow(result, lower);
         if (below >= length && next && (ltDate(upper, next) || ltDate(new Date(), next))) {
             // result complete
@@ -708,7 +776,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                 result: result
             };
         } else if (result.length && below >= length) {
-            return open(security, period, 'readonly', nextItem.bind(this, upper)).then(function(newer){
+            return open(security, period.value, 'readonly', nextItem.bind(this, upper)).then(function(newer){
                 if (newer) return { // result complete
                     status: 'success',
                     result: result
@@ -721,7 +789,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                     quote: [{
                         security: security,
                         interval: period.value,
-                        start: period.format(period.dec(_.last(result).asof, 2))
+                        start: period.format(_.first(_.last(result, 3)).asof)
                     }]
                 });
             });
@@ -738,7 +806,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                 quote.push({
                     security: security,
                     interval: period.value,
-                    start: period.format(period.dec(_.last(result).asof, 2))
+                    start: period.format(_.first(_.last(result, 3)).asof)
                 });
             }
             return Promise.reject({
@@ -771,28 +839,43 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
 
 function importData(open, period, security, result) {
     var now = Date.now();
+    var ex = security.exchange;
     var points = result.map(function(point){
-        var obj = {};
+        if (point.asof && !point.dateTime && !point.date)
+            throw Error("No date for point " + JSON.stringify(point));
+        var obj = _.omit(point, function(value){
+            return !_.isFinite(value);
+        });
         var tz = point.tz || period.tz;
-        if (point.dateTime) {
-            obj.asof = period.ceil(moment.tz(point.dateTime, tz));
-        } else if (point.date) {
-            var time = point.date + ' ' + period.marketClosesAt;
-            obj.asof = period.ceil(moment.tz(time, tz));
-        }
-        for (var prop in point) {
-            if (_.isNumber(point[prop]))
-                obj[prop] = point[prop];
+        var dateTime = point.dateTime ? moment.tz(point.dateTime, tz) :
+            moment.tz(point.date + ' ' + period.marketClosesAt, tz);
+        obj.asof = period.ceil(dateTime);
+        if (point.incomplete) {
+            obj.incomplete = point.incomplete;
+            var lastTrade = moment.tz(point.lastTrade, tz);
+            obj.lastTrade = toISOString(lastTrade);
+            // linear estimation of volume
+            var start = period.floor(lastTrade);
+            var end = object.asof;
+            if (start != end) {
+                var opens = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
+                var closes = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
+                var s = Math.max(moment(start).valueOf(), opens.valueOf());
+                var e = Math.min(moment(end).valueOf(), closes.valueOf());
+                var percent = (lastTrade.valueOf() - s) / (e - s);
+                obj.volume = point.volume + point.volume * (1 - percent);
+            }
         }
         return obj;
-    }).filter(function(point){
-        // Yahoo provides weekly/month-to-date data
-        return ltDate(point.asof, now, true);
     });
     return storeNewData(open, security, period, points).then(function(){
         return {
             status: 'success'
         };
+    }).then(function(){
+        return Promise.all(period.dependents.map(function(dependent){
+            return removeIncomplete(open, security, dependent);
+        }));
     });
 }
 
@@ -804,7 +887,7 @@ function storeNewData(open, security, period, data) {
                 || (_.first(data).asof < _.first(bounds) && _.last(data).asof < _.first(bounds)))
             throw Error('Disconnected import: '
                 + _.first(data).asof + ' - ' + _.last(data).asof + ' is disconnected from '
-                +_.first(bounds) + ' - ' + _.last(bounds) + ' in ' + period.value);
+                +_.first(bounds) + ' - ' + _.last(bounds) + ' in ' + security.ticker + '#' + period.value);
         else return data.filter(function(point){
             return point.asof < _.first(bounds) || point.asof > _.last(bounds);
         });
@@ -813,8 +896,8 @@ function storeNewData(open, security, period, data) {
 
 function storeData(open, security, period, data) {
     if (!data.length) return Promise.resolve(data);
-    console.log("Storing", data.length, period.value, security, data[data.length-1]);
-    return open(security, period, "readwrite", function(store, resolve, reject){
+    console.log("Storing", data.length, period.value, security, _.last(data));
+    return removeIncomplete(open, security, period.value, function(store, resolve, reject){
         var counter = 0;
         var onsuccess = function(){
             if (++counter >= data.length) {
@@ -832,21 +915,79 @@ function storeData(open, security, period, data) {
     });
 }
 
-function bounds(open, security, period) {
-    return open(security, period, 'readonly', nextItem.bind(this, null)).then(function(earliest){
-        if (!earliest) return undefined;
-        var now = new Date().toISOString();
-        return open(security, period, 'readonly', collect.bind(this, 1, now, now)).then(function(latest){
-            return _.last(latest);
-        }).then(function(latest){
-            return [earliest.asof, latest.asof];
-        });
+function removeIncomplete(open, security, storeName, callback) {
+    return open(security, storeName, "readwrite", function(store, resolve, reject){
+        var cursor = store.openCursor(null, "prev");
+        var incompletes = [];
+        cursor.onerror = reject;
+        cursor.onsuccess = function(event) {
+            try {
+                var cursor = event.target.result;
+                if (cursor && cursor.value.incomplete) {
+                    incompletes.push(cursor.value);
+                    cursor.continue();
+                } else {
+                    var remove = function() {
+                        if (incompletes.length) {
+                            var req = store.delete(incompletes.pop().asof);
+                            req.onerror = reject;
+                            req.onsuccess = remove;
+                        } else if (_.isFunction(callback)) {
+                            callback(store, resolve, reject);
+                        } else {
+                            resolve();
+                        }
+                    };
+                    remove();
+                }
+            } catch (e) {
+                reject(e);
+            }
+        };
     });
 }
 
-function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callback) {
+function bounds(open, security, period) {
+    return open(security, period.value, 'readonly', function(store, resolve, reject){
+        var forward = store.openCursor();
+        forward.onerror = reject;
+        forward.onsuccess = function(event) {
+            try {
+                var forward = event.target.result;
+                if (forward && forward.value.incomplete) {
+                    forward.continue();
+                } else if (forward) {
+                    var earliest = forward.value;
+                    var backward = store.openCursor(null, "prev");
+                    backward.onerror = reject;
+                    backward.onsuccess = function(event) {
+                        try {
+                            var backward = event.target.result;
+                            if (backward && backward.value.incomplete) {
+                                backward.continue();
+                            } else if (backward) {
+                                var latest = backward.value;
+                                resolve([earliest.asof, latest.asof]);
+                            } else {
+                                throw Error("Inconsistent state");
+                            }
+                        } catch (e) {
+                            reject(e);
+                        }
+                    };
+                } else {
+                    resolve();
+                }
+            } catch (e) {
+                reject(e);
+            }
+        };
+    });
+}
+
+function openSymbolDatabase(indexedDB, storeNames, security, storeName, mode, callback) {
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(security.iri, 12);
+        var request = indexedDB.open(security.iri, 13);
         request.onerror = reject;
         request.onupgradeneeded = function(event) {
             try {
@@ -854,7 +995,7 @@ function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callb
                 // Clear the database to re-download everything
                 for (var i=db.objectStoreNames.length -1; i>=0; i--) {
                     var name = db.objectStoreNames[i];
-                    if (storeNames.indexOf(name) >= 0 && name != "annual" && name != "quarter") {
+                    if (name.match(/^[a-z][0-9]+$/)) {
                         // annual and quarter history is limited
                         db.deleteObjectStore(db.objectStoreNames[i]);
                     }
@@ -873,8 +1014,8 @@ function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callb
         request.onsuccess = function(event) {
             try {
                 var db = event.target.result;
-                var trans = db.transaction(period.storeName, mode);
-                return callback(trans.objectStore(period.storeName), resolve, reject);
+                var trans = db.transaction(storeName, mode);
+                return callback(trans.objectStore(storeName), resolve, reject);
             } catch(e) {
                 reject(e);
             }
@@ -885,13 +1026,13 @@ function openSymbolDatabase(indexedDB, storeNames, security, period, mode, callb
 function collect(below, lower, upper, store, resolve, reject) {
     var results = [];
     var between = 0;
-    var cursor = store.openCursor(IDBKeyRange.upperBound(toISOString(upper)), "prev");
+    var cursor = store.openCursor(upper ? IDBKeyRange.upperBound(toISOString(upper)) : null, "prev");
     cursor.onerror = reject;
     cursor.onsuccess = function(event) {
         try {
             var cursor = event.target.result;
             if (cursor) {
-                if (ltDate(lower, cursor.value.asof)) {
+                if (lower && ltDate(lower, cursor.value.asof)) {
                     between = results.length + 1;
                 }
                 if (results.length < below + between) {
@@ -994,12 +1135,16 @@ function createPeriod(intervals, exchange, interval) {
     if (!exchange || !exchange.tz) throw Error("Missing exchange");
     var period = intervals[interval];
     var self = {};
+    var dependents = _.pluck(_.filter(intervals, function(i) {
+        return i.derivedFrom && i.derivedFrom.value == interval;
+    }), 'value');
     return period && _.extend(self, period, {
         value: period.value,
         millis: period.millis,
         tz: exchange.tz,
         marketClosesAt: exchange.marketClosesAt,
         derivedFrom: period.derivedFrom && createPeriod(intervals, exchange, period.derivedFrom.value),
+        dependents: dependents,
         floor: function(date) {
             return period.floor(exchange, date).toISOString();
         },

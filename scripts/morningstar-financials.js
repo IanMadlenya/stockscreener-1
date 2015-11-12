@@ -80,6 +80,10 @@ onmessage = handle.bind(this, {
         return {status: 'success', result: []};
     },
 
+    security: function(data) {
+        return {status: 'success'};
+    },
+
     quote: (function(loadCSV, lookupSymbol, data) {
         var interval = data.interval;
         if (interval != 'annual' && interval != 'quarter')
