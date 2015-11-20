@@ -256,6 +256,7 @@ function dispatch(handler) {
         socket.addEventListener('message', handleSocketMessage.bind(this, socket, []));
         socket.addEventListener('close', function() {
             console.log('Client disconnected');
+            socket.closed = true;
         });
         return true;
     }
@@ -275,6 +276,7 @@ function dispatch(handler) {
             Promise.resolve(json).then(JSON.parse.bind(JSON)).then(function(data) {
                 return _.isObject(data) ? data : {cmd: data};
             }).then(function(data){
+                var id = data.id;
                 return Promise.resolve(data).then(function(data) {
                     if (typeof data.cmd == 'string') {
                         return data;
@@ -301,14 +303,14 @@ function dispatch(handler) {
                 }).then(function(result){
                     return _.extend(_.omit(data, 'points', 'result'), result);
                 }).then(function(result){
-                    if (data.id !== undefined) return _.extend(result, {id: data.id});
+                    if (id !== undefined) return _.extend(result, {id: id});
                     else return result;
                 }).then(function(result){
-                    socket.send(JSON.stringify(result) + '\n\n');
+                    if (!socket.closed) socket.send(JSON.stringify(result) + '\n\n');
                 });
             }).catch(function(error){
                 console.error(error);
-                socket.send(JSON.stringify(normalizedError(error)) + '\n\n');
+                if (!socket.closed) socket.send(JSON.stringify(normalizedError(error)) + '\n\n');
             });
         }
     }
