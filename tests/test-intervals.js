@@ -74,52 +74,52 @@ describe("intervals.js", function(){
                 });
             });
         });
-        describe('d1', function(){
+        describe('day', function(){
             describe("inc", function() {
                 it("Mon Oct 13 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
                     var amount = 1;
                     var date = new Date("Mon Oct 13 2014 16:00:00 GMT-0400 (EDT)");
-                    var inc = intervals.d1.inc(exchange, date, amount);
+                    var inc = intervals.day.inc(exchange, date, amount);
                     expect(moment(inc).subtract(1,'minute').format('dddd')).toEqual(moment(date).add(1,'day').format('dddd'));
-                    expect(intervals.d1.diff(exchange, inc, date)).toEqual(amount);
-                    expect(intervals.d1.diff(exchange, date, inc)).toEqual(-amount);
+                    expect(intervals.day.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.day.diff(exchange, date, inc)).toEqual(-amount);
                 });
                 it("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
                     var amount = 1;
                     var date = new Date("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)");
-                    var inc = intervals.d1.inc(exchange, date, amount);
+                    var inc = intervals.day.inc(exchange, date, amount);
                     expect(moment(inc).subtract(1,'minute').format('dddd')).toEqual(moment(date).add(1,'day').format('dddd'));
-                    expect(intervals.d1.diff(exchange, inc, date)).toEqual(amount);
-                    expect(intervals.d1.diff(exchange, date, inc)).toEqual(-amount);
+                    expect(intervals.day.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.day.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
             describe("dec", function() {
                 it("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
                     var amount = 1;
                     var date = new Date("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)");
-                    var dec = intervals.d1.dec(exchange, date, amount);
+                    var dec = intervals.day.dec(exchange, date, amount);
                     expect(moment(dec).format('dddd')).toEqual(moment(date).subtract(1,'day').format('dddd'));
-                    expect(intervals.d1.diff(exchange, dec, date)).toEqual(-amount);
-                    expect(intervals.d1.diff(exchange, date, dec)).toEqual(amount);
+                    expect(intervals.day.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.day.diff(exchange, date, dec)).toEqual(amount);
                 });
                 it("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
                     var amount = 1;
                     var date = new Date("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT)");
-                    var dec = intervals.d1.dec(exchange, date, amount);
+                    var dec = intervals.day.dec(exchange, date, amount);
                     expect(moment(dec).format('dddd')).toEqual(moment(date).subtract(1,'day').format('dddd'));
-                    expect(intervals.d1.diff(exchange, dec, date)).toEqual(-amount);
-                    expect(intervals.d1.diff(exchange, date, dec)).toEqual(amount);
+                    expect(intervals.day.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.day.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
             describe("diff", function() {
                 it("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)", function(){
                     var date = new Date("Wed Oct 15 2014 16:00:00 GMT-0400 (EDT)");
-                    expect(intervals.d1.diff(exchange, date, date)).toEqual(0);
-                    expect(intervals.d1.diff(exchange, date, moment(date).subtract(1,'days'))).toEqual(1);
+                    expect(intervals.day.diff(exchange, date, date)).toEqual(0);
+                    expect(intervals.day.diff(exchange, date, moment(date).subtract(1,'days'))).toEqual(1);
                 });
                 it("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT) by 1", function(){
                     var date = new Date("Fri Oct 17 2014 16:00:00 GMT-0400 (EDT)");
-                    expect(intervals.d1.diff(exchange, moment(date).add(1,'days'), date)).toEqual(1);
+                    expect(intervals.day.diff(exchange, moment(date).add(1,'days'), date)).toEqual(1);
                 });
             });
         });
@@ -130,11 +130,11 @@ describe("intervals.js", function(){
     testMinuteInterval(30);
     testMinuteInterval(60);
     testMinuteInterval(120);
-    describe('d1', function(){
+    describe('day', function(){
         describe("ceil", function() {
             datesBetween(new Date(2010,0,1), new Date(2015,0,1), 60 *60 *1000).forEach(function(date){
                 it(date.toString(), function(){
-                    var ceil = intervals.d1.ceil(exchange, date);
+                    var ceil = intervals.day.ceil(exchange, date);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(ceil.valueOf()).toEqual(jasmine.any(Number));
                     expect(ceil.valueOf() - date.valueOf() >= 0).toBe(true);
@@ -145,7 +145,7 @@ describe("intervals.js", function(){
         describe("floor", function() {
             datesBetween(new Date(2010,0,1), new Date(2015,0,1), 60 *60 *1000).forEach(function(date){
                 it(date.toString(), function(){
-                    var floor = intervals.d1.floor(exchange, date);
+                    var floor = intervals.day.floor(exchange, date);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(floor.valueOf()).toEqual(jasmine.any(Number));
                     expect(date.valueOf() - floor.valueOf() >= 0).toBe(true);
@@ -159,14 +159,14 @@ describe("intervals.js", function(){
             dates.forEach(function(date,i,dates){
                 var amount = numbers[i];
                 it(date.toString() + ' by ' + amount, function(){
-                    var inc = intervals.d1.inc(exchange, date, amount);
+                    var inc = intervals.day.inc(exchange, date, amount);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(inc.valueOf()).toEqual(jasmine.any(Number));
                     expect(inc.valueOf() - date.valueOf() > 0).toBe(true);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(amount);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).toBeLessThan(Math.ceil(amount /5) *7 +3);
-                    expect(intervals.d1.diff(exchange, inc, date)).toEqual(amount);
-                    expect(intervals.d1.diff(exchange, date, inc)).toEqual(-amount);
+                    expect(intervals.day.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.day.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
         });
@@ -176,24 +176,24 @@ describe("intervals.js", function(){
             dates.forEach(function(date,i,dates){
                 var amount = numbers[i];
                 it(date.toString() + ' by ' + amount, function(){
-                    var dec = intervals.d1.dec(exchange, date, amount);
+                    var dec = intervals.day.dec(exchange, date, amount);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(dec.valueOf()).toEqual(jasmine.any(Number));
                     expect(dec.valueOf() % 60 *1000).toEqual(0);
                     expect(date.valueOf() - dec.valueOf() > 0).toBe(true);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(amount);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).toBeLessThan(Math.ceil(amount /5) *7 +3);
-                    expect(intervals.d1.diff(exchange, dec, date)).toEqual(-amount);
-                    expect(intervals.d1.diff(exchange, date, dec)).toEqual(amount);
+                    expect(intervals.day.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.day.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
         });
     });
-    describe('d5', function(){
+    describe('week', function(){
         describe("ceil", function() {
             datesBetween(new Date(2010,0,1), new Date(2015,0,1), 5 *60 *60 *1000).forEach(function(date){
                 it(date.toString(), function(){
-                    var ceil = intervals.d5.ceil(exchange, date);
+                    var ceil = intervals.week.ceil(exchange, date);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(ceil.valueOf()).toEqual(jasmine.any(Number));
                     expect(ceil.valueOf() - date.valueOf() >= 0).toBe(true);
@@ -204,7 +204,7 @@ describe("intervals.js", function(){
         describe("floor", function() {
             datesBetween(new Date(2010,0,1), new Date(2015,0,1), 5 *60 *60 *1000).forEach(function(date){
                 it(date.toString(), function(){
-                    var floor = intervals.d5.floor(exchange, date);
+                    var floor = intervals.week.floor(exchange, date);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(floor.valueOf()).toEqual(jasmine.any(Number));
                     expect(date.valueOf() - floor.valueOf() >= 0).toBe(true);
@@ -218,14 +218,14 @@ describe("intervals.js", function(){
             dates.forEach(function(date,i,dates){
                 var amount = numbers[i];
                 it(date.toString() + ' by ' + amount, function(){
-                    var inc = intervals.d5.inc(exchange, date, amount);
+                    var inc = intervals.week.inc(exchange, date, amount);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(inc.valueOf()).toEqual(jasmine.any(Number));
                     expect(inc.valueOf() - date.valueOf() > 0).toBe(true);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(5 * amount);
                     expect((inc.valueOf() - date.valueOf()) /1000 /60 /60 /24).toBeLessThan(amount *7 +7);
-                    expect(intervals.d5.diff(exchange, inc, date)).toEqual(amount);
-                    expect(intervals.d5.diff(exchange, date, inc)).toEqual(-amount);
+                    expect(intervals.week.diff(exchange, inc, date)).toEqual(amount);
+                    expect(intervals.week.diff(exchange, date, inc)).toEqual(-amount);
                 });
             });
         });
@@ -235,15 +235,15 @@ describe("intervals.js", function(){
             dates.forEach(function(date,i,dates){
                 var amount = numbers[i];
                 it(date.toString() + ' by ' + amount, function(){
-                    var dec = intervals.d5.dec(exchange, date, amount);
+                    var dec = intervals.week.dec(exchange, date, amount);
                     expect(date.valueOf()).toEqual(jasmine.any(Number));
                     expect(dec.valueOf()).toEqual(jasmine.any(Number));
                     expect(dec.valueOf() % 5 *60 *1000).toEqual(0);
                     expect(date.valueOf() - dec.valueOf() > 0).toBe(true);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).not.toBeLessThan(5 * amount);
                     expect((date.valueOf() - dec.valueOf()) /1000 /60 /60 /24).toBeLessThan(amount *7 +7);
-                    expect(intervals.d5.diff(exchange, dec, date)).toEqual(-amount);
-                    expect(intervals.d5.diff(exchange, date, dec)).toEqual(amount);
+                    expect(intervals.week.diff(exchange, dec, date)).toEqual(-amount);
+                    expect(intervals.week.diff(exchange, date, dec)).toEqual(amount);
                 });
             });
         });

@@ -105,28 +105,26 @@ onmessage = handle.bind(this, {
     refresh: function(data){
         var ex = data.security.exchange;
         var periods = _.sortBy(data.intervals.map(function(interval){
-            var derivedFrom = intervals[interval.value].derivedFrom;
-            var value = derivedFrom ? derivedFrom.value : interval.value;
-            return createPeriod(intervals, ex, value);
+            return createPeriod(intervals, ex, interval.value);
         }), 'millis');
         var next = _.first(periods).ceil(data.upper);
         return Promise.all(periods.map(function(period){
-            var collect3 = collect.bind(this, 3, null, null);
-            return open(data.security, period.value, "readonly", collect3).then(function(last3){
-                if (_.isEmpty(last3)) return {
+            var collect3 = collect.bind(this, 4, null, null);
+            return open(data.security, period.value, "readonly", collect3).then(function(last4){
+                if (_.isEmpty(last4)) return {
                     security: data.security,
                     interval: period.value,
                     start: period.format(period.dec(data.upper, 1000))
                 };
-                var lastComplete = _.last(_.reject(last3, 'incomplete'));
+                var lastComplete = _.last(_.reject(last4, 'incomplete'));
                 var outdated = ltDate(period.inc(lastComplete.asof, 1), data.upper, true);
                 var soon = data.includeIncomplete && ltDate(period.ceil(data.upper), next, true);
-                var lastTrade = _.last(last3).lastTrade || _.last(last3).asof;
+                var lastTrade = _.last(last4).lastTrade || _.last(last4).asof;
                 var afterLast = ltDate(lastTrade, data.upper);
                 if (outdated || soon && afterLast && isMarketOpen(ex, data.upper)) return {
                     security: data.security,
                     interval: period.value,
-                    start: period.format(_.first(last3).asof)
+                    start: period.format(_.first(last4).asof)
                 };
             });
         })).then(_.compact).then(function(results){
@@ -149,12 +147,12 @@ onmessage = handle.bind(this, {
 
 function isMarketOpen(ex, asof) {
     var now = moment(asof);
-    var closesAt = now.tz(ex.tz).format('YYYY-MM-DD') + 'T' + ex.afterHoursClosesAt;
+    var closesAt = now.tz(ex.tz).format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
     var closes = moment.tz(closesAt, ex.tz);
     if (now.isAfter(closes)) {
         closes.add(1, 'days');
     }
-    var opensAt = closes.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt;
+    var opensAt = closes.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt;
     var opens = moment.tz(opensAt, ex.tz);
     return opens.isSame(closes) || opens.isBefore(now);
 }
@@ -667,104 +665,6 @@ function loadData(parseCalculation, open, failfast, security, length, lower, upp
 }
 
 function collectIntervalRange(open, failfast, security, period, length, lower, upper) {
-    if (!period.derivedFrom)
-        return collectRawRange(open, failfast, security, period, length, lower, upper);
-    return open(security, period.value, 'readonly', collect.bind(this, length, lower, upper)).then(function(result){
-        var next = result.length ? period.inc(_.last(result).asof, 1) : null;
-        var below = lengthBelow(result, lower);
-        if (below >= length && next && (ltDate(upper, next) || ltDate(Date.now(), next))) {
-            // result complete
-            return {
-                status: 'success',
-                result: result
-            };
-        } else if (result.length && below >= length) {
-            // need to update with newer data
-            var last = _.last(result);
-            return collectAggregateRange(open, failfast, security, period, 2, last.asof, upper).then(function(aggregated){
-                return storeNewData(open, security, period, aggregated.result).then(function(){
-                    return open(security, period.value, 'readonly', collect.bind(this, length, lower, upper));
-                }).then(function(result){
-                    return _.extend(aggregated, {
-                        result: result
-                    });
-                });
-            });
-        } else {
-            // no data available
-            return bounds(open, security, period).then(function(bounds){
-                var start = bounds && ltDate(_.last(bounds), lower) ? _.last(bounds) : lower;
-                var end = bounds && ltDate(upper, _.first(bounds)) ? _.first(bounds) : upper;
-                var floored = period.floor(start);
-                return collectAggregateRange(open, failfast, security, period, length, floored, end);
-            }).then(function(aggregated){
-                if (aggregated.status == "warning" && aggregated.result.length == result.length)
-                    return _.extend(aggregated, {
-                        result: result
-                    });
-                return storeNewData(open, security, period, aggregated.result).then(function(){
-                    var first = _.first(aggregated.result).asof;
-                    var last = _.last(aggregated.result).asof;
-                    return open(security, period.value, 'readonly', collect.bind(this, 1, first, last));
-                }).then(function(result){
-                    // return the merged result
-                    return _.extend(aggregated, {
-                        result: result
-                    });
-                });
-            });
-        }
-    });
-}
-
-function collectAggregateRange(open, failfast, security, period, length, lower, upper) {
-    var ceil = period.ceil;
-    var end = period.inc(upper, 2); // increment beyond a complete point
-    var size = period.aggregate * (length + 1);
-    return collectRawRange(open, failfast, security, period.derivedFrom, size, lower, end).then(function(data){
-        if (!data.result.length) return data;
-        var upper, count, discard = ceil(data.result[0].asof);
-        var result = data.result.reduce(function(result, point){
-            if (ltDate(point.asof, discard, true)) return result;
-            var preceding = _.last(result);
-            if (!preceding || ltDate(upper, point.asof)) {
-                upper = ceil(point.asof);
-                result.push(_.extend({}, point, {
-                    asof: upper
-                }));
-                count = 0;
-            } else {
-                var lastTrade = point.lastTrade && preceding.lastTrade ?
-                    minDate(point.lastTrade, preceding.lastTrade) :
-                    point.lastTrade || preceding.lastTrade || undefined;
-                result[result.length-1] = {
-                    asof: upper,
-                    open: preceding.open,
-                    close: point.close,
-                    total_volume: point.total_volume,
-                    high: Math.max(preceding.high, point.high),
-                    low: Math.min(preceding.low, point.low),
-                    volume: period.value.charAt(0) == 'd' ?
-                        Math.round((preceding.volume * count + point.volume) / (++count)) :
-                        (preceding.volume + point.volume),
-                    incomplete: preceding.incomplete || point.incomplete || undefined,
-                    lastTrade: lastTrade
-                };
-            }
-            return result;
-        }, []);
-        if (result.length && ltDate(_.last(result).asof, upper)) {
-            result.pop(); // last period is beyond upper
-        } else if (result.length && ltDate(_.last(data.result).asof, _.last(result).asof)) {
-            _.last(result).incomplete = true; // last period is not yet complete
-        }
-        return _.extend(data, {
-            result: result
-        });
-    });
-}
-
-function collectRawRange(open, failfast, security, period, length, lower, upper) {
     return open(security, period.value, 'readonly', collect.bind(this, Math.max(length,3), lower, upper)).then(function(result){
         var conclude = failfast ? Promise.reject.bind(Promise) : Promise.resolve.bind(Promise);
         var next = result.length ? period.inc(_.last(result).asof, 1) : null;
@@ -789,7 +689,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                     quote: [{
                         security: security,
                         interval: period.value,
-                        start: period.format(_.first(_.last(result, 3)).asof)
+                        start: period.format(_.first(_.last(result, 4)).asof)
                     }]
                 });
             });
@@ -806,7 +706,7 @@ function collectRawRange(open, failfast, security, period, length, lower, upper)
                 quote.push({
                     security: security,
                     interval: period.value,
-                    start: period.format(_.first(_.last(result, 3)).asof)
+                    start: period.format(_.first(_.last(result, 4)).asof)
                 });
             }
             return Promise.reject({
@@ -847,19 +747,22 @@ function importData(open, period, security, result) {
             return !_.isFinite(value);
         });
         var tz = point.tz || period.tz;
+        var opensAt = ex.marketOpensAt;
+        var closesAt = ex.marketClosesAt;
         var dateTime = point.dateTime ? moment.tz(point.dateTime, tz) :
-            moment.tz(point.date + ' ' + period.marketClosesAt, tz);
+            moment.tz(point.date + ' ' + closesAt, tz);
         obj.asof = period.ceil(dateTime);
         if (point.incomplete) {
             obj.incomplete = point.incomplete;
-            var lastTrade = moment.tz(point.lastTrade, tz);
+            var lastTrade = moment.tz(point.lastTrade.indexOf(':') >= 0 ?
+                point.lastTrade : point.lastTrade + ' ' + closesAt, ex.tz);
             obj.lastTrade = toISOString(lastTrade);
             // linear estimation of volume
             var start = period.floor(lastTrade);
             var end = object.asof;
             if (start != end) {
-                var opens = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + ex.marketOpensAt, ex.tz);
-                var closes = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt, ex.tz);
+                var opens = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + opensAt, ex.tz);
+                var closes = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + closesAt, ex.tz);
                 var s = Math.max(moment(start).valueOf(), opens.valueOf());
                 var e = Math.min(moment(end).valueOf(), closes.valueOf());
                 var percent = (lastTrade.valueOf() - s) / (e - s);
@@ -872,10 +775,6 @@ function importData(open, period, security, result) {
         return {
             status: 'success'
         };
-    }).then(function(){
-        return Promise.all(period.dependents.map(function(dependent){
-            return removeIncomplete(open, security, dependent);
-        }));
     });
 }
 
@@ -896,7 +795,7 @@ function storeNewData(open, security, period, data) {
 
 function storeData(open, security, period, data) {
     if (!data.length) return Promise.resolve(data);
-    console.log("Storing", data.length, period.value, security, _.last(data));
+    console.log("Storing", data.length, period.value, security.ticker, _.last(data));
     return removeIncomplete(open, security, period.value, function(store, resolve, reject){
         var counter = 0;
         var onsuccess = function(){
@@ -995,7 +894,7 @@ function openSymbolDatabase(indexedDB, storeNames, security, storeName, mode, ca
                 // Clear the database to re-download everything
                 for (var i=db.objectStoreNames.length -1; i>=0; i--) {
                     var name = db.objectStoreNames[i];
-                    if (name.match(/^[a-z][0-9]+$/)) {
+                    if (name.match(/^[a-zA-Z][0-9]+$|day|week|month/)) {
                         // annual and quarter history is limited
                         db.deleteObjectStore(db.objectStoreNames[i]);
                     }
@@ -1003,7 +902,7 @@ function openSymbolDatabase(indexedDB, storeNames, security, storeName, mode, ca
                 // Create an objectStore for this database
                 storeNames.forEach(function(name){
                     if (!db.objectStoreNames.contains(name)
-                            || (name != "annual" && name != "quarter")) {
+                            || name.match(/^[a-zA-Z][0-9]+$|day|week|month/)) {
                         db.createObjectStore(name, { keyPath: "asof" });
                     }
                 });
@@ -1135,16 +1034,11 @@ function createPeriod(intervals, exchange, interval) {
     if (!exchange || !exchange.tz) throw Error("Missing exchange");
     var period = intervals[interval];
     var self = {};
-    var dependents = _.pluck(_.filter(intervals, function(i) {
-        return i.derivedFrom && i.derivedFrom.value == interval;
-    }), 'value');
     return period && _.extend(self, period, {
         value: period.value,
         millis: period.millis,
         tz: exchange.tz,
         marketClosesAt: exchange.marketClosesAt,
-        derivedFrom: period.derivedFrom && createPeriod(intervals, exchange, period.derivedFrom.value),
-        dependents: dependents,
         floor: function(date) {
             return period.floor(exchange, date).toISOString();
         },

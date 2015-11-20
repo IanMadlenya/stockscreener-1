@@ -107,7 +107,6 @@ var intervals = (function(_, moment) {
     };
     var m5 = {
         value: 'm5',
-        aggregate: 5,
         millis: 5 * 60 * 1000,
         floor: function(ex, dateTime) {
             return moment.tz(Math.floor(moment(dateTime).valueOf() /5 /60 /1000) *5 *60 *1000, ex.tz);
@@ -152,7 +151,6 @@ var intervals = (function(_, moment) {
     };
     var m30 = {
         value: 'm30',
-        aggregate: 3,
         millis: 30 * 60 * 1000,
         floor: function(ex, dateTime) {
             return moment.tz(Math.floor(moment(dateTime).valueOf() /30 /60 /1000) *30 *60 *1000, ex.tz);
@@ -256,7 +254,6 @@ var intervals = (function(_, moment) {
     };
     var m120 = {
         value: 'm120',
-        aggregate: 2,
         millis: 120 * 60 * 1000,
         floor: function(ex, dateTime) {
             var start = m60.floor(ex, dateTime);
@@ -342,23 +339,23 @@ var intervals = (function(_, moment) {
             else return Math.ceil(end.diff(start, 'hours', true) /2);
         }
     };
-    var d1 = {
-        value: 'd1',
+    var day = {
+        value: 'day',
         millis: 24 * 60 * 60 * 1000,
         floor: function(ex, dateTime) {
             return moment(dateTime).tz(ex.tz).startOf('day');
         },
         ceil: function(ex, dateTime) {
-            var start = d1.floor(ex, dateTime);
+            var start = day.floor(ex, dateTime);
             if (start.valueOf() < moment(dateTime).valueOf())
                 return start.add(1, 'days');
             return start;
         },
         inc: function(ex, dateTime, amount) {
-            var start = d1.ceil(ex, dateTime);
+            var start = day.ceil(ex, dateTime);
             var wd = start.isoWeekday();
             if (wd > 5)
-                return d1.inc(ex, start.add(8 - wd, 'days'), amount);
+                return day.inc(ex, start.add(8 - wd, 'days'), amount);
             var w = Math.floor((wd -1 + amount) / 5);
             var days = amount - w *5;
             if (wd + days < 6)
@@ -366,12 +363,12 @@ var intervals = (function(_, moment) {
             else return start.isoWeek(start.isoWeek() + w).isoWeekday(wd +2 + days);
         },
         dec: function(ex, dateTime, amount) {
-            var start = d1.floor(ex, dateTime);
+            var start = day.floor(ex, dateTime);
             var wd = start.isoWeekday();
             if (wd == 1)
-                return d1.dec(ex, start.subtract(2, 'days'), amount)
+                return day.dec(ex, start.subtract(2, 'days'), amount)
             else if (wd == 7)
-                return d1.dec(ex, start.subtract(1, 'days'), amount);
+                return day.dec(ex, start.subtract(1, 'days'), amount);
             var w = Math.floor(amount / 5);
             var days = amount - w*5;
             if (wd > days)
@@ -382,24 +379,22 @@ var intervals = (function(_, moment) {
             var start = moment(from).tz(ex.tz);
             var end = moment(to).tz(ex.tz);
             if (end.isBefore(start))
-                return -1 * d1.diff(ex, from, to);
+                return -1 * day.diff(ex, from, to);
             var weeks = end.diff(start, 'weeks');
             if (weeks)
-                return weeks * 5 + d1.diff(ex, end, start.add(weeks, 'weeks'));
+                return weeks * 5 + day.diff(ex, end, start.add(weeks, 'weeks'));
             else if (start.isoWeekday() > 5)
-                return d1.diff(ex, end, start.startOf('day').add(1, 'weeks').isoWeekday(1));
+                return day.diff(ex, end, start.startOf('day').add(1, 'weeks').isoWeekday(1));
             else if (end.isoWeekday() > 6)
-                return d1.diff(ex, end.startOf('day').isoWeekday(6), start);
+                return day.diff(ex, end.startOf('day').isoWeekday(6), start);
             else if (start.isoWeekday() < end.isoWeekday())
                 return end.diff(start, 'days');
             else
                 return Math.max(end.diff(start, 'days') -2, 0);
         }
     };
-    var d5 = {
-        derivedFrom: d1,
-        value: 'd5',
-        aggregate: 5,
+    var week = {
+        value: 'week',
         millis: 7 * 24 * 60 * 60 * 1000,
         floor: function(ex, dateTime) {
             return moment(dateTime).tz(ex.tz).startOf('isoweek');
@@ -411,17 +406,43 @@ var intervals = (function(_, moment) {
             return start;
         },
         inc: function(ex, dateTime, amount) {
-            var start = d5.ceil(ex, dateTime);
+            var start = week.ceil(ex, dateTime);
             return start.isoWeek(start.isoWeek() + amount);
         },
         dec: function(ex, dateTime, amount) {
-            var start = d5.floor(ex, dateTime);
+            var start = week.floor(ex, dateTime);
             return start.isoWeek(start.isoWeek() + -amount);
         },
         diff: function(ex, to, from) {
             var start = moment(from).tz(ex.tz);
             var end = moment(to).tz(ex.tz);
             return end.diff(start, 'weeks');
+        }
+    };
+    var month = {
+        value: 'month',
+        millis: 31 * 24 * 60 * 60 * 1000,
+        floor: function(ex, dateTime) {
+            return moment(dateTime).tz(ex.tz).startOf('month');
+        },
+        ceil: function(ex, dateTime) {
+            var start = moment(dateTime).tz(ex.tz).startOf('month');
+            if (start.valueOf() < moment(dateTime).valueOf())
+                return start.month(start.month() + 1);
+            return start;
+        },
+        inc: function(ex, dateTime, amount) {
+            var start = month.ceil(ex, dateTime);
+            return start.month(start.month() + amount);
+        },
+        dec: function(ex, dateTime, amount) {
+            var start = month.floor(ex, dateTime);
+            return start.month(start.month() + -amount);
+        },
+        diff: function(ex, to, from) {
+            var start = moment(from).tz(ex.tz);
+            var end = moment(to).tz(ex.tz);
+            return end.diff(start, 'months');
         }
     };
     var quarter = {
@@ -484,8 +505,9 @@ var intervals = (function(_, moment) {
         m30: m30,
         m60: m60,
         m120: m120,
-        d1: d1,
-        d5: d5,
+        day: day,
+        week: week,
+        month: month,
         quarter: quarter,
         annual: annual
     };

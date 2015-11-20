@@ -46,7 +46,7 @@ onmessage = handle.bind(this, {
     },
 
     validate: function(data) {
-        if ('d1' != data.interval)
+        if ('day' != data.interval && 'week' != data.interval && 'month' != data.interval)
             return Promise.reject({status: 'error'});
         return (data.fields || []).reduce(function(memo, field){
             if (['open','high','low','close','volume','adj_close'].indexOf(field) >= 0)
@@ -93,33 +93,39 @@ onmessage = handle.bind(this, {
         });
     }).bind(this, getSecurity.bind(this, queue(loadSecurity, 100))),
 
-    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadPriceTable, getSecurityQuote, data) {
+    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadCSV, getSecurityQuote, data) {
         var interval = data.interval;
-        if (interval != 'd1' || !data.security.exchange.exch)
+        if ('day' != data.interval && 'week' != data.interval && 'month' != data.interval || !data.security.exchange.exch)
             return {status: 'success', result: []};
         var symbol = guessSymbol(data.security);
         var mapped = symbolMap[symbol];
-        return loadSymbol(data, mapped || symbol).catch(function(error) {
-            if (mapped || data.ticker.match(/^[A-Z]+$/))
-                return Promise.reject(error);
-            return lookupSymbol(data.security.exchange, data.security.ticker).then(function(results){
-                if (!results.length) return undefined;
-                return results[0].symbol;
-            }).then(function(lookup){
-                if (!lookup || symbol == lookup)
+        return Promise.resolve(mapped || symbol).then(function(symbol){
+            if ('week' == interval) return loadPriceTable(loadCSV, data, symbol, 'w');
+            else if ('month' == interval) return loadPriceTable(loadCSV, data, symbol, 'm');
+            else return loadSymbol(data, symbol).catch(function(error) {
+                if (mapped || data.ticker.match(/^[A-Z]+$/))
                     return Promise.reject(error);
-                symbolMap[symbol] = lookup;
-                console.log("Using Yahoo! symbol " + lookup + " for security " + data.security.exchange.mic + ':' + data.ticker);
-                return loadSymbol(data, lookup);
-            });
-        }).catch(
-            loadPriceTable.bind(this, data, symbolMap[symbol] || symbol)
-        ).then(function(result){
-            return getSecurityQuote(data.security).then(function(quote){
-                if (_.isEmpty(result) || quote.date != _.first(result).date) {
-                    result.unshift(quote);
-                }
-                return result;
+                return lookupSymbol(data.security.exchange, data.security.ticker).then(function(results){
+                    if (!results.length) return undefined;
+                    return results[0].symbol;
+                }).then(function(lookup){
+                    if (!lookup || symbol == lookup)
+                        return Promise.reject(error);
+                    symbolMap[symbol] = lookup;
+                    console.log("Using Yahoo! symbol " + lookup + " for security " + data.security.exchange.mic + ':' + data.ticker);
+                    return loadSymbol(data, lookup);
+                });
+            }).catch(loadPriceTable.bind(this, loadCSV, data, symbol, 'd')).then(function(result){
+                return getSecurityQuote(data.security).then(function(quote){
+                    if (!quote.close) return result;
+                    else if (_.isEmpty(result) || quote.date != _.first(result).date) {
+                        result.unshift(quote);
+                    }
+                    return result;
+                }).catch(function(error){
+                    console.log(error);
+                    return result;
+                });
             });
         }).then(function(result){
             return {
@@ -137,10 +143,8 @@ onmessage = handle.bind(this, {
         loadSymbol.bind(this,
             queue(loadQuotes, 100)
         ),
-        loadPriceTable.bind(this,
-            synchronized(loadCSV)
-        ),
-        getSecurityQuote.bind(this, queue(loadSecurity, 100))
+        synchronized(loadCSV),
+        getSecurityQuote.bind(this, queue(loadSecurity, 10))
     )
 });
 
@@ -246,17 +250,23 @@ function loadQuotes(queue) {
     });
 }
 
-function loadPriceTable(loadCSV, data, symbol) {
-    var end = (data.end || new Date().toISOString()).match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
+function loadPriceTable(loadCSV, data, symbol, g) {
+    var now = new Date().toISOString();
+    var end = _.first(_.sortBy(_.compact([data.end, now]))).match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var endYear = end[1];
     var startYear = data.start.substring(0, 4);
-    var startDate = endYear == startYear ? data.start : (startYear + "-01-01");
+    var startDate = endYear == startYear ? data.start : g != 'w' ? startYear + '-01-01' :
+        (function(startYear){
+            var date = new Date(startYear + '-01-01');
+            date.setDate(date.getDate() - date.getDay() +1);
+            return date.toISOString();
+        })(startYear);
     var start = startDate.match(/(\d\d\d\d)-(\d\d)-(\d\d)/);
     var url = [
         "http://ichart.finance.yahoo.com/table.csv?s=", encodeURIComponent(symbol),
         "&a=", parseInt(start[2], 10) - 1, "&b=", start[3], "&c=", start[1],
         "&d=", parseInt(end[2], 10) - 1, "&e=", end[3], "&f=", end[1],
-        "&g=d"
+        "&g=", g
     ].join('');
     return loadCSV(url).catch(function(error){
         if (error.statusCode == 404) {
@@ -265,9 +275,11 @@ function loadPriceTable(loadCSV, data, symbol) {
         }
         return Promise.reject(error);
     }).then(function(results){
-        if (results.length)
+        if (results.length && 'd' == g)
             deleteStartDateIfAfter(symbol, results[results.length-1].Date);
-        return results.map(function(result){
+        else if (results.length > 1)
+            deleteStartDateIfAfter(symbol, results[results.length-2].Date);
+        return results.map(function(result, i){
             return {
                 symbol: symbol,
                 date: result.Date,
@@ -276,7 +288,9 @@ function loadPriceTable(loadCSV, data, symbol) {
                 low: parseCurrency(result.Low),
                 close: parseCurrency(result.Close),
                 volume: parseFloat(result.Volume),
-                adj_close: parseFloat(result['Adj Close'])
+                adj_close: parseFloat(result['Adj Close']),
+                lastTrade: 0 === i ? end[0] : undefined,
+                incomplete: 0 === i
             };
         });
     });
@@ -391,12 +405,28 @@ function loadSecurity(securities) {
         return Promise.all(rows.map(function(row){
             var object = _.object(
                 ["symbol", "name", "exch", "date", "time", "open", "close", "range", "volume"], row);
-            var low = object.range.replace(/[^\d\.].*$/,'');
-            var high = object.range.replace(/^.*[^\d\.]/,'');
             var m = (object.date + ' ' + object.time).match(/(\d+)\/(\d+)\/(\d+) (\d+):(\d+)(am|pm)/);
-            var hour = 'pm' == m[6] ? 12 + +m[4] : m[4];
+            if (!m) return writeSecurity({ // quote N/A
+                symbol: object.symbol,
+                name: object.name,
+                exch: object.exch,
+                open: undefined,
+                high: undefined,
+                low: undefined,
+                close: undefined,
+                volume:undefined,
+                adj_close: undefined,
+                date: undefined,
+                lastTrade: undefined,
+                tz: 'America/New_York',
+                expires: in5min,
+                incomplete: true
+            });
+            var hour = 'pm' == m[6] && 12 > +m[4] ? 12 + +m[4] : m[4];
             var date = (m[3]+'-'+m[1]+'-'+m[2]).replace(/\b(\d)\b/g,'0$1');
             var lastTrade = date + ' ' + (hour+':'+m[5]+':00').replace(/\b(\d)\b/g,'0$1');
+            var low = object.range.replace(/[^\d\.].*$/,'');
+            var high = object.range.replace(/^.*[^\d\.]/,'');
             return writeSecurity({
                 symbol: object.symbol,
                 name: object.name,
@@ -531,10 +561,12 @@ function deleteStartDateIfAfter(symbol, date) {
         request.onerror = reject;
         request.onsuccess = function(event){
             var security = event.target.result;
-            if (date < security.inception) {
+            if (security && date < security.inception) {
                 var request = store.put(_.omit(security, 'inception'), symbol);
                 request.onerror = reject;
                 request.onsuccess = resolve;
+            } else {
+                resolve();
             }
         };
     });

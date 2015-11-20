@@ -193,8 +193,11 @@ var screener = {
                 return getExchangeOfSecurity(security).then(function(exchange){
                     return postDispatchMessage({
                         cmd: 'load',
-                        exchange: exchange,
-                        security: security,
+                        security: {
+                            iri: security,
+                            ticker: decodeURIComponent(security.substring(exchange.iri.length+1)),
+                            exchange: exchange
+                        },
                         expressions: expressions,
                         interval: {value: int},
                         length: length,
@@ -453,7 +456,7 @@ function loadQuotes(mic, ticker, expressions, length, interval, asof, rows) {
                 expect(result[i].length).toBe(rows[i].length);
                 for (var j=0; j<rows[i].length; j++) {
                     if (rows[i][j] && !result[i][j]) expect(expressions[j]).toBe(rows[i][j]);
-                    else if (!rows[i][j] && result[i][j]) expect(expressions[j]).toBeFalsy();
+                    else if (!rows[i][j] && result[i][j]) expect(expressions[j] + " of " + result[i][j]).toBeFalsy();
                 }
             }
             expect(result).toEqual(rows);

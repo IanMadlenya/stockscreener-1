@@ -82,7 +82,7 @@ function isIndicator(object, path) {
 function isInterval(object, path) {
     return validate(object, path, _.isObject) &&
         validate(object, path, function(value){
-            return _.contains(['m1','m5','m10','m30','m60','m120','d1','d5','quarter','annual'], value);
+            return _.contains(['m1', 'm5', 'm10', 'm30', 'm60', 'm120', 'day', 'week', 'month', 'quarter', 'annual'], value);
         }, 'value');
 }
 

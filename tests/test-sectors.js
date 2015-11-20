@@ -68,7 +68,7 @@ describe("Sectors", function(){
         ["XNMS", "Transportation", "PTSI"],
         ["XNGS", "Basic Industries", "GOLD"],
         ["XNGS", "Capital Goods", "PCAR"],
-        ["XNGS", "Consumer Durables", "SIAL"],
+        ["XNGS", "Consumer Durables", "GT"],
         ["XNGS", "Consumer Non-Durables", "MDLZ"],
         ["XNGS", "Consumer Services", "AMZN"],
         ["XNGS", "Energy", "APA"],

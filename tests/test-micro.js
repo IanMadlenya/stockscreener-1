@@ -104,47 +104,47 @@ describe("Micro", function(){
             }, {
                 indicatorWatch: {
                     expression: "close",
-                    interval: {value: 'd5'}
+                    interval: {value: 'week'}
                 },
                 lower: "5"
             }, {
                 indicatorWatch: {
                     expression: "volume",
-                    interval: {value: 'd5'}
+                    interval: {value: 'week'}
                 },
                 lower: "100000"
             }, {
                 indicatorWatch: {
                     expression: "close",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 differenceWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percentWatch: {
                     expression: "STDEV(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "-200"
             }, {
                 indicatorWatch: {
                     expression: "close",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 differenceWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percentWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "-4"
             }, {
                 indicatorWatch: {
                     expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "25"
             }, {
@@ -161,11 +161,11 @@ describe("Micro", function(){
                 },
                 differenceWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percentWatch: {
                     expression: "STDEV(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 lower: "-200"
             }, {
@@ -181,25 +181,25 @@ describe("Micro", function(){
             }, {
                 indicator: {
                     expression: "WORKDAY(asof)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 differenceWatch: {
                     expression:"WORKDAY(asof)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "10"
             },{
                 indicator:{
                     expression:"close",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 difference:{
                     expression:"SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percent:{
                     expression:"SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper:"0",
                 lower: "-15"
@@ -235,47 +235,47 @@ describe("Micro", function(){
             }, {
                 indicatorWatch: {
                     expression: "close",
-                    interval: {value: 'd5'}
+                    interval: {value: 'week'}
                 },
                 lower: "5"
             }, {
                 indicatorWatch: {
                     expression: "volume",
-                    interval: {value: 'd5'}
+                    interval: {value: 'week'}
                 },
                 lower: "100000"
             }, {
                 indicatorWatch: {
                     expression: "close",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 differenceWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percentWatch: {
                     expression: "STDEV(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "-200"
             }, {
                 indicatorWatch: {
                     expression: "close",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 differenceWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percentWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "-4"
             }, {
                 indicatorWatch: {
                     expression: "MAX(3,PercentB(SMA(20,close),2,STDEV(20,close)))",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "25"
             }, {
@@ -292,11 +292,11 @@ describe("Micro", function(){
                 },
                 differenceWatch: {
                     expression: "SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percentWatch: {
                     expression: "STDEV(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 lower: "-200"
             }, {
@@ -312,25 +312,25 @@ describe("Micro", function(){
             }, {
                 indicator: {
                     expression: "WORKDAY(asof)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 differenceWatch:{
                     expression:"WORKDAY(asof)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper: "10"
             },{
                 indicator:{
                     expression:"close",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 difference:{
                     expression:"SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 percent:{
                     expression:"SMA(20,close)",
-                    interval: {value: 'd1'}
+                    interval: {value: 'day'}
                 },
                 upper:"0",
                 lower: "-15"
@@ -382,13 +382,13 @@ describe("Micro", function(){
                 },
                 difference: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWMA(20)"
                 },
                 percent: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWSTDEV(20)"
                 }
@@ -451,19 +451,19 @@ describe("Micro", function(){
                 upper: "-100",
                 indicatorWatch: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "close"
                 },
                 differenceWatch: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "SMA(20,close)"
                 },
                 percentWatch: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "STDEV(20,close)"
                 }
@@ -478,13 +478,13 @@ describe("Micro", function(){
                 },
                 differenceWatch: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWMA(20)"
                 },
                 percentWatch: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWSTDEV(20)"
                 }
@@ -493,7 +493,7 @@ describe("Micro", function(){
                 lower: "100000",
                 indicatorWatch: {
                   interval: {
-                    value: "d5"
+                    value: "week"
                   },
                   expression: "volume"
                 }
@@ -502,13 +502,13 @@ describe("Micro", function(){
                 lower: "0.5",
                 indicatorWatch: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "STDEV(20,close)"
                 },
                 percentWatch: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "SMA(20,close)"
                 }
@@ -548,13 +548,13 @@ describe("Micro", function(){
                 },
                 difference: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWMA(20)"
                 },
                 percent: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWSTDEV(20)"
                 }
@@ -583,13 +583,13 @@ describe("Micro", function(){
               {
                 indicator: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWMA(20)"
                 },
                 difference: {
                   interval: {
-                    value: "d1"
+                    value: "day"
                   },
                   expression: "RWSTDEV(20)"
                 }

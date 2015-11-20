@@ -82,6 +82,7 @@ dispatch({
     },
 
     validate: (function(services, data){
+        var d5 = deepReplace(data, 'd1', 'day') || deepReplace(data, 'd5', 'week');
         validate(data.interval, 'data.interval', isInterval);
         var derivedFrom = intervals[data.interval.value].derivedFrom;
         var interval = derivedFrom ? derivedFrom : data.interval;
@@ -143,6 +144,32 @@ dispatch({
             }), function(interval){
                 return intervals[interval].millis;
             });
+        }).then(function(list){
+            list.splice(list.indexOf('day'), 0, 'd1');
+            list.splice(list.indexOf('week'), 0, 'd5');
+            return list;
+        });
+    },
+
+    'interval-list': function() {
+        return Promise.all(_.values(intervals).map(function(interval){
+            return Promise.all(_.map(services.quote, function(quote, key){
+                return quote.promiseMessage({
+                    cmd: 'validate',
+                    interval: interval.value
+                }).catch(Promise.resolve.bind(Promise));
+            }));
+        })).then(_.flatten).then(function(results){
+            return _.pluck(results.filter(function(result){
+                return result.status == 'success';
+            }), 'interval');
+        }).then(_.uniq).then(_.compact).then(function(result){
+            return _.sortBy(_.keys(intervals).filter(function(interval){
+                var derivedFrom = intervals[interval].derivedFrom;
+                return _.contains(result, interval) || derivedFrom && _.contains(result, derivedFrom.value);
+            }), function(interval){
+                return intervals[interval].millis;
+            });
         });
     },
 
@@ -183,14 +210,16 @@ dispatch({
             iri: data.security,
             exchange: data.exchange
         };
+        var d5 = deepReplace(data, 'd1', 'day') | deepReplace(data, 'd5', 'week');
         validate(data.security, 'data.security', isSecurity);
         validate(data.interval, 'data.interval', isInterval);
         validate(data.length, 'data.length', _.isFinite);
         validate(data.lower, 'data.lower', isISOString);
         validate(data.upper, 'data.upper', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return retryAfterImport(services, incomplete, new Date(), data).then(function(data){
-            return data.result;
+        return retryAfterImport(services, incomplete, data).then(function(data){
+            if (d5) deepReplace(deepReplace(data, 'day', 'd1'), 'week', 'd5');
+            return data;
         });
     }).bind(this, services),
 
@@ -201,14 +230,14 @@ dispatch({
     }).bind(this, services),
 
     signals: function(data) {
+        var d5 = deepReplace(data, 'd1', 'day') | deepReplace(data, 'd5', 'week');
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
         validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
-        var now = new Date();
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
         return promiseSecurities(services, data.securityClasses, function(security, correlated) {
-            return promiseSignals(services, incomplete, now, {
+            return promiseSignals(services, incomplete, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
@@ -223,10 +252,14 @@ dispatch({
             if (response.status != 'error' && response.result)
                 return _.extend(response, data);
             return Promise.reject(response);
+        }).then(function(data){
+            if (d5) deepReplace(deepReplace(data, 'day', 'd1'), 'week', 'd5');
+            return data;
         });
     },
 
     screen: function(data) {
+        var d5 = deepReplace(data, 'd1', 'day') | deepReplace(data, 'd5', 'week');
         validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
         validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
@@ -248,9 +281,31 @@ dispatch({
             if (response.status != 'error' && response.result)
                 return _.extend(response, data);
             else return Promise.reject(response);
+        }).then(function(data){
+            if (d5) deepReplace(deepReplace(data, 'day', 'd1'), 'week', 'd5');
+            return data;
         });
     }
 });
+
+function deepReplace(data, equivalent, replacement) {
+    var replaced = false;
+    if (_.isObject(data)) {
+        for (var p in data) {
+            if (_.isEqual(equivalent, data[p])) {
+                data[p] = replacement;
+                replaced = true;
+            } else if (_.isObject(data[p])) {
+                replaced |= deepReplace(data[p], equivalent, replacement);
+            }
+            if (_.isEqual(equivalent, p)) {
+                data[replacement] = data[p];
+                replaced = true;
+            }
+        }
+    }
+    return replaced;    
+}
 
 function promiseSignals(services, incomplete, data, load, strip) {
     return retryAfterImport(services, incomplete, data, load).then(function(data){
@@ -399,6 +454,7 @@ function importQuotes(services, incomplete, security, quotes, port) {
                 }
                 return port.promiseMessage(_.extend({}, request, {
                     cmd: 'import',
+                    quoting: request,
                     points: result
                 }));
             });

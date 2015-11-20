@@ -32,13 +32,13 @@
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60;
 
 describe("Validation", function(){
-    these("should validate d1 field", [
+    these("should validate day field", [
         "open", "low", "high", "close", "asof", "adj_close"
-    ], isValid('d1'));
+    ], isValid('day'));
 
-    these("should validate d5 field", [
+    these("should validate week field", [
         "open", "low", "high", "close", "asof", "adj_close"
-    ], isValid('d5'));
+    ], isValid('week'));
 
     these("should validate m1 field", [
         "open", "low", "high", "close", "asof", "total_volume"
@@ -66,15 +66,15 @@ describe("Validation", function(){
 
     these("should validate expression", [
         "asof", "SMA(20,close)", "EMA(21,close)"
-    ], isValid('d1'));
+    ], isValid('day'));
 
     these("should not validate expression", [
         "()", "foo()", "date()", "SMA()", "SMA(20)", "EMA()", "EMA(21)", "Adj Close"
-    ], isInvalid('d1'));
+    ], isInvalid('day'));
 
     these("should not validate expression in wrong period", [
         "F-Score()", "PERCENT(total_liabilities, total_stockholders_equity)"
-    ], isInvalid('d1'));
+    ], isInvalid('day'));
 
     these("should validate F-Score() expression", [
         "F-Score()"

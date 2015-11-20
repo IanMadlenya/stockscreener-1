@@ -151,7 +151,7 @@ var parseCalculation = (function(_) {
                     return n + calc.getDataLength();
                 },
                 getValue: function(points) {
-                    var asof = intervals.d1.dec(ex, _.last(points).asof, d);
+                    var asof = intervals.day.dec(ex, _.last(points).asof, d);
                     var closes = asof.format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
                     var prior = moment.tz(closes, ex.tz).toISOString();
                     var end = _.sortedIndex(points, {
@@ -186,7 +186,7 @@ var parseCalculation = (function(_) {
                     if (_.isEmpty(points)) return getValue(calc, points);
                     var asof = moment(_.last(points).asof).tz(ex.tz);
                     var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
-                    var since = intervals.d1.dec(ex, opens, d-1).toISOString();
+                    var since = intervals.day.dec(ex, opens, d-1).toISOString();
                     var start = _.sortedIndex(points, {
                         asof: since
                     }, 'asof');
