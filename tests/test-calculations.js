@@ -32,6 +32,175 @@
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60;
 
 describe("calculations", function(){
+    describe("PAST", function(){
+        var points = [{
+            "asof": "2015-02-26T20:00:00.000Z",
+            "high": 211.17,
+            "low": 211.09,
+            "open": 211.16,
+            "close": 211.09,
+            "total_volume": 2859,
+            "volume": 2800
+        }, {
+            "asof": "2015-02-26T22:00:00.000Z",
+            "high": 211.18,
+            "low": 211.05,
+            "open": 211.14,
+            "close": 211.05,
+            "total_volume": 17271,
+            "volume": 14232
+        }, {
+            "asof": "2015-02-27T00:00:00.000Z",
+            "high": 211.23,
+            "low": 211.08,
+            "open": 211.08,
+            "close": 211.2,
+            "total_volume": 21788,
+            "volume": 4517
+        }, {
+            "asof": "2015-02-27T02:00:00.000Z",
+            "high": 211.25,
+            "low": 211.08,
+            "open": 211.18,
+            "close": 211.21,
+            "total_volume": 109413,
+            "volume": 87105
+        }, {
+            "asof": "2015-02-27T04:00:00.000Z",
+            "high": 211.4,
+            "low": 211.1,
+            "open": 211.24,
+            "close": 211.18,
+            "total_volume": 424678,
+            "volume": 312343
+        }, {
+            "asof": "2015-02-27T06:00:00.000Z",
+            "high": 211.44,
+            "low": 210.84,
+            "open": 211.19,
+            "close": 211.07,
+            "total_volume": 11113646,
+            "volume": 10098527
+        }, {
+            "asof": "2015-02-27T08:00:00.000Z",
+            "high": 211.55,
+            "low": 211.02,
+            "open": 211.06,
+            "close": 211.52,
+            "total_volume": 21381358,
+            "volume": 9624331
+        }, {
+            "asof": "2015-02-27T10:00:00.000Z",
+            "high": 211.5399,
+            "low": 211.17,
+            "open": 211.52,
+            "close": 211.39,
+            "total_volume": 29920161,
+            "volume": 5898687
+        }, {
+            "asof": "2015-02-27T12:00:00.000Z",
+            "high": 211.58,
+            "low": 211.3,
+            "open": 211.38,
+            "close": 211.36,
+            "total_volume": 36501888,
+            "volume": 4485999
+        }, {
+            "asof": "2015-02-27T14:00:00.000Z",
+            "high": 211.4,
+            "low": 211.1,
+            "open": 211.36,
+            "close": 211.27,
+            "total_volume": 42632006,
+            "volume": 6041752
+        }, {
+            "asof": "2015-02-27T16:00:00.000Z",
+            "high": 211.35,
+            "low": 210.78,
+            "open": 211.28,
+            "close": 210.91,
+            "total_volume": 53606417,
+            "volume": 9174962
+        }, {
+            "asof": "2015-02-27T18:00:00.000Z",
+            "high": 211.06,
+            "low": 210.64,
+            "open": 210.9132,
+            "close": 210.69,
+            "total_volume": 82394367,
+            "volume": 25959761
+        }, {
+            "asof": "2015-02-27T20:00:00.000Z",
+            "high": 211.5,
+            "low": 210.6,
+            "open": 210.69,
+            "close": 211,
+            "total_volume": 105805276,
+            "volume": 17964862
+        }, {
+            "asof": "2015-02-27T22:00:00.000Z",
+            "high": 211.03,
+            "low": 210.66,
+            "open": 211.01,
+            "close": 210.93,
+            "total_volume": 107980314,
+            "volume": 1673787
+        }, {
+            "asof": "2015-02-28T00:00:00.000Z",
+            "high": 210.93,
+            "low": 210.76,
+            "open": 210.93,
+            "close": 210.81,
+            "total_volume": 108053144,
+            "volume": 71248
+        }, {
+            "asof": "2015-02-28T02:00:00.000Z",
+            "high": 210.86,
+            "low": 210.82,
+            "open": 210.83,
+            "close": 210.83,
+            "total_volume": 108075972,
+            "volume": 21391
+        }];
+        it("PAST1", function(){
+            var PAST1 = parseCalculation({tz: 'America/New_York'}, 'PAST(1,SMA(100,close))').getValue;
+            expect(
+                PAST1(points)
+            ).toEqual(
+                points.slice(4).reduce(function(sum, datum){
+                    return sum + datum.close;
+                }, 0) / (points.length-4)
+            );
+            expect(
+                PAST1(points.slice(3, points.length-1))
+            ).toEqual(
+                points.slice(3, points.length-1).reduce(function(sum, datum){
+                    return sum + datum.close;
+                }, 0) / (points.length-4)
+            );
+            expect(
+                PAST1(points.slice(2, points.length-2))
+            ).toEqual(
+                points.slice(2, points.length-2).reduce(function(sum, datum){
+                    return sum + datum.close;
+                }, 0) / (points.length-4)
+            );
+            expect(
+                PAST1(points.slice(1, points.length-3))
+            ).toEqual(
+                points.slice(1, points.length-3).reduce(function(sum, datum){
+                    return sum + datum.close;
+                }, 0) / (points.length-4)
+            );
+            expect(
+                PAST1(points.slice(0, points.length-4))
+            ).toEqual(
+                points.slice(0, points.length-4).reduce(function(sum, datum){
+                    return sum + datum.close;
+                }, 0) / (points.length-4)
+            );
+        });
+    });
     describe("SESSION", function(){
         var normal = {
             tz: 'America/New_York',

@@ -185,13 +185,46 @@ var parseCalculation = (function(_) {
                 getValue: function(points) {
                     if (_.isEmpty(points)) return getValue(calc, points);
                     var asof = moment(_.last(points).asof).tz(ex.tz);
-                    var opens = moment.tz(asof.format('YYYY-MM-DD') + 'T' + ex.premarketOpensAt, ex.tz);
-                    var since = intervals.day.dec(ex, opens, d-1).toISOString();
+                    var since = intervals.day.dec(ex, asof, d-1).toISOString();
                     var start = _.sortedIndex(points, {
                         asof: since
                     }, 'asof');
                     if (points[start] && points[start].asof == since) start++;
-                    if (start >= points.length) return getValue(calc, points);
+                    if (start >= points.length) return getValue(calc, []);
+                    var end = Math.min(start + calc.getDataLength(), points.length);
+                    return getValue(calc, points.slice(start, end));
+                }
+            };
+        },
+        /* Past N days */
+        PAST: function(ex, interval, d, field) {
+            var calc = getCalculation(ex, interval, field, arguments, 4);
+            return {
+                getErrorMessage: function() {
+                    if (!isPositiveInteger(d))
+                        return "Must be a possitive integer: " + d;
+                    return calc.getErrorMessage();
+                },
+                getFields: function(){
+                    return ['asof'].concat(calc.getFields());
+                },
+                getDataLength: function() {
+                    var opens = moment.tz('2010-03-01T' + ex.premarketOpensAt, ex.tz);
+                    var closes = moment.tz('2010-03-01T' + ex.afterHoursClosesAt, ex.tz);
+                    var dayLength = interval.diff(ex, closes, opens);
+                    var n = Math.ceil((d + 1) * dayLength * 2); // extra for after hours activity
+                    return Math.max(n, calc.getDataLength());
+                },
+                getValue: function(points) {
+                    if (_.isEmpty(points)) return getValue(calc, points);
+                    var asof = moment(_.last(points).asof).tz(ex.tz);
+                    var diff = asof.diff(intervals.day.dec(ex, asof, d), 'days');
+                    var since = asof.subtract(diff, 'days').toISOString();
+                    var start = _.sortedIndex(points, {
+                        asof: since
+                    }, 'asof');
+                    if (points[start] && points[start].asof == since) start++;
+                    if (start >= points.length) return getValue(calc, []);
                     var end = Math.min(start + calc.getDataLength(), points.length);
                     return getValue(calc, points.slice(start, end));
                 }
