@@ -61,34 +61,39 @@ function rows2objects(rows) {
     }, []);
 }
 
-function clearCache(indexedDB, name) {
-    return openCacheDatabase(indexedDB, name).then(function(db){
-        db.transaction(['cache']).objectStore('cache').clear();
+function clearCache(name) {
+    return openCacheDatabase(name, 'readwrite', function(store, resolve, reject){
+        var request = store.clear();
+        request.onsuccess = resolve;
+        request.onerror = reject;
     });
 }
 
-function cache(indexedDB, name, maxage, func) {
+function cache(name, func, maxage) {
     return function(key) {
         var args = arguments;
         var now = Date.now();
-        return readCacheEntry(indexedDB, name, key).then(function(entry){
-            if (entry && entry.asof > now - maxage) {
+        var expires = now + (maxage || 60 * 60 * 1000);
+        return readCacheEntry(name, key).then(function(entry){
+            if (entry && entry.expires > now) {
                 if (entry.hasOwnProperty('resolved'))
                     return entry.resolved;
                 return Promise.reject(entry.rejected);
             }
             return Promise.resolve(func.apply(this, args)).then(function(resolved){
-                return writeCacheEntry(indexedDB, name, {
+                return writeCacheEntry(name, {
                     key: key,
                     asof: now,
+                    expires: expires,
                     resolved: resolved
                 }).then(function(){
                     return resolved;
                 });
             }, function(rejected){
-                return writeCacheEntry(indexedDB, name, {
+                return writeCacheEntry(name, {
                     key: key,
                     asof: now,
+                    expires: expires,
                     rejected: rejected
                 }).then(function(){
                     return Promise.reject(rejected);
@@ -98,41 +103,60 @@ function cache(indexedDB, name, maxage, func) {
     };
 }
 
-function readCacheEntry(indexedDB, name, key) {
-    return new Promise(function(resolve, reject){
-        return openCacheDatabase(indexedDB, name).then(function(db){
-            var store = db.transaction(['cache']).objectStore('cache');
-            var request = store.get(key);
-            request.onsuccess = resolve;
-            request.onerror = reject;
-        });
-    }).then(function(event){
-        return event.target.result;
-    });
-}
-
-function writeCacheEntry(indexedDB, name, entry) {
-    return new Promise(function(resolve, reject){
-        return openCacheDatabase(indexedDB, name).then(function(db){
-            var store = db.transaction(['cache'], "readwrite").objectStore('cache');
-            var request = store.put(entry);
-            request.onsuccess = resolve;
-            request.onerror = reject;
-        });
-    });
-}
-
-function openCacheDatabase(indexedDB, name) {
-    return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(name);
+function readCacheEntry(name, key) {
+    return openCacheDatabase(name, 'readonly', function(store, resolve, reject){
+        var request = store.get(key);
         request.onsuccess = resolve;
         request.onerror = reject;
-        request.onupgradeneeded = function(event) {
-            var db = event.target.result;
-            db.createObjectStore('cache', {keyPath:'key'});
-        };
     }).then(function(event){
         return event.target.result;
+    });
+}
+
+function writeCacheEntry(name, entry) {
+    return openCacheDatabase(name, 'readwrite', function(store, resolve, reject){
+        var request = store.put(entry);
+        request.onerror = reject;
+        request.onsuccess = function(){
+            var index = store.index('expires');
+            var cursor = index.openCursor();
+            cursor.onerror = reject;
+            cursor.onsuccess = function(event){
+                var cursor = event.target.result;
+                if (cursor && cursor.value.expires < entry.asof) {
+                    var request = store.delete(cursor.value.key);
+                    request.onerror = reject;
+                    request.onsuccess = resolve;
+                } else {
+                    resolve();
+                }
+            };
+        };
+    });
+}
+
+function openCacheDatabase(name, mode, callback) {
+    return new Promise(function(resolve, reject) {
+        var request = indexedDB.open(name, 4);
+        request.onupgradeneeded = function(event) {
+            var db = event.target.result;
+            // Clear the database to re-download everything
+            if (db.objectStoreNames.contains('cache')) {
+                db.deleteObjectStore('cache');
+            }
+            var store = db.createObjectStore('cache', {keyPath:'key'});
+            store.createIndex("expires", "expires", {unique: false});
+        };
+        request.onerror = reject;
+        request.onsuccess = function(event) {
+            try {
+                var db = event.target.result;
+                var trans = db.transaction('cache', mode);
+                return callback(trans.objectStore('cache'), resolve, reject);
+            } catch(e) {
+                reject(e);
+            }
+        };
     });
 }
 
@@ -214,31 +238,32 @@ function titleOf(html, status) {
 
 function handle(handler, event){
     var data = _.isObject(event.data) ? event.data : event.data ? {cmd: event.data} : toJSONObject(event);
-    var resolve = _.compose(
-        self.postMessage.bind(self),
-        _.extend.bind(_, _.omit(data, 'points', 'result'))
-    );
+    var id = data.id;
     if (typeof data.cmd == 'string' && typeof handler[data.cmd] == 'function') {
         Promise.resolve(data).then(handler[data.cmd]).then(function(result){
             if (_.isObject(result) && result.status && _.isObject(event.data)) {
-                resolve(result);
+                return result;
             } else if (result !== undefined) {
-                resolve({status: 'success', result: result});
+                return {status: 'success', result: result};
             }
         }).catch(function(error) {
             if (error.status != 'error' || error.message) {
                 console.log(error);
             }
-            return Promise.reject(normalizedError(error));
-        }).catch(function(error){
-            resolve(error);
+            return normalizedError(error);
+        }).then(function(result){
+            if (id) return _.extend(result, {id: id});
+            else return result;
+        }).then(function(result){
+            self.postMessage(result);
         });
     } else if (event.ports && event.ports.length) {
         console.log('Unknown command ' + data.cmd);
-        resolve({
+        self.postMessage(_.extend({
+            id: id,
             status: 'error',
             message: 'Unknown command ' + data.cmd
-        });
+        }, _.omit(data, 'points', 'result')));
     } else if (event.data) {
         console.log(event.data);
     } else {

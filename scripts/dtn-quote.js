@@ -30,7 +30,7 @@
  */
 
 (function(services) {
-var hit = openHIT({});
+var hit = promiseThrottle(openHIT({}), 2);
 var handler = {
     stop: function() {
         hit('close');
@@ -240,6 +240,14 @@ function openHIT(blacklist){
                     });
                 }).then(function(socketId){
                     var buffer = '';
+                    chrome.sockets.tcp.onReceiveError.addListener(function(info){
+                        if (info.socketId == socketId) {
+                            // close and reconnect in a second
+                            chrome.sockets.tcp.close(socketId);
+                            lookupSocketIdPromise = null;
+                            _.delay(promiseLookupSocketId, 1000);
+                        }
+                    });
                     chrome.sockets.tcp.onReceive.addListener(function(info) {
                         if (info.socketId != socketId) return;
                         var data = ab2str(info.data);
@@ -267,6 +275,15 @@ function openHIT(blacklist){
                                 console.log(line);
                             }
                         }
+                    });
+                    // on reconnect, resend pending messages
+                    _.each(pending, function(item){
+                        console.log(item.cmd);
+                        chrome.sockets.tcp.send(socketId, str2ab(item.cmd + '\r\n'), function(sendInfo) {
+                            if (sendInfo.resultCode < 0) {
+                                console.error(sendInfo);
+                            }
+                        });
                     });
                     return socketId;
                 }).catch(function(error) {
@@ -382,5 +399,34 @@ function openHIT(blacklist){
       }
       return buf;
     }
+}
+
+function promiseThrottle(fn, limit) {
+    var currently = 0;
+    var queue = [];
+    var next = function(){
+        if (currently < limit && queue.length) {
+            currently++;
+            queue.shift().call();
+        }
+    };
+    return function(/* arguments */) {
+        var context = this;
+        var args = arguments;
+        return new Promise(function(callback){
+            queue.push(callback);
+            next();
+        }).then(function(){
+            return fn.apply(context, args);
+        }).then(function(result){
+            currently--;
+            next();
+            return result;
+        }, function(error){
+            currently--;
+            next();
+            return Promise.reject(error);
+        });
+    };
 }
 })(services);

@@ -143,7 +143,7 @@ onmessage = handle.bind(this, {
         loadSymbol.bind(this,
             queue(loadQuotes, 100)
         ),
-        synchronized(loadCSV),
+        cache('yahoo-table', synchronized(loadCSV), 4*60*60*1000),
         getSecurityQuote.bind(this, queue(loadSecurity, 10))
     )
 });
@@ -158,9 +158,9 @@ function loadSymbol(loadQuotes, data, symbol){
             end: data.end,
             marketClosesAt: data.security.exchange.marketClosesAt
         }]).then(function(results){
-            if (results.length)
+            if (results && results.length)
                 deleteStartDateIfAfter(symbol, results[results.length-1].Date);
-            if (results.length) return results;
+            if (results && results.length) return results;
             throw Error("Empty results for " + symbol);
         });
     });
@@ -308,7 +308,7 @@ function lookupSymbol(listSymbols, exchange, ticker) {
         "&region=", exchange.marketLang.replace(/.*-/,'') || 'US',
         "&query=", encodeURIComponent(root)
     ].join('');
-    return listSymbols(url, root).then(function(results){
+    return listSymbols(url).then(function(results){
         return results.filter(function(result){
             return result.exch == exchange.exch;
         });
@@ -340,7 +340,7 @@ function lookupSymbol(listSymbols, exchange, ticker) {
     });
 }
 
-function listSymbols(url, root) {
+function listSymbols(url) {
     return promiseText(url).then(function(jsonp) {
         return jsonp.replace(/^\s*YAHOO.util.ScriptNodeDataSource.callbacks\((.*)\);?\s*$/, '$1');
     }).then(parseJSON).then(function(json) {

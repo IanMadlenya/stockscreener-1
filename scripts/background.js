@@ -366,7 +366,7 @@ function dispatch(handler) {
                         service: service,
                         name: name,
                         script: script,
-                        id: data.id,
+                        id: id,
                         resolve: resolve,
                         reject: reject
                     });
@@ -400,10 +400,7 @@ function dispatch(handler) {
             } else if (id) {
                 console.log("Unknown worker response", event);
             } else {
-                // worker error
-                _.each(outstandingCommands, function(pending, id) {
-                    pending.reject(data || event);
-                });
+                console.log("Unknown worker message", event);
             }
         }
     }

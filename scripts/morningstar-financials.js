@@ -110,8 +110,8 @@ onmessage = handle.bind(this, {
             };
         });
     }).bind(this,
-        synchronized(cache(indexedDB, 'morningstar-financials', 4 * 60 * 60 * 1000, loadCSV)),
-        lookupSymbol.bind(this, synchronized(cache(indexedDB, 'morningstar-symbols', 13 * 24 * 60 * 60 * 1000, promiseText)))
+        synchronized(cache('morningstar-financials', loadCSV, 4 * 60 * 60 * 1000)),
+        lookupSymbol.bind(this, synchronized(cache('morningstar-symbols', promiseText, 13 * 24 * 60 * 60 * 1000)))
     )
 });
 

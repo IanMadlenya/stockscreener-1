@@ -236,8 +236,8 @@ dispatch({
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return promiseSecurities(services, data.securityClasses, function(security, correlated) {
-            return promiseSignals(services, incomplete, {
+        return promiseSecurities(services, data.securityClasses, function(security, correlated, i, securities) {
+            return promiseSignals(services, incomplete && securities.length < 100, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
@@ -245,7 +245,7 @@ dispatch({
                 security: security,
                 correlated: correlated
             }, data.load).catch(function(error){
-                console.log("Could not load", security, error.status, error);
+                console.log("Could not load", security.ticker, error.status, error);
                 return normalizedError(error);
             });
         }).then(combineResult).then(function(response){
@@ -265,8 +265,8 @@ dispatch({
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return promiseSecurities(services, data.securityClasses, function(security, correlated) {
-            return promiseSignals(services, incomplete, {
+        return promiseSecurities(services, data.securityClasses, function(security, correlated, i, securities) {
+            return promiseSignals(services, incomplete && securities.length < 100, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
@@ -274,7 +274,7 @@ dispatch({
                 security: security,
                 correlated: correlated
             }, data.load, true).catch(function(error){
-                console.log("Could not load", security, error.status, error);
+                console.log("Could not load", security.ticker, error.status, error);
                 return normalizedError(error);
             });
         }).then(combineResult).then(function(response){
@@ -308,12 +308,13 @@ function deepReplace(data, equivalent, replacement) {
 }
 
 function promiseSignals(services, incomplete, data, load, strip) {
+    var security = data.security;
     return retryAfterImport(services, incomplete, data, load).then(function(data){
         if (!data.result) return data;
         var result = strip ? _.omit(data.result, 'holding') : data.result;
         return _.extend(data, {
             result: _.extend(result, {
-                security: data.security.iri
+                security: security.iri
             })
         });
     }).then(function(first){
@@ -332,8 +333,8 @@ function promiseSecurities(services, securityClasses, iteratee) {
     return Promise.all(securityClasses.map(function(securityClass){
         var exchange = securityClass.exchange;
         return listSecurities(services, securityClass).then(function(securities) {
-            return Promise.all(securities.map(function(security){
-                return iteratee(security, securityClass.correlated);
+            return Promise.all(securities.map(function(security, i, securities){
+                return iteratee(security, securityClass.correlated, i, securities);
             }));
         });
     })).then(function(results){
@@ -400,18 +401,16 @@ function refresh(services, incomplete, data, primary, port) {
             return intervals;
         }, intervals);
     }, {});
-    return Promise.all(_.compact([data.security, data.correlated]).map(function(security){
-        return primary.promiseMessage({
-            cmd: 'refresh',
-            security: data.security,
-            intervals: _.values(intervals),
-            upper: data.end,
-            includeIncomplete: incomplete
-        }).then(function(data){
-            if (_.isEmpty(data.result)) return;
-            else return importQuotes(services, incomplete, security, data.result, port);
-        });
-    }));
+    return primary.promiseMessage({
+        cmd: 'refresh',
+        security: data.security,
+        intervals: _.values(intervals),
+        upper: data.end,
+        includeIncomplete: incomplete
+    }).then(function(data){
+        if (_.isEmpty(data.result)) return;
+        else return importQuotes(services, incomplete, data.security, data.result, port);
+    });
 }
 
 function importAndRun(services, incomplete, data, port, quotes) {

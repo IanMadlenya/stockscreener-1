@@ -38,7 +38,7 @@ importScripts('intervals.js');
 importScripts('calculations.js'); // parseCalculation
 importScripts('utils.js');
 
-var open = _.partial(openSymbolDatabase, indexedDB, _.map(intervals, 'value'));
+var open = _.partial(openSymbolDatabase, _.map(intervals, 'value'));
 onmessage = handle.bind(this, {
     start: function() {
         return "started";
@@ -111,12 +111,12 @@ onmessage = handle.bind(this, {
         return Promise.all(periods.map(function(period){
             var collect3 = collect.bind(this, 4, null, null);
             return open(data.security, period.value, "readonly", collect3).then(function(last4){
-                if (_.isEmpty(last4)) return {
+                var lastComplete = _.last(_.reject(last4, 'incomplete'));
+                if (!lastComplete) return {
                     security: data.security,
                     interval: period.value,
                     start: period.format(period.dec(data.upper, 1000))
                 };
-                var lastComplete = _.last(_.reject(last4, 'incomplete'));
                 var outdated = ltDate(period.inc(lastComplete.asof, 1), data.upper, true);
                 var soon = data.includeIncomplete && ltDate(period.ceil(data.upper), next, true);
                 var lastTrade = _.last(last4).lastTrade || _.last(last4).asof;
@@ -884,7 +884,7 @@ function bounds(open, security, period) {
     });
 }
 
-function openSymbolDatabase(indexedDB, storeNames, security, storeName, mode, callback) {
+function openSymbolDatabase(storeNames, security, storeName, mode, callback) {
     return new Promise(function(resolve, reject) {
         var request = indexedDB.open(security.iri, 13);
         request.onerror = reject;
