@@ -90,7 +90,7 @@ function isSecurityClass(object, path) {
     return validate(object, path, _.isObject) &&
         validate(object, path, isExchange, 'exchange') &&
         validate(object, path, optional(isSecurity), 'correlated') &&
-        validate(object, path, optional(isArrayOf(_.isString)), 'sector') &&
+        validate(object, path, optional(isArrayOf(_.isString)), 'sectors') &&
         validate(object, path, optional(isArrayOf(_.isString)), 'industries') &&
         validate(object, path, optional(isArrayOf(_.isString)), 'countries') &&
         validate(object, path, optional(_.isFinite), 'mincap') &&
@@ -101,7 +101,7 @@ function isSecurityClass(object, path) {
             return exclude.indexOf(object.exchange.iri) == 0 ||
                 "must start with " + object.exchange.iri + " not " + exclude;
         })), 'excludes') &&
-        !(_.isEmpty(object.includes) && _.isEmpty(object.sector));
+        !(_.isEmpty(object.includes) && _.isEmpty(object.sectors));
 }
 
 function isSecurity(object, path) {
