@@ -78,7 +78,7 @@ onmessage = handle.bind(this, {
                 };
             });
         });
-    }).bind(this, lookupSymbol.bind(this, memoize(synchronized(listSymbols)))),
+    }).bind(this, lookupSymbol.bind(this, _.memoize(throttlePromise(listSymbols, 2)))),
 
     security: (function(getSecurity, data) {
         if (!data.security.exchange.exch) return [];
@@ -139,11 +139,11 @@ onmessage = handle.bind(this, {
         });
     }).bind(this,
         {},
-        lookupSymbol.bind(this, memoize(synchronized(listSymbols))),
+        lookupSymbol.bind(this, _.memoize(throttlePromise(listSymbols, 2))),
         loadSymbol.bind(this,
             queue(loadQuotes, 100)
         ),
-        cache('yahoo-table', synchronized(loadCSV), 4*60*60*1000),
+        throttlePromise(cache('yahoo-table', loadCSV, 4*60*60*1000), 2),
         getSecurityQuote.bind(this, queue(loadSecurity, 10))
     )
 });

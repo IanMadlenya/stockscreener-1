@@ -53,7 +53,7 @@ function rows2objects(rows) {
     var headers = [];
     return rows.reduce(function(points, row){
         if (headers.length && headers.length == row.length) {
-            points.push(object(headers, row));
+            points.push(_.object(headers, row));
         } else {
             headers = row;
         }
@@ -160,37 +160,34 @@ function openCacheDatabase(name, mode, callback) {
     });
 }
 
-function synchronized(func) {
-    var promise = Promise.resolve();
+function throttlePromise(fn, limit) {
+    var max = limit || 1;
+    var currently = 0;
+    var queue = [];
+    var next = function(){
+        if (currently < max && queue.length) {
+            currently++;
+            queue.shift().call();
+        }
+    };
     return function(/* arguments */) {
         var context = this;
         var args = arguments;
-        return promise = promise.catch(function() {
-            // ignore previous error
-        }).then(function() {
-            return func.apply(context, args);
+        return new Promise(function(callback){
+            queue.push(callback);
+            next();
+        }).then(function(){
+            return fn.apply(context, args);
+        }).then(function(result){
+            currently--;
+            next();
+            return result;
+        }, function(error){
+            currently--;
+            next();
+            return Promise.reject(error);
         });
     };
-}
-
-function memoize(func) {
-    var memo = {};
-    return function(key) {
-        return memo[key] ? memo[key] : (memo[key] = func.apply(this, arguments));
-    };
-}
-
-function object(list, values) {
-    if (list == null) return {};
-    var result = {};
-    for (var i = 0, length = list.length; i < length; i++) {
-        if (values) {
-            result[list[i]] = values[i];
-        } else {
-            result[list[i][0]] = list[i][1];
-        }
-    }
-    return result;
 }
 
 function promiseBinaryString(url) {

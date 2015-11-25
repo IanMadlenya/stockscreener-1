@@ -759,7 +759,7 @@ function importData(open, period, security, result) {
             obj.lastTrade = toISOString(lastTrade);
             // linear estimation of volume
             var start = period.floor(lastTrade);
-            var end = object.asof;
+            var end = obj.asof;
             if (start != end) {
                 var opens = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + opensAt, ex.tz);
                 var closes = moment.tz(dateTime.format('YYYY-MM-DD') + 'T' + closesAt, ex.tz);

@@ -83,10 +83,10 @@ var listCompanies = (function(downloadCSV, data){
             return (!mincap || cap >= mincap) && (!maxcap || cap < maxcap);
         });
     });
-}).bind(this, synchronized(cache('nasdaq-sectors', function(url){
+}).bind(this, throttlePromise(cache('nasdaq-sectors', function(url){
     console.log(url);
     return promiseText(url).then(parseCSV).then(rows2objects);
-}, 13 * 24 * 60 * 60 * 1000)));
+}, 13 * 24 * 60 * 60 * 1000), 2));
 
 onmessage = handle.bind(this, {
     start: function() {
