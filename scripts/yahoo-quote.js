@@ -91,7 +91,7 @@ onmessage = handle.bind(this, {
                 ticker: endsWith ? result.symbol.substring(0, idx) : result.symbol
             });
         });
-    }).bind(this, getSecurity.bind(this, queue(loadSecurity, 100))),
+    }).bind(this, getSecurity.bind(this, queue(loadSecurity, 32))),
 
     quote: (function(symbolMap, lookupSymbol, loadSymbol, loadCSV, getSecurityQuote, data) {
         var interval = data.interval;
@@ -141,10 +141,10 @@ onmessage = handle.bind(this, {
         {},
         lookupSymbol.bind(this, _.memoize(throttlePromise(listSymbols, 2))),
         loadSymbol.bind(this,
-            queue(loadQuotes, 100)
+            queue(loadQuotes, 10)
         ),
         throttlePromise(cache('yahoo-table', loadCSV, 4*60*60*1000), 2),
-        getSecurityQuote.bind(this, queue(loadSecurity, 10))
+        getSecurityQuote.bind(this, queue(loadSecurity, 32))
     )
 });
 
