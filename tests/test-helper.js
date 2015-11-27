@@ -207,13 +207,13 @@ var screener = {
                 });
             },
 
-            screen: function(securityClasses, criteria, asof, until, load) {
+            screen: function(securityClass, criteria, asof, until, load) {
                 return postDispatchMessage({
                     cmd: 'screen',
                     begin: asof,
                     end: until,
                     load: load,
-                    securityClasses: securityClasses,
+                    securityClass: securityClass,
                     criteria: criteria
                 }).catch(function(data){
                     if (load !== false && data.status == 'warning')
@@ -222,13 +222,13 @@ var screener = {
                 });
             },
 
-            signals: function(securityClasses, criteria, asof, until, load) {
+            signals: function(securityClass, criteria, asof, until, load) {
                 return postDispatchMessage({
                     cmd: 'signals',
                     begin: asof,
                     end: until,
                     load: load,
-                    securityClasses: securityClasses,
+                    securityClass: securityClass,
                     criteria: criteria
                 }).catch(function(data){
                     if (load !== false && data.status == 'warning')
@@ -464,30 +464,28 @@ function loadQuotes(mic, ticker, expressions, length, interval, asof, rows) {
     };
 }
 
-function signalsCheck(securityClasses, screen, begin, end, points) {
+function signalsCheck(securityClass, screen, begin, end, points) {
     return function(done) {screener.listExchanges().then(_.values).then(function(result){
             expect(result.length).not.toBe(0);
             return result;
         }).then(function(exchanges){
             return _.indexBy(_.values(exchanges), 'mic');
         }).then(function(exchanges){
-            var lists = securityClasses.map(function(securityClass){
-                return _.extend({}, securityClass, {
-                    exchange: exchanges[securityClass.ofExchange],
-                    includes: securityClass.includes.map(function(symbol){
-                        var mic = symbol.substring(0, symbol.indexOf(':'));
-                        var prefix = exchanges[mic].iri;
-                        var ticker = symbol.substring(symbol.indexOf(':') + 1);
-                        var iri = prefix + '/' + encodeURI(ticker);
-                        return {
-                            ticker: ticker,
-                            iri: iri,
-                            exchange: exchanges[securityClass.ofExchange]
-                        };
-                    })
-                });
+            var sc = _.extend({}, securityClass, {
+                exchange: exchanges[securityClass.ofExchange],
+                includes: securityClass.includes.map(function(symbol){
+                    var mic = symbol.substring(0, symbol.indexOf(':'));
+                    var prefix = exchanges[mic].iri;
+                    var ticker = symbol.substring(symbol.indexOf(':') + 1);
+                    var iri = prefix + '/' + encodeURI(ticker);
+                    return {
+                        ticker: ticker,
+                        iri: iri,
+                        exchange: exchanges[securityClass.ofExchange]
+                    };
+                })
             });
-            return screener.signals(lists, screen, begin, end).then(function(result){
+            return screener.signals(sc, screen, begin, end).then(function(result){
                 var expected = points.map(function(point){
                     var symbol = point.symbol;
                     var mic = symbol.substring(0, symbol.indexOf(':'));

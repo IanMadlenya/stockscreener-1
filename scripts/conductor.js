@@ -82,7 +82,6 @@ dispatch({
     },
 
     validate: (function(services, data){
-        var d5 = deepReplace(data, 'd1', 'day') || deepReplace(data, 'd5', 'week');
         validate(data.interval, 'data.interval', isInterval);
         var derivedFrom = intervals[data.interval.value].derivedFrom;
         var interval = derivedFrom ? derivedFrom : data.interval;
@@ -144,10 +143,6 @@ dispatch({
             }), function(interval){
                 return intervals[interval].millis;
             });
-        }).then(function(list){
-            list.splice(list.indexOf('day'), 0, 'd1');
-            list.splice(list.indexOf('week'), 0, 'd5');
-            return list;
         });
     },
 
@@ -205,22 +200,13 @@ dispatch({
     },
 
     load: (function(services, data) {
-        if (_.isString(data.security) && data.exchange && data.exchange.iri) data.security = {
-            ticker: decodeURI(data.security.substring(data.exchange.iri.length + 1)),
-            iri: data.security,
-            exchange: data.exchange
-        };
-        var d5 = deepReplace(data, 'd1', 'day') | deepReplace(data, 'd5', 'week');
         validate(data.security, 'data.security', isSecurity);
         validate(data.interval, 'data.interval', isInterval);
         validate(data.length, 'data.length', _.isFinite);
         validate(data.lower, 'data.lower', isISOString);
         validate(data.upper, 'data.upper', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return retryAfterImport(services, incomplete, data).then(function(data){
-            if (d5) deepReplace(deepReplace(data, 'day', 'd1'), 'week', 'd5');
-            return data;
-        });
+        return retryAfterImport(services, incomplete, data);
     }).bind(this, services),
 
     reset: (function(services, data) {
@@ -230,13 +216,12 @@ dispatch({
     }).bind(this, services),
 
     signals: function(data) {
-        var d5 = deepReplace(data, 'd1', 'day') | deepReplace(data, 'd5', 'week');
-        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
+        validate(data.securityClass, 'data.securityClass', isSecurityClass);
         validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return promiseSecurities(services, data.securityClasses, function(security, correlated, i, securities) {
+        return promiseSecurities(services, data.securityClass, function(security, correlated, i, securities) {
             return promiseSignals(services, incomplete && securities.length < 100, {
                 cmd: 'signals',
                 begin: data.begin,
@@ -252,20 +237,16 @@ dispatch({
             if (response.status != 'error' && response.result)
                 return _.extend(response, data);
             return Promise.reject(response);
-        }).then(function(data){
-            if (d5) deepReplace(deepReplace(data, 'day', 'd1'), 'week', 'd5');
-            return data;
         });
     },
 
     screen: function(data) {
-        var d5 = deepReplace(data, 'd1', 'day') | deepReplace(data, 'd5', 'week');
-        validate(data.securityClasses, 'data.securityClasses', isArrayOf(isSecurityClass));
+        validate(data.securityClass, 'data.securityClass', isSecurityClass);
         validate(data.criteria, 'data.criteria', isArrayOf(isCriteria));
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return promiseSecurities(services, data.securityClasses, function(security, correlated, i, securities) {
+        return promiseSecurities(services, data.securityClass, function(security, correlated, i, securities) {
             return promiseSignals(services, incomplete && securities.length < 100, {
                 cmd: 'signals',
                 begin: data.begin,
@@ -281,31 +262,9 @@ dispatch({
             if (response.status != 'error' && response.result)
                 return _.extend(response, data);
             else return Promise.reject(response);
-        }).then(function(data){
-            if (d5) deepReplace(deepReplace(data, 'day', 'd1'), 'week', 'd5');
-            return data;
         });
     }
 });
-
-function deepReplace(data, equivalent, replacement) {
-    var replaced = false;
-    if (_.isObject(data)) {
-        for (var p in data) {
-            if (_.isEqual(equivalent, data[p])) {
-                data[p] = replacement;
-                replaced = true;
-            } else if (_.isObject(data[p])) {
-                replaced |= deepReplace(data[p], equivalent, replacement);
-            }
-            if (_.isEqual(equivalent, p)) {
-                data[replacement] = data[p];
-                replaced = true;
-            }
-        }
-    }
-    return replaced;    
-}
 
 function promiseSignals(services, incomplete, data, load, strip) {
     var security = data.security;
@@ -329,16 +288,12 @@ function promiseSignals(services, incomplete, data, load, strip) {
     });
 }
 
-function promiseSecurities(services, securityClasses, iteratee) {
-    return Promise.all(securityClasses.map(function(securityClass){
-        var exchange = securityClass.exchange;
-        return listSecurities(services, securityClass).then(function(securities) {
-            return Promise.all(securities.map(function(security, i, securities){
-                return iteratee(security, securityClass.correlated, i, securities);
-            }));
-        });
-    })).then(function(results){
-        return _.flatten(results, true);
+function promiseSecurities(services, securityClass, iteratee) {
+    var exchange = securityClass.exchange;
+    return listSecurities(services, securityClass).then(function(securities) {
+        return Promise.all(securities.map(function(security, i, securities){
+            return iteratee(security, securityClass.correlated, i, securities);
+        }));
     });
 }
 

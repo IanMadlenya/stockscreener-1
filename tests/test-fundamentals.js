@@ -450,14 +450,14 @@ describe("Macro", function(){
 
     describe("signals", function(){
         it("should have non-empty values for BB F-Score", function(done){
-            screener.signals([{
+            screener.signals({
                 exchange: getExchange("Toronto Stock Exchange"),
                 includes:[{
                     exchange: getExchange("Toronto Stock Exchange"),
                     iri: getExchange("Toronto Stock Exchange").iri + "/BB",
                     ticker: "BB"
                 }]
-            }],[{
+            },[{
                 indicator:{
                     expression:"FSCORE()",
                     interval: {value: 'annual'}

@@ -88,14 +88,14 @@ describe("Micro", function(){
 
     describe("MMM reversion", function(){
         it("signals", function(done){
-            screener.signals([{
+            screener.signals({
                 exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-            }], [{
+            }, [{
                 indicatorWatch: {
                     expression: "F-Score()",
                     interval: {value: 'annual'}
@@ -219,14 +219,14 @@ describe("Micro", function(){
             }).then(done, unexpected(done));
         });
         it("screen", function(done){
-            screener.screen([{
+            screener.screen({
                 exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-            }], [{
+            }, [{
                 indicatorWatch: {
                     expression: "F-Score()",
                     interval: {value: 'annual'}
@@ -348,30 +348,28 @@ describe("Micro", function(){
 
     describe("TQQQ under valued", function(){
         it("day signal", function(done){
-            screener.signals([
-                {
-                  "exchange": {
-                    "iri": "http://localhost/screener/exchanges/ngm",
-                    "label": "NASDAQ Global Market",
-                    "marketOpensAt": "09:30:00",
-                    "marketClosesAt": "16:00:00",
-                    "premarketOpensAt": "04:00:00",
-                    "afterHoursClosesAt": "20:00:00",
-                    "tz": "America/New_York",
-                    "marketLang": "en-US",
-                    "mic": "XNMS",
-                    "morningstarCode": "XNAS",
-                    "exch": "NGM",
-                    "yahooSuffix": null,
-                    "dtnPrefix": null
-                  },
-                  includes: [{
-                    exchange: getExchange("NASDAQ Global Market"),
-                    iri: "http://localhost/screener/exchanges/ngm/TQQQ",
-                    ticker: "TQQQ"
-                  }]
-                }
-            ],[
+            screener.signals({
+              "exchange": {
+                "iri": "http://localhost/screener/exchanges/ngm",
+                "label": "NASDAQ Global Market",
+                "marketOpensAt": "09:30:00",
+                "marketClosesAt": "16:00:00",
+                "premarketOpensAt": "04:00:00",
+                "afterHoursClosesAt": "20:00:00",
+                "tz": "America/New_York",
+                "marketLang": "en-US",
+                "mic": "XNMS",
+                "morningstarCode": "XNAS",
+                "exch": "NGM",
+                "yahooSuffix": null,
+                "dtnPrefix": null
+              },
+              includes: [{
+                exchange: getExchange("NASDAQ Global Market"),
+                iri: "http://localhost/screener/exchanges/ngm/TQQQ",
+                ticker: "TQQQ"
+              }]
+            },[
               {
                 upper: "-200",
                 indicator: {
@@ -423,30 +421,28 @@ describe("Micro", function(){
             }).then(done, unexpected(done));
         });
         it("signals", function(done){
-            screener.signals([
-                {
-                  "exchange": {
-                    "iri": "http://localhost/screener/exchanges/ngm",
-                    "label": "NASDAQ Global Market",
-                    "marketOpensAt": "09:30:00",
-                    "marketClosesAt": "16:00:00",
-                    "premarketOpensAt": "04:00:00",
-                    "afterHoursClosesAt": "20:00:00",
-                    "tz": "America/New_York",
-                    "marketLang": "en-US",
-                    "mic": "XNMS",
-                    "morningstarCode": "XNAS",
-                    "exch": "NGM",
-                    "yahooSuffix": null,
-                    "dtnPrefix": null
-                  },
-                  includes: [{
-                    exchange: getExchange("NASDAQ Global Market"),
-                    iri: "http://localhost/screener/exchanges/ngm/TQQQ",
-                    ticker: "TQQQ"
-                  }]
-                }
-            ],[
+            screener.signals({
+              "exchange": {
+                "iri": "http://localhost/screener/exchanges/ngm",
+                "label": "NASDAQ Global Market",
+                "marketOpensAt": "09:30:00",
+                "marketClosesAt": "16:00:00",
+                "premarketOpensAt": "04:00:00",
+                "afterHoursClosesAt": "20:00:00",
+                "tz": "America/New_York",
+                "marketLang": "en-US",
+                "mic": "XNMS",
+                "morningstarCode": "XNAS",
+                "exch": "NGM",
+                "yahooSuffix": null,
+                "dtnPrefix": null
+              },
+              includes: [{
+                exchange: getExchange("NASDAQ Global Market"),
+                iri: "http://localhost/screener/exchanges/ngm/TQQQ",
+                ticker: "TQQQ"
+              }]
+            },[
               {
                 upper: "-100",
                 indicatorWatch: {

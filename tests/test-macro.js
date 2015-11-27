@@ -110,10 +110,10 @@ describe("Macro", function(){
     describe("signals", function(){
         these("should return", [
             [
-                [{
+                {
                     ofExchange: 'XNGS',
                     includes: ['XNGS:YHOO']
-                }],
+                },
                 [{
                     indicator: {
                         expression: 'volume',
@@ -130,14 +130,14 @@ describe("Macro", function(){
     describe("MMM", function(){
         describe("signals", function(){
             it("hold change", function(done){
-                screener.signals([{
+                screener.signals({
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-                }],[{
+                },[{
                     indicatorWatch: {
                         expression: "close",
                         interval: {value: 'day'}
@@ -172,14 +172,14 @@ describe("Macro", function(){
                 }).then(done, unexpected(done));
             });
             it("hold", function(done){
-                screener.signals([{
+                screener.signals({
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-                }],[{
+                },[{
                     indicatorWatch: {
                         expression: "close",
                         interval: {value: 'day'}
@@ -215,14 +215,14 @@ describe("Macro", function(){
                 }).then(done, unexpected(done));
             });
             it("multiple signals", function(done){
-                screener.signals([{
+                screener.signals({
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-                }],[{
+                },[{
                     indicator: {
                         expression: "close",
                         interval: {value: 'day'}
@@ -256,14 +256,14 @@ describe("Macro", function(){
                 }).then(done, unexpected(done));
             });
             it("watch change", function(done){
-                screener.signals([{
+                screener.signals({
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-                }],[{
+                },[{
                     indicatorWatch: {
                         expression: "close",
                         interval: {value: 'day'}
@@ -308,7 +308,7 @@ describe("Macro", function(){
                 }).then(done, unexpected(done));
             });
             it("correlated", function(done){
-                screener.signals([{
+                screener.signals({
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
@@ -320,7 +320,7 @@ describe("Macro", function(){
                         ticker: "SPY",
                         iri: getExchange("ARCX").iri + "/SPY"
                     }
-                }],[{
+                },[{
                     indicatorWatch: {
                         expression: "close",
                         interval: {value: 'day'}
@@ -372,14 +372,14 @@ describe("Macro", function(){
         });
         describe("screen", function(){
             it("day close", function(done){
-                screener.screen([{
+                screener.screen({
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-                }],[{
+                },[{
                     indicatorWatch: {
                         expression: "close",
                         interval: {value: 'day'}
@@ -404,14 +404,14 @@ describe("Macro", function(){
                 }).then(done, unexpected(done));
             });
             it("nothing", function(done){
-                screener.screen([{
+                screener.screen({
                     exchange: getExchange("New York Stock Exchange"),
                     includes:[{
                         exchange: getExchange("New York Stock Exchange"),
                         iri: getExchange("New York Stock Exchange").iri + "/MMM",
                         ticker: "MMM"
                     }]
-                }],[{
+                },[{
                     indicator: {
                         expression: "close",
                         interval: {value: 'day'}

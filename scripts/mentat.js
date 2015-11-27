@@ -134,7 +134,7 @@ onmessage = handle.bind(this, {
             };
         });
     },
-    signals: function(data){
+    signals: throttlePromise(function(data){
         var security = data.security;
         var periods = screenPeriods(intervals, security.exchange, data.criteria);
         var load = pointLoad(parseCalculation, open, data.failfast, periods, data);
@@ -142,7 +142,7 @@ onmessage = handle.bind(this, {
         var end = minute.inc(data.end, 1);
         return findSignals(periods, load, security, data.criteria, data.begin, end)
         .then(summarizeSignals.bind(this, periods, security.exchange, data.begin, end));
-    }
+    }, 1)
 });
 
 function isMarketOpen(ex, asof) {
