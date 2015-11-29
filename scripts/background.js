@@ -355,13 +355,11 @@ function dispatch(handler) {
                         console.log("Still waiting on " + name + " for a response to", data);
                         timeout = setTimeout(function(){
                             console.log("Aborting " + name + " response to", data);
-                            reject(_.extend({}, data, {status: 'error', message: "Service took too long to respond"}));
+                            reject(_.defaults({status: 'error', message: "Service took too long to respond"}, data));
                         }, 60000);
                     }, 60000);
                     var msg = _.extend(_.isObject(data) ? data : {cmd: data}, {id: id});
-                    outstandingCommands[id] = _.extend({}, _.pick(msg, function(value, key){
-                        return _.isString(value) || _.isFinite(value);
-                    }), {
+                    outstandingCommands[id] = _.defaults({
                         since: new Date().toISOString(),
                         service: service,
                         name: name,
@@ -369,7 +367,9 @@ function dispatch(handler) {
                         id: id,
                         resolve: resolve,
                         reject: reject
-                    });
+                    }, _.pick(msg, function(value, key){
+                        return _.isString(value) || _.isFinite(value);
+                    }));
                     port.postMessage(msg);
                 }).then(function(resolved) {
                     delete outstandingCommands[id];

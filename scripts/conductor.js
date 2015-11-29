@@ -221,14 +221,14 @@ dispatch({
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return promiseSecurities(services, data.securityClass, function(security, correlated, i, securities) {
+        return promiseSecurities(services, data.securityClass, function(security, i, securities) {
             return promiseSignals(services, incomplete && securities.length < 100, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
                 criteria: data.criteria,
                 security: security,
-                correlated: correlated
+                correlated: data.securityClass.correlated
             }, data.load).catch(function(error){
                 console.log("Could not load", security.ticker, error.status, error);
                 return normalizedError(error);
@@ -246,14 +246,14 @@ dispatch({
         validate(data.begin, 'data.begin', isISOString);
         validate(data.begin, 'data.end', isISOString);
         var incomplete = chrome.runtime.getManifest().permissions.indexOf('notifications') >= 0;
-        return promiseSecurities(services, data.securityClass, function(security, correlated, i, securities) {
+        return promiseSecurities(services, data.securityClass, function(security, i, securities) {
             return promiseSignals(services, incomplete && securities.length < 100, {
                 cmd: 'signals',
                 begin: data.begin,
                 end: data.end,
                 criteria: data.criteria,
                 security: security,
-                correlated: correlated
+                correlated: data.securityClass.correlated
             }, data.load, true).catch(function(error){
                 console.log("Could not load", security.ticker, error.status, error);
                 return normalizedError(error);
@@ -280,9 +280,9 @@ function promiseSignals(services, incomplete, data, load, strip) {
         if (_.isEmpty(first.result)) return combineResult([first]);
         else if (_.isEmpty(first.result.stop)) return combineResult([first]);
         else if (data.end < first.result.stop.until) return combineResult([first]);
-        else return promiseSignals(services, incomplete, _.extend({}, data, {
+        else return promiseSignals(services, incomplete, _.defaults({
             begin: first.result.stop.until
-        }), load, strip).then(function(rest){
+        }, data), load, strip).then(function(rest){
             return combineResult([first, rest]);
         });
     });
@@ -291,9 +291,7 @@ function promiseSignals(services, incomplete, data, load, strip) {
 function promiseSecurities(services, securityClass, iteratee) {
     var exchange = securityClass.exchange;
     return listSecurities(services, securityClass).then(function(securities) {
-        return Promise.all(securities.map(function(security, i, securities){
-            return iteratee(security, securityClass.correlated, i, securities);
-        }));
+        return Promise.all(securities.map(iteratee));
     });
 }
 
@@ -406,11 +404,11 @@ function importQuotes(services, incomplete, security, quotes, port) {
                 } else if (!incomplete && _.last(result).incomplete) {
                     result.pop();
                 }
-                return port.promiseMessage(_.extend({}, request, {
+                return port.promiseMessage(_.defaults({
                     cmd: 'import',
                     quoting: request,
                     points: result
-                }));
+                }, request));
             });
         }));
     })).then(_.flatten).then(_.compact);

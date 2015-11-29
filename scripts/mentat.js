@@ -314,9 +314,9 @@ function loadBar(parseCalculation, open, failfast, upper, cache, security, perio
         };
     }
     return cache[period.value].promise.then(function(data){
-        if (_.isEmpty(data.result)) return _.extend({}, data, {
-            result: undefined
-        });
+        if (_.isEmpty(data.result)) return _.defaults({
+            result: null
+        }, data);
         var ar = data.result;
         var idx = _.sortedIndex(ar, {
             asof: toISOString(asof)
@@ -327,22 +327,22 @@ function loadBar(parseCalculation, open, failfast, upper, cache, security, perio
         if (idx+1 < ar.length && ltDate(ar[idx].asof, after)) {
             idx++;
         }
-        if (ltDate(until, ar[idx].asof)) return _.extend({}, data, {
-            result: undefined
-        });
-        else if (idx+1 < ar.length) return _.extend({}, data, {
+        if (ltDate(until, ar[idx].asof)) return _.defaults({
+            result: null
+        }, data);
+        else if (idx+1 < ar.length) return _.defaults({
             result: _.extend(ar[idx], {
                 since: idx ? ar[idx-1].asof : ar[idx].since,
                 until: ar[idx+1].asof
             })
-        });
-        else return _.extend({}, data, {
+        }, data);
+        else return _.defaults({
             result: _.extend(ar[idx], {
                 since: idx ? ar[idx-1].asof : ar[idx].since,
                 until: ar[idx].until || period.inc(ar[idx].asof, 1),
                 latest: true
             })
-        });
+        }, data);
     });
 }
 
@@ -532,20 +532,20 @@ function filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, 
         var start = data.result[period.value].asof;
         if (ltDate(upper, maxDate(start, begin), true)) {
             // couldn't find signal, end of period
-            return _.extend({}, data, {
-                passed: undefined
-            });
+            return _.defaults({
+                passed: null
+            }, data);
         }
         var through = data.result[period.value].until;
         return filterSecurityByPeriods(load, signal, watch, rest, start, maxDate(start, begin), minDate(upper, through)).then(function(child){
             if (ltDate(upper, through) || ltDate(through, begin, true) ||
                     signal == 'watch' && child.passed ||
                     signal == 'stop' && child.passed == false ||
-                    signal == 'hold') return _.extend({}, child, {
+                    signal == 'hold') return _.defaults({
                 status: child.status == "success" ? data.status : child.status,
                 quote: _.compact(_.flatten([data.quote, child.quote])),
                 result: child.result
-            });
+            }, child);
             // couldn't find a signal, try next period
             return filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, through, upper);
         });
