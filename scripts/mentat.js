@@ -98,7 +98,7 @@ onmessage = handle.bind(this, {
     load: function(data) {
         var period = createPeriod(intervals, data.security.exchange, data.interval.value);
         if (!period) throw Error("Unknown interval: " + data.interval.value);
-        return loadData(parseCalculation.bind(this, data.security.exchange), open, data.failfast, data.security,
+        return loadData(parseCalculation.bind(this, data.security.exchange), open, data.security,
             data.length, data.lower, data.upper, period, data.expressions
         );
     },
@@ -137,7 +137,7 @@ onmessage = handle.bind(this, {
     signals: throttlePromise(function(data){
         var security = data.security;
         var periods = screenPeriods(intervals, security.exchange, data.criteria);
-        var load = pointLoad(parseCalculation, open, data.failfast, periods, data);
+        var load = pointLoad(parseCalculation, open, periods, data);
         var minute = _.min(_.values(periods), 'millis');
         var end = minute.inc(data.end, 1);
         return findSignals(periods, load, security, data.criteria, data.begin, end)
@@ -228,8 +228,8 @@ function avg(numbers) {
     }, 0) / _.size(numbers);
 }
 
-function pointLoad(parseCalculation, open, failfast, periods, data) {
-    var bar = loadBar.bind(this, parseCalculation, open, failfast, data.end);
+function pointLoad(parseCalculation, open, periods, data) {
+    var bar = loadBar.bind(this, parseCalculation, open, data.end);
     var securityFilters = data.criteria.filter(_.negate(_.property('againstCorrelated')));
     var correlatedFilters = data.criteria.filter(_.property('againstCorrelated'));
     var loadSecurity = pointLoadSecurity(bar, periods, data.security, securityFilters);
@@ -296,7 +296,7 @@ function pointLoadSecurity(bar, periods, security, filters) {
     };
 }
 
-function loadBar(parseCalculation, open, failfast, upper, cache, security, period, after, expressions, asof, until) {
+function loadBar(parseCalculation, open, upper, cache, security, period, after, expressions, asof, until) {
     if (!cache[period.value] ||
             ltDate(cache[period.value].upper, asof) ||
             ltDate(asof, cache[period.value].lower)) {
@@ -309,7 +309,7 @@ function loadBar(parseCalculation, open, failfast, upper, cache, security, perio
         cache[period.value] = {
             lower: asof,
             upper: maxDate(asof, period.dec(end,1)),
-            promise: loadData(parseCalculation.bind(this, security.exchange), open, failfast, security,
+            promise: loadData(parseCalculation.bind(this, security.exchange), open, security,
                 2, asof, advance, period, expressions)
         };
     }
@@ -530,7 +530,7 @@ function filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, 
         if (!data.result || !data.result[period.value]) return data;
         if (data.passed === false || !rest.length) return data;
         var start = data.result[period.value].asof;
-        if (ltDate(upper, maxDate(start, begin), true)) {
+        if (data.result.latest || ltDate(upper, maxDate(start, begin), true)) {
             // couldn't find signal, end of period
             return _.defaults({
                 passed: null
@@ -622,12 +622,12 @@ function valueOfIndicator(indicator, reference) {
     else return undefined;
 }
 
-function loadData(parseCalculation, open, failfast, security, length, lower, upper, period, expressions) {
+function loadData(parseCalculation, open, security, length, lower, upper, period, expressions) {
     var calcs = asCalculation(parseCalculation, expressions, period);
     var n = _.isEmpty(expressions) ? 0 : _.max(_.invoke(calcs, 'getDataLength'));
     var errorMessage = _.first(_.compact(_.invoke(calcs, 'getErrorMessage')));
     if (errorMessage) throw Error(errorMessage);
-    return collectIntervalRange(open, failfast, security, period, length + n - 1, lower, upper).then(function(data) {
+    return collectIntervalRange(open, security, period, length + n - 1, lower, upper).then(function(data) {
         var updates = [];
         var startIndex = Math.max(lengthBelow(data.result, lower) - length, 0);
         var endIndex = Math.max(startIndex + length, lengthBelow(data.result, upper));
@@ -664,9 +664,8 @@ function loadData(parseCalculation, open, failfast, security, length, lower, upp
     });
 }
 
-function collectIntervalRange(open, failfast, security, period, length, lower, upper) {
+function collectIntervalRange(open, security, period, length, lower, upper) {
     return open(security, period.value, 'readonly', collect.bind(this, Math.max(length,3), lower, upper)).then(function(result){
-        var conclude = failfast ? Promise.reject.bind(Promise) : Promise.resolve.bind(Promise);
         var next = result.length ? period.inc(_.last(result).asof, 1) : null;
         var below = lengthBelow(result, lower);
         if (below >= length && next && (ltDate(upper, next) || ltDate(new Date(), next))) {
@@ -681,17 +680,17 @@ function collectIntervalRange(open, failfast, security, period, length, lower, u
                     status: 'success',
                     result: result
                 };
-                // need to update with newer data
-                return conclude({
-                    status: failfast ? 'error' : 'warning',
-                    message: 'Need newer data points',
+                // newer data might be available
+                return {
+                    status: 'warning',
+                    message: 'Newer data points might be available',
                     result: result,
                     quote: [{
                         security: security,
                         interval: period.value,
                         start: period.format(_.first(_.last(result, 4)).asof)
                     }]
-                });
+                };
             });
         } else if (result.length && below < length) {
             var earliest = ltDate(lower, result[0].asof) ? lower : result[0].asof;
