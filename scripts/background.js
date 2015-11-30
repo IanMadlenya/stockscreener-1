@@ -270,7 +270,7 @@ function dispatch(handler) {
             } else {
                 var buf = buffer.join('');
                 var idx = buf.indexOf('\n\n') + 2;
-                buffer.splice(0, buffer.length, buf.substirng(idx));
+                buffer.splice(0, buffer.length, buf.substring(idx));
                 json = buf.substring(0, idx);
             }
             Promise.resolve(json).then(JSON.parse.bind(JSON)).then(function(data) {
