@@ -245,7 +245,7 @@ function handle(handler, event){
             }
         }).catch(function(error) {
             if (error.status != 'error' || error.message) {
-                console.log(error);
+                console.error(error);
             }
             return normalizedError(error);
         }).then(function(result){
@@ -255,16 +255,16 @@ function handle(handler, event){
             self.postMessage(result);
         });
     } else if (event.ports && event.ports.length) {
-        console.log('Unknown command ' + data.cmd);
+        console.error('Unknown command ' + data.cmd);
         self.postMessage(_.extend({
             id: id,
             status: 'error',
             message: 'Unknown command ' + data.cmd
         }, _.omit(data, 'points', 'result')));
     } else if (event.data) {
-        console.log(event.data);
+        console.warn(event.data);
     } else {
-        console.log(event);
+        console.warn(event);
     }
 }
 
@@ -293,7 +293,7 @@ function combineResult(results){
 
 function rejectNormalizedError(error) {
     if (error.status != 'error' || error.message) {
-        console.log(error);
+        console.warn(error);
     }
     return Promise.reject(normalizedError(error));
 }
@@ -336,7 +336,7 @@ function normalizedError(error) {
             name: error.target.transaction.db && error.target.transaction.db.name
         };
     } else {
-        console.log("Unknown error type", error);
+        console.error("Unknown error type", error);
         return {
             status: 'error',
             message: JSON.stringify(toJSONObject(error))
