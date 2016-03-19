@@ -49,10 +49,10 @@ describe("Macro", function(){
             ]
         ], loadQuotes);
         these("should return quarter", [
-            ['XNGS', 'MORN', ['asof', 'revenue', 'diluted_earnings_per_share', 'total_liabilities', 'total_stockholders_equity', 'net_change_in_cash','free_cash_flow','PERCENT(total_liabilities,total_stockholders_equity)'],
-                1, 'quarter', new Date(2014, 11, 1),
+            ['XNGS', 'MORN', ['asof', 'revenue'],
+                1, 'quarter', new Date(2015, 11, 1),
                 [
-                    [new Date(2014,9,1).toISOString(), 193106000, 0.67, 350591000, 669584000, 13064000, -3357000, 52.35952471982604]
+                    [new Date(2015,9,1).toISOString(), 195300000]
                 ]
             ]
         ], loadQuotes);
