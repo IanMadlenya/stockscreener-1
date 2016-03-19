@@ -389,7 +389,19 @@ describe("calculations", function(){
         });
     });
     describe("DATE", function(){
+        var DAY = parseCalculation({tz: 'America/New_York'}, 'DAY(asof)').getValue;
+        var MONTH = parseCalculation({tz: 'America/New_York'}, 'MONTH(asof)').getValue;
         var WORKDAY = parseCalculation({tz: 'America/New_York'}, 'WORKDAY(asof)').getValue;
+        it("DAY0", function(){
+            expect(
+                DAY([{asof:new Date("2015-07-18T04:00:00.000Z").toISOString()}])
+            ).toEqual(18);
+        });
+        it("MONTH0", function(){
+            expect(
+                MONTH([{asof:new Date("2015-07-18T04:00:00.000Z").toISOString()}])
+            ).toEqual(7);
+        });
         it("WORKDAY0", function(){
             expect(
                 WORKDAY([{asof:new Date("2015-07-18T04:00:00.000Z").toISOString()}])

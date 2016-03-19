@@ -109,7 +109,45 @@ var parseCalculation = (function(_) {
                 }
             };
         },
-        /* Hour of day */
+        /* Date of month (1-31) */
+        DAY: function(ex, interval, asof) {
+            return {
+                getErrorMessage: function() {
+                    if (!_.isString(asof) || !asof.match(/^[0-9a-z_\-&]+$/))
+                        return "Must be a field: " + asof;
+                    return null;
+                },
+                getFields: function(){
+                    return [asof];
+                },
+                getDataLength: function() {
+                    return 1;
+                },
+                getValue: function(points) {
+                    return moment(_.last(points).asof).tz(ex.tz).date();
+                }
+            };
+        },
+        /* Month of year (1-12) */
+        MONTH: function(ex, interval, asof) {
+            return {
+                getErrorMessage: function() {
+                    if (!_.isString(asof) || !asof.match(/^[0-9a-z_\-&]+$/))
+                        return "Must be a field: " + asof;
+                    return null;
+                },
+                getFields: function(){
+                    return [asof];
+                },
+                getDataLength: function() {
+                    return 1;
+                },
+                getValue: function(points) {
+                    return moment(_.last(points).asof).tz(ex.tz).month() + 1;
+                }
+            };
+        },
+        /* Hour of day (0-23.999999722) */
         HOUR: function(ex, interval, asof) {
             return {
                 getErrorMessage: function() {
@@ -339,7 +377,9 @@ var parseCalculation = (function(_) {
                     return n + calc.getDataLength() - 1;
                 },
                 getValue: function(points) {
-                    return _.max(getValues(n, calc, points));
+                    var maximum = _.max(getValues(n, calc, points));
+                    if (_.isFinite(maximum)) return maximum;
+                    else return undefined;
                 }
             };
         },
@@ -357,7 +397,9 @@ var parseCalculation = (function(_) {
                     return n + calc.getDataLength() - 1;
                 },
                 getValue: function(points) {
-                    return _.min(getValues(n, calc, points));
+                    var minimum = _.min(getValues(n, calc, points));
+                    if (_.isFinite(minimum)) return minimum;
+                    else return undefined;
                 }
             };
         },
