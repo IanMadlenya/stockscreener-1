@@ -87,13 +87,25 @@ onmessage = handle.bind(this, {
             if (!result) return result;
             var idx = result.symbol.length - suffix.length;
             var endsWith = suffix && result.symbol.lastIndexOf(suffix) == idx;
-            return _.extend(result, {
+            return _.defaults({
+                name: result.name,
+                inception: result.inception,
                 ticker: endsWith ? result.symbol.substring(0, idx) : result.symbol
-            });
+            }, data.security);
         });
     }).bind(this, getSecurity.bind(this, queue(loadSecurity, 32))),
 
-    quote: (function(symbolMap, lookupSymbol, loadSymbol, loadCSV, getSecurityQuote, data) {
+    watch: function(data) {
+        throw Error("Watching is only supported with a DTN IQFeed subscription");
+    },
+
+    unwatch: function(data) {
+        return {
+            status: 'success'
+        };
+    },
+
+    quote: (function(symbolMap, loadDailyPrice, loadCSV, data) {
         var interval = data.interval;
         if ('day' != data.interval && 'week' != data.interval && 'month' != data.interval || !data.security.exchange.exch)
             return {status: 'success', result: []};
@@ -102,31 +114,7 @@ onmessage = handle.bind(this, {
         return Promise.resolve(mapped || symbol).then(function(symbol){
             if ('week' == interval) return loadPriceTable(loadCSV, data, symbol, 'w');
             else if ('month' == interval) return loadPriceTable(loadCSV, data, symbol, 'm');
-            else return loadSymbol(data, symbol).catch(function(error) {
-                if (mapped || data.ticker.match(/^[A-Z]+$/))
-                    return Promise.reject(error);
-                return lookupSymbol(data.security.exchange, data.security.ticker).then(function(results){
-                    if (!results.length) return undefined;
-                    return results[0].symbol;
-                }).then(function(lookup){
-                    if (!lookup || symbol == lookup)
-                        return Promise.reject(error);
-                    symbolMap[symbol] = lookup;
-                    console.log("Using Yahoo! symbol " + lookup + " for security " + data.security.exchange.mic + ':' + data.ticker);
-                    return loadSymbol(data, lookup);
-                });
-            }).catch(loadPriceTable.bind(this, loadCSV, data, symbol, 'd')).then(function(result){
-                return getSecurityQuote(data.security).then(function(quote){
-                    if (!quote.close) return result;
-                    else if (_.isEmpty(result) || quote.date != _.first(result).date) {
-                        result.unshift(quote);
-                    }
-                    return result;
-                }).catch(function(error){
-                    console.log(error);
-                    return result;
-                });
-            });
+            else return loadDailyPrice(loadCSV, symbolMap, data, symbol, mapped);
         }).then(function(result){
             return {
                 status: 'success',
@@ -139,14 +127,42 @@ onmessage = handle.bind(this, {
         });
     }).bind(this,
         {},
-        lookupSymbol.bind(this, _.memoize(throttlePromise(listSymbols, 2))),
-        loadSymbol.bind(this,
-            queue(loadQuotes, 10)
+        loadDailyPrice.bind(this,
+            lookupSymbol.bind(this, _.memoize(throttlePromise(listSymbols, 2))),
+            loadSymbol.bind(this, queue(loadQuotes.bind(this, {}), 10)),
+            getSecurityQuote.bind(this, queue(loadSecurity, 32))
         ),
-        throttlePromise(cache('yahoo-table', loadCSV, 4*60*60*1000), 2),
-        getSecurityQuote.bind(this, queue(loadSecurity, 32))
+        throttlePromise(cache('yahoo-table', loadCSV, 4*60*60*1000), 2)
     )
 });
+
+function loadDailyPrice(lookupSymbol, loadSymbol, getSecurityQuote, loadCSV, symbolMap, data, symbol, mapped) {
+    return loadSymbol(data, symbol).catch(function(error) {
+        if (mapped || data.ticker.match(/^[A-Z]+$/))
+            return Promise.reject(error);
+        return lookupSymbol(data.security.exchange, data.security.ticker).then(function(results){
+            if (!results.length) return undefined;
+            return results[0].symbol;
+        }).then(function(lookup){
+            if (!lookup || symbol == lookup)
+                return Promise.reject(error);
+            symbolMap[symbol] = lookup;
+            console.log("Using Yahoo! symbol " + lookup + " for security " + data.security.exchange.mic + ':' + data.ticker);
+            return loadSymbol(data, lookup);
+        });
+    }).catch(loadPriceTable.bind(this, loadCSV, data, symbol, 'd')).then(function(result){
+        return getSecurityQuote(data.security).then(function(quote){
+            if (!quote.close) return result;
+            else if (_.isEmpty(result) || quote.date != _.first(result).date) {
+                result.unshift(quote);
+            }
+            return result;
+        }).catch(function(error){
+            console.log(error);
+            return result;
+        });
+    });
+}
 
 function loadSymbol(loadQuotes, data, symbol){
     if (data.end && data.start > data.end) throw Error(data.start + " is after " + data.end);
@@ -166,7 +182,7 @@ function loadSymbol(loadQuotes, data, symbol){
     });
 }
 
-function loadQuotes(queue) {
+function loadQuotes(rates, queue) {
     var filters = [];
     var byFilter = queue.reduce(function(byFilter, item) {
         var end = item.end || new Date().toISOString();
@@ -189,6 +205,10 @@ function loadQuotes(queue) {
         return byFilter;
     }, {});
     return filters.reduce(function(promise, filter){
+        if (rates.failure > 1 && !rates.success) {
+            console.log("Yahoo! Query Language is temporarily disabled for finance historicaldata");
+            return Promise.reject(rates.lastError);
+        }
         var url = [
             "http://query.yahooapis.com/v1/public/yql?q=",
             encodeURIComponent([
@@ -241,6 +261,13 @@ function loadQuotes(queue) {
                     hash[result.symbol].push(result);
                     return hash;
                 }, hash);
+            }).then(function(result){
+                rates.success = 1 + (rates.success || 0);
+                return result;
+            }, function(error){
+                rates.failure = 1 + (rates.failure || 0);
+                rates.lastError = error;
+                return Promise.reject(error);
             });
         });
     }, Promise.resolve({})).then(function(hash){

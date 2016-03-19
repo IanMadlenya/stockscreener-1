@@ -30,10 +30,10 @@
  */
 
 (function(services) {
-var hit = promiseThrottle(openHIT({}), 2);
+var iqfeed = createIQFeed();
 var handler = {
     stop: function() {
-        hit('close');
+        iqfeed.close();
     },
 
     ping: function() {
@@ -59,7 +59,36 @@ var handler = {
     },
 
     security: function(data) {
-        return {status: 'success'};
+        var prefix = data.security.exchange.dtnPrefix || '';
+        var symbol = prefix + data.security.ticker;
+        return iqfeed.fundamental(symbol).then(function(fundamental){
+            var startsWith = prefix && fundamental.symbol.indexOf(prefix) === 0;
+            return _.defaults({
+                name: fundamental.company_name,
+                ticker: startsWith ? fundamental.symbol.substring(prefix.length) : fundamental.symbol
+            }, _.pick(fundamental, [
+                'dividend_yield', 'exdividend_date', 'current_assets', 'common_shares_outstanding', 'split_factor_1', 'split_factor_2', 'listed_market', 'expiration_date', 'exchange_root'
+            ]), data.security);
+        }).then(function(result){
+            return {status: 'success', result: result};
+        });
+    },
+
+    watch: function(data, update) {
+        var prefix = data.security.exchange.dtnPrefix || '';
+        var symbol = prefix + data.security.ticker;
+        var format = function(result){
+            var date = result.most_recent_trade_date.match(/(\d+)\/(\d+)\/(\d\d\d\d)/);
+            var time = result.most_recent_trade_timems;
+            var lastTrade = date[3] + '-' + date[1] + '-' + date[2] + ' ' + time;
+            return _.defaults({
+                lastTrade: moment.tz(lastTrade, 'America/New_York').toISOString(),
+                price: result.most_recent_trade
+            });
+        };
+        return iqfeed.summary(symbol, _.compose(update, format)).then(format).then(function(result){
+            return {status: 'success', result: result};
+        });
     },
 
     quote: function(data) {
@@ -70,7 +99,7 @@ var handler = {
         var symbol = (data.security.exchange.dtnPrefix || '') + data.security.ticker;
         var now = new Date();
         console.log("Loading", interval, symbol, data.start);
-        return hit({
+        return iqfeed.hit({
             symbol: symbol,
             seconds: seconds,
             begin: moment(data.start).tz('America/New_York').format('YYYYMMDD HHmmss'),
@@ -111,7 +140,7 @@ var handler = {
 
 function registerDtnQuote() {
     if (_.pluck(services.quote, 'name').indexOf('dtn-quote') < 0) {
-        hit('open').then(function() {
+        iqfeed.open().then(function() {
             chrome.storage.local.set({dtn:true});
             return true;
         }, function(error){
@@ -122,7 +151,7 @@ function registerDtnQuote() {
                 return items.dtn;
             });
         }).then(function(available){
-            if (available) services.quote.push({
+            if (available) services.quote.unshift({
                 service: 'quote',
                 name: 'dtn-quote',
                 port: {
@@ -130,8 +159,8 @@ function registerDtnQuote() {
                         return handler[data.cmd || data](data);
                     }
                 },
-                promiseMessage: function(data) {
-                    return Promise.resolve(handler[data.cmd || data](data));
+                promiseMessage: function(data, update) {
+                    return Promise.resolve(handler[data.cmd || data](data, update));
                 }
             });
         });
@@ -144,43 +173,82 @@ chrome.app.runtime.onRestarted.addListener(registerDtnQuote);
 chrome.runtime.onStartup.addListener(registerDtnQuote);
 chrome.runtime.onSuspendCanceled.addListener(registerDtnQuote);
 
-function openHIT(blacklist){
+function createIQFeed(){
+    var adminPromise;
+    var admin = function(){
+        return adminPromise = promiseSocket(adminPromise, promiseNewAdminSocket.bind(this, 9300));
+    };
+    var lookup = hit(admin);
+    var level1 = watch(admin);
+    return {
+        open: function() {
+            return admin();
+        },
+        close: function() {
+            return admin().then(function(socketId){
+                chrome.sockets.tcp.close(socketId);
+                lookup('close');
+                level1('close');
+            });
+        },
+        hit: promiseThrottle(lookup, 2),
+        fundamental: promiseThrottle(cache('dtn-fundamental', function(symbol){
+            return level1({
+                type: 'fundamental',
+                symbol: symbol
+            });
+        }, 7*24*60*60*1000), 100),
+        summary: function(symbol, update){
+            return level1({
+                type: 'summary',
+                symbol: symbol,
+                update: update
+            });
+        }
+    };
+}
+
+function hit(ready) {
     var seq = 0;
+    var blacklist = {};
     var pending = {};
-    var lookupSocketIdPromise;
+    var lookupPromise;
+    var lookup = function(){
+        return lookupPromise = promiseSocket(lookupPromise, function(){
+            return ready().then(function(){
+                return promiseNewLookupSocket(blacklist, pending, 9100, lookup);
+            });
+        });
+    };
     return function(options) {
         return Promise.resolve(options).then(function(options){
-            if (options == 'close') {
-                return promiseLookupSocketId().then(function(socketId){
-                    chrome.sockets.tcp.close(socketId);
-                });
-            } else if (options == 'open') {
-                return promiseLookupSocketId();
-            }
+            if ('close' == options) return lookup().then(chrome.sockets.tcp.close);
             if (!options || !options.symbol)
                 throw Error("Missing symbol in " + JSON.stringify(options));
-            return promiseLookupSocketId().then(function(socketId){
+            return lookup().then(function(socketId){
+                var id = ++seq;
                 return new Promise(function(callback, onerror){
                     if (blacklist[options.symbol])
                         throw Error(blacklist[options.symbol] + ": " + options.symbol);
-                    var id = ++seq;
-                    var cmd = ["HIT"];
-                    cmd.push(options.symbol);
-                    cmd.push(options.seconds);
-                    cmd.push(options.begin);
-                    cmd.push(options.end || '');
-                    cmd.push(options.maxDatapoints || '');
-                    cmd.push(options.beginFilterTime || '');
-                    cmd.push(options.endFilterTime || '');
-                    cmd.push(options.dataDirection || '0');
-                    cmd.push(id);
-                    cmd.push(options.datapointsPerSend || '');
-                    cmd.push('s');
-                    var msg = cmd.join(',');
+                    var cmd = [
+                        "HIT",
+                        options.symbol,
+                        options.seconds,
+                        options.begin,
+                        options.end || '',
+                        options.maxDatapoints || '',
+                        options.beginFilterTime || '',
+                        options.endFilterTime || '',
+                        options.dataDirection || '0',
+                        id,
+                        options.datapointsPerSend || '',
+                        's'
+                    ].join(',');
                     pending[id] = {
                         symbol: options.symbol,
-                        cmd: msg,
+                        cmd: cmd,
                         buffer:[],
+                        socketId: socketId,
                         callback: function(result) {
                             delete pending[id];
                             return callback(result);
@@ -190,215 +258,309 @@ function openHIT(blacklist){
                             return onerror(e);
                         }
                     };
-                    console.log(msg);
-                    chrome.sockets.tcp.send(socketId, str2ab(msg + '\r\n'), function(sendInfo) {
-                        if (sendInfo.resultCode < 0) {
-                            console.error(sendInfo);
+                    send(cmd, socketId);
+                });
+            })
+        });
+    };
+}
+
+function watch(ready) {
+    var blacklist = {};
+    var watching = {};
+    var level1Promise;
+    var level1 = function(){
+        return level1Promise = promiseSocket(level1Promise, function(){
+            return ready().then(function(){
+                return promiseNewLevel1Socket(blacklist, watching, 5009, level1);
+            });
+        });
+    };
+    return function(options) {
+        return Promise.resolve(options).then(function(options){
+            if ('close' == options) return level1().then(chrome.sockets.tcp.close);
+            if (!options || !options.symbol)
+                throw Error("Missing symbol in " + JSON.stringify(options));
+            return level1().then(function(socketId){
+                return new Promise(function(callback, onerror){
+                    var symbol = options.symbol;
+                    var pending = {
+                        symbol: symbol,
+                        socketId: socketId,
+                        fundamental: function(result) {
+                            if (!options.update) {
+                                deregister(watching, socketId, symbol, pending);
+                                return callback(result);
+                            }
+                        },
+                        summary: function(result) {
+                            if (options.update) callback(result);
+                        },
+                        update: function(result) {
+                            try {
+                                if (options.update) return options.update(result);
+                            } catch(e) {
+                                console.log(e);
+                            }
+                            deregister(watching, socketId, symbol, pending);
+                        },
+                        error: function(e) {
+                            deregister(watching, socketId, symbol, pending);
+                            return onerror(e);
                         }
-                    });
+                    };
+                    var cmd = (_.isEmpty(watching[symbol]) ? 't' : 'f') + symbol;
+                    if (!watching[symbol]) {
+                        watching[symbol] = [];
+                    }
+                    watching[symbol].push(pending);
+                    send(cmd, socketId);
                 });
             });
         });
     };
-    function promiseLookupSocketId() {
-        if (!_.some(_.compose(_.property('connect'), _.property('tcp'))(chrome.runtime.getManifest().sockets), function(connect){
-            return connect && connect.indexOf(":9100") >= 0;
-        })) return Promise.reject();
-        return lookupSocketIdPromise = (lookupSocketIdPromise || Promise.reject()).then(function(socketId){
-            return new Promise(function(callback){
-                chrome.sockets.tcp.getInfo(socketId, callback);
-            }).then(function(socketInfo) {
-                if (socketInfo.connected) return socketInfo.socketId;
-                else throw Error("Socket not connected");
-            });
-        }).catch(function(){
-            return promiseAdminSocketId().catch(console.error.bind(console)).then(function(){
-                return new Promise(function(oncreate) {
-                    console.log("Opening TCP Socket", 9100);
-                    chrome.sockets.tcp.create({}, oncreate);
-                });
-            }).then(function(createInfo) {
-                return createInfo.socketId;
-            }).then(function(socketId) {
-                return new Promise(function(onconnect) {
-                    chrome.sockets.tcp.connect(socketId, "127.0.0.1", 9100, onconnect);
-                }).then(function(result) {
-                    if (result < 0) {
-                        return Promise.reject(result);
-                    } else {
-                        return socketId;
-                    }
-                }).then(function(socketId) {
-                    return new Promise(function(callback) {
-                        chrome.sockets.tcp.send(socketId, str2ab("S,SET PROTOCOL,5.1\r\n"), callback);
-                    }).then(function(sendInfo) {
-                        if (sendInfo.resultCode < 0) {
-                            return Promise.reject(sendInfo);
-                        } else {
-                            return socketId;
-                        }
-                    });
-                }).then(function(socketId){
-                    var buffer = '';
-                    chrome.sockets.tcp.onReceiveError.addListener(function(info){
-                        if (info.socketId == socketId) {
-                            // close and reconnect in a second
-                            chrome.sockets.tcp.close(socketId);
-                            lookupSocketIdPromise = null;
-                            _.delay(promiseLookupSocketId, 1000);
-                        }
-                    });
-                    chrome.sockets.tcp.onReceive.addListener(function(info) {
-                        if (info.socketId != socketId) return;
-                        var data = ab2str(info.data);
-                        buffer = buffer ? buffer + data : data;
-                        while (buffer.indexOf('\n') >= 0) {
-                            var idx = buffer.indexOf('\n') + 1;
-                            var line = buffer.substring(0, idx).replace(/\s*$/,'');
-                            buffer = buffer.substring(idx);
-                            var id = line.substring(0, line.indexOf(','));
-                            if (line.indexOf(id + ',!ENDMSG!,') === 0) {
-                                if (pending[id])
-                                    pending[id].callback(pending[id].buffer);
-                            } else if (line.indexOf(id + ',E,') === 0) {
-                                console.log(line);
-                                if (pending[id]) {
-                                    var error = line.replace(/\w+,E,!?/,'').replace(/!?,*$/,'');
-                                    if ("NO_DATA" != error) {
-                                        blacklist[pending[id].symbol] = error;
-                                        pending[id].error(Error(error + " for " + pending[id].cmd));
-                                    }
-                                }
-                            } else if (pending[id]) {
-                                pending[id].buffer.push(line);
-                            } else {
-                                console.log(line);
-                            }
-                        }
-                    });
-                    // on reconnect, resend pending messages
-                    _.each(pending, function(item){
-                        console.log(item.cmd);
-                        chrome.sockets.tcp.send(socketId, str2ab(item.cmd + '\r\n'), function(sendInfo) {
-                            if (sendInfo.resultCode < 0) {
-                                console.error(sendInfo);
-                            }
-                        });
-                    });
-                    return socketId;
-                }).catch(function(error) {
-                    chrome.sockets.tcp.close(socketId);
-                    return Promise.reject(error);
-                });
-            });
-        });
-    }
+}
 
-    function promiseAdminSocketId() {
-        return new Promise(function(callback) {
-            console.log("Opening TCP Socket", 9300);
-            chrome.sockets.tcp.create({}, callback);
-        }).then(function(createInfo) {
-            return createInfo.socketId;
-        }).then(function(socketId) {
-            return new Promise(function(callback) {
-                chrome.sockets.tcp.connect(socketId, "127.0.0.1", 9300, callback);
-            }).then(function(result) {
-                if (result < 0) {
-                    return Promise.reject(result);
-                } else {
-                    return socketId;
+function deregister(watching, socketId, symbol, pending) {
+    watching[symbol] = _.without(watching[symbol], pending);
+    if (_.isEmpty(watching[symbol])) {
+        delete watching[symbol];
+        send('r' + symbol, socketId);
+    }
+}
+
+function promiseSocket(previous, createNewSocket) {
+        if (!_.some(_.compose(_.property('connect'), _.property('tcp'))(chrome.runtime.getManifest().sockets), function(connect){
+            return connect && connect.indexOf(':9300') >= 0;
+        })) return Promise.reject();
+    return (previous || Promise.reject()).then(function(socketId){
+        return new Promise(function(callback){
+            chrome.sockets.tcp.getInfo(socketId, callback);
+        }).then(function(socketInfo) {
+            if (socketInfo.connected) return socketInfo.socketId;
+            else throw Error("Socket not connected");
+        });
+    }).catch(createNewSocket);
+}
+
+function promiseNewLookupSocket(blacklist, pending, port, retry) {
+    return openSocket(port).then(function(socketId) {
+        return send('S,SET PROTOCOL,5.1', socketId).then(function(socketId) {
+            chrome.sockets.tcp.onReceiveError.addListener(function(info){
+                if (info.socketId == socketId) {
+                    // close and reconnect in a second
+                    console.error(info);
+                    chrome.sockets.tcp.close(socketId);
+                    _.delay(retry, 1000);
                 }
-            }).then(function(socketId) {
-                return new Promise(function(callback) {
-                    console.log("S,CONNECT");
-                    chrome.sockets.tcp.send(socketId, str2ab("S,CONNECT\r\n"), callback);
-                }).then(function(sendInfo) {
-                    if (sendInfo.resultCode < 0) {
-                        return Promise.reject(sendInfo);
-                    } else {
-                        return socketId;
+            });
+            onreceive(socketId, function(line) {
+                var id = line.substring(0, line.indexOf(','));
+                if (line.indexOf(id + ',!ENDMSG!,') === 0) {
+                    if (pending[id])
+                        pending[id].callback(pending[id].buffer);
+                    return false;
+                } else if (line.indexOf(id + ',E,') === 0) {
+                    if (pending[id]) {
+                        var error = line.replace(/\w+,E,!?/,'').replace(/!?,*$/,'');
+                        if ("NO_DATA" != error) {
+                            blacklist[pending[id].symbol] = error;
+                            pending[id].error(Error(error + " for " + pending[id].cmd));
+                        }
+                    }
+                } else if (pending[id]) {
+                    pending[id].buffer.push(line);
+                    return false;
+                }
+            });
+            // on reconnect, resend pending messages
+            _.each(pending, function(item){
+                send(item.cmd, socketId);
+            });
+            return socketId;
+        }).catch(function(error) {
+            chrome.sockets.tcp.close(socketId);
+            return Promise.reject(error);
+        });
+    });
+}
+
+function promiseNewLevel1Socket(blacklist, watching, port, retry) {
+    var fundamentalFormat = ['type', 'symbol', 'exchange_id', 'pe', 'average_volume', '52_week_high', '52_week_low', 'calendar_year_high', 'calendar_year_low', 'dividend_yield', 'dividend_amount', 'dividend_rate', 'pay_date', 'exdividend_date', 'reserved', 'reserved', 'reserved', 'short_interest', 'reserved', 'current_year_earnings_per_share', 'next_year_earnings_per_share', 'five_year_growth_percentage', 'fiscal_year_end', 'reserved', 'company_name', 'root_option_symbol', 'percent_held_by_institutions', 'beta', 'leaps', 'current_assets', 'current_liabilities', 'balance_sheet_date', 'long_term_debt', 'common_shares_outstanding', 'reserved', 'split_factor_1', 'split_factor_2', 'reserved', 'reserved', 'format_code', 'precision', 'sic', 'historical_volatility', 'security_type', 'listed_market', '52_week_high_date', '52_week_low_date', 'calendar_year_high_date', 'calendar_year_low_date', 'year_end_close', 'maturity_date', 'coupon_rate', 'expiration_date', 'strike_price', 'naics', 'exchange_root'];
+    var summaryFormat = ['type', 'symbol', 'close', 'most_recent_trade_date', 'most_recent_trade_timems', 'most_recent_trade'];
+    return openSocket(port).then(function(socketId) {
+        return send('S,SET PROTOCOL,5.1', socketId).then(send.bind(this, 'S,SELECT UPDATE FIELDS,Close,Most Recent Trade Date,Most Recent Trade TimeMS,Most Recent Trade')).then(function(socketId){
+            chrome.sockets.tcp.onReceiveError.addListener(function(info){
+                if (info.socketId == socketId) {
+                    // close and reconnect in a second
+                    console.error(info);
+                    chrome.sockets.tcp.close(socketId);
+                    _.delay(retry, 1000);
+                }
+            });
+            onreceive(socketId, function(line) {
+                var row = line.split(',');
+                if ('T' == row[0]) { // Time
+                    return false;
+                } else if ('n' == row[0]) { // Symbol not found
+                    var symbol = row[1];
+                    _.each(watching[symbol], function(item){
+                        item.error(Error("Symbol not found: " + symbol));
+                    });
+                    return false;
+                } else if ('F' == row[0]) { // Fundamental
+                    var trim = String.prototype.trim.call.bind(String.prototype.trim);
+                    var object = _.omit(_.object(fundamentalFormat, row.map(trim)), _.isEmpty);
+                    _.each(watching[object.symbol], function(item){
+                        item.fundamental(object);
+                    });
+                    return false;
+                } else if ('P' == row[0]) { // Summary
+                    var object = _.object(summaryFormat, row);
+                    _.each(watching[object.symbol], function(item){
+                        item.summary(object);
+                    });
+                    return false;
+                } else if ('Q' == row[0]) { // Update
+                    var object = _.object(summaryFormat, row);
+                    _.each(watching[object.symbol], function(item){
+                        item.update(object);
+                    });
+                    return false;
+                } else if ('E' == row[0]) { // Update
+                    console.error(row[1]);
+                    return false;
+                }
+            });
+            // on reconnect, resend pending messages
+            _.each(_.keys(watching), function(symbol){
+                send('t' + symbol, socketId);
+            });
+            return socketId;
+        }).catch(function(error) {
+            chrome.sockets.tcp.close(socketId);
+            return Promise.reject(error);
+        });
+    });
+}
+
+function promiseNewAdminSocket(port) {
+    return openSocket(port).then(function(socketId) {
+        return send('S,CONNECT', socketId).then(function(socketId){
+            return new Promise(function(callback, abort) {
+                var registration;
+                var optionsWindow;
+                chrome.sockets.tcp.onReceiveError.addListener(function(info){
+                    if (info.socketId == socketId) {
+                        console.error(info);
+                        chrome.sockets.tcp.close(socketId);
+                        abort(info);
                     }
                 });
-            }).then(function(socketId){
-                return new Promise(function(callback, abort) {
-                    var registration;
-                    var optionsWindow;
-                    chrome.sockets.tcp.onReceiveError.addListener(function(info){
-                        if (info.socketId == socketId) abort(info);
-                    });
-                    chrome.sockets.tcp.onReceive.addListener(function(info){
-                        if (info.socketId != socketId) return;
-                        var line = ab2str(info.data);
-                        if (line && line.indexOf("S,STATS,") >= 0) {
-                            if (line.indexOf("Not Connected") > 0) {
-                                chrome.storage.local.get(["productId"], function(items){
-                                    var productVersion = chrome.runtime.getManifest().version;
-                                    var msg = "S,REGISTER CLIENT APP," + items.productId + "," + productVersion + "\r\n";
-                                    if (items.productId && registration != msg) {
-                                        registration = msg;
-                                        console.log(line);
-                                        console.log(msg);
-                                        chrome.sockets.tcp.send(info.socketId, str2ab(msg), function(sendInfo) {
-                                            if (sendInfo.resultCode < 0) {
-                                                abort(sendInfo);
-                                            } else {
-                                                console.log("S,CONNECT");
-                                                chrome.sockets.tcp.send(info.socketId, str2ab("S,CONNECT"), function(sendInfo) {
-                                                    if (sendInfo.resultCode < 0) {
-                                                        console.error(sendInfo);
-                                                    }
-                                                });
-                                            }
+                onreceive(socketId, function(line) {
+                    if (line && line.indexOf("S,STATS,") >= 0) {
+                        if (line.indexOf("Not Connected") > 0) {
+                            chrome.storage.local.get(["productId"], function(items){
+                                var productVersion = chrome.runtime.getManifest().version;
+                                var msg = "S,REGISTER CLIENT APP," + items.productId + "," + productVersion;
+                                if (items.productId && registration != msg) {
+                                    registration = msg;
+                                    send(msg, info.socketId).then(send.bind(this, 'S,CONNECT'), abort);
+                                } else if (!optionsWindow) {
+                                    chrome.app.window.create("pages/dtn-options.html", {
+                                        id: "pages/dtn-options.html"
+                                    }, function(createdWindow){
+                                        optionsWindow = createdWindow;
+                                        createdWindow.onClosed.addListener(function(){
+                                            optionsWindow = null;
                                         });
-                                    } else if (!optionsWindow) {
-                                        chrome.app.window.create("pages/dtn-options.html", {
-                                            id: "pages/dtn-options.html"
-                                        }, function(createdWindow){
-                                            optionsWindow = createdWindow;
-                                            createdWindow.onClosed.addListener(function(){
-                                                optionsWindow = null;
-                                            });
-                                        });
-                                    }
-                                });
-                            } else {
-                                if (optionsWindow) {
-                                    console.log(line);
-                                    optionsWindow.close();
-                                }
-                                callback(socketId);
-                            }
-                        } else if (line && line.indexOf("S,REGISTER CLIENT APP COMPLETED") === 0) {
-                            console.log(line);
-                            console.log("S,CONNECT");
-                            chrome.sockets.tcp.send(info.socketId, str2ab("S,CONNECT"), function(sendInfo) {
-                                if (sendInfo.resultCode < 0) {
-                                    console.error(sendInfo);
-                                }
+                                    });
+                                } else return false;
                             });
                         } else {
-                            console.log(line);
+                            if (optionsWindow) {
+                                optionsWindow.close();
+                            }
+                            callback(socketId);
+                            return false;
                         }
-                    });
+                    } else if (line && line.indexOf("S,REGISTER CLIENT APP COMPLETED") === 0) {
+                        send('S,CONNECT', info.socketId);
+                    }
                 });
-            }).catch(function(error) {
-                chrome.sockets.tcp.close(socketId);
-                return Promise.reject(error);
             });
+        }).catch(function(error) {
+            chrome.sockets.tcp.close(socketId);
+            return Promise.reject(error);
         });
-    }
-    function ab2str(buf) {
-      return String.fromCharCode.apply(null, new Uint8Array(buf));
-    }
-    function str2ab(str) {
-      var buf = new ArrayBuffer(str.length);
-      var bufView = new Uint8Array(buf);
-      for (var i=0, strLen=str.length; i < strLen; i++) {
-        bufView[i] = str.charCodeAt(i);
-      }
-      return buf;
-    }
+    });
+}
+
+function openSocket(port) {
+    return new Promise(function(callback) {
+        console.log("Opening TCP Socket", port);
+        chrome.sockets.tcp.create({}, callback);
+    }).then(function(createInfo) {
+        return createInfo.socketId;
+    }).then(function(socketId) {
+        return new Promise(function(callback) {
+            chrome.sockets.tcp.connect(socketId, "127.0.0.1", port, callback);
+        }).then(function(result) {
+            if (result < 0) {
+                return Promise.reject(result);
+            } else {
+                return socketId;
+            }
+        });
+    });
+}
+
+function send(cmd, socketId) {
+    return new Promise(function(callback) {
+        console.log(cmd);
+        chrome.sockets.tcp.send(socketId, str2ab(cmd + '\r\n'), callback);
+    }).then(function(sendInfo) {
+        if (sendInfo.resultCode < 0) {
+            return Promise.reject(sendInfo);
+        } else {
+            return socketId;
+        }
+    });
+}
+
+function onreceive(socketId, listener) {
+    var buffer = '';
+    chrome.sockets.tcp.onReceive.addListener(function(info) {
+        if (info.socketId != socketId) return;
+        var data = ab2str(info.data);
+        buffer = buffer ? buffer + data : data;
+        while (buffer.indexOf('\n') >= 0) {
+            var idx = buffer.indexOf('\n') + 1;
+            var line = buffer.substring(0, idx).replace(/\s*$/,'');
+            buffer = buffer.substring(idx);
+            try {
+                var ret = listener(line);
+                if (ret !== false) {
+                    console.log(line);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    });
+}
+
+function ab2str(buf) {
+  return String.fromCharCode.apply(null, new Uint8Array(buf));
+}
+
+function str2ab(str) {
+  var buf = new ArrayBuffer(str.length);
+  var bufView = new Uint8Array(buf);
+  for (var i=0, strLen=str.length; i < strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
 }
 
 function promiseThrottle(fn, limit) {

@@ -192,11 +192,12 @@ dispatch({
 
     security: function(data) {
         validate(data.security, 'data.security', isSecurity);
-        return serviceMessage(services, 'quote', data).then(function(resp){
-            return _.extend(resp, {
-                result: _.first(resp.result)
-            });
-        });
+        return _.first(services.quote).promiseMessage(data);
+    },
+
+    watch: function(data, update) {
+        validate(data.security, 'data.security', isSecurity);
+        return _.first(services.quote).promiseMessage(data, update);
     },
 
     load: (function(services, data) {
