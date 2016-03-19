@@ -15,12 +15,18 @@
     <input id="peerAddress" type="hidden" name="peerAddress" />
     <p>Another machine is requesting access</p>
     <div class="well">
-        <p>This maybe the first time you are accessing Probability Stock Screener from another computer, phone, or other device.</p>
-        <p>If this was you then click on Accept below to continue using the device.</p>
-        <p>If you are using a new device then click on the Reject button below to reject further connections from this device.</p>
+        <p>This maybe the first time you are accessing <em>Probability Stock Screener</em> from another computer, phone, device, or network location.</p>
+        <ul>
+            <li>Click <strong>Accept</strong> below to continue using this other device.</li>
+            <li>To allow all external/roaming connections click <strong>Accept All</strong>.</li>
+            <li>Click <strong>Reject</strong> to reject further connections from this device.</li>
+            <li>To stop this dialogue from opening click <strong>Reject Other</strong>.</li>
+        </ul>
         <div class="text-right">
-            <button id="submit" type="submit" class="btn btn-primary">Reject</button>
-            <button id="accept" type="button" class="btn btn-default">Accept</button>
+            <button id="accept" type="button" class="btn btn-default">Accept Device</button>
+            <button id="accept-all" type="button" class="btn btn-success">Accept All</button>
+            <button id="submit" type="submit" class="btn btn-primary">Reject Device</button>
+            <button id="reject-other" type="button" class="btn btn-info">Reject Other</button>
         </div>
     </div>
 </form>

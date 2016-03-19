@@ -99,7 +99,15 @@ function dispatch(handler) {
             })
         });
         var blacklist = [];
-        availableAddress.then(function(address){
+        new Promise(function(callback){
+            chrome.storage.local.get(["peerAddress"], callback);
+        }).then(function(items){
+            if (items.peerAddress) {
+                items.peerAddress = items.peerAddress.replace(/accept-all|reject-other/g,' ').trim();
+                chrome.storage.local.set(items);
+            }
+            return availableAddress;
+        }).then(function(address){
             var server = new http.Server();
             var sup = server.onConnection_;
             server.onConnection_ = function(acceptInfo){
@@ -113,11 +121,13 @@ function dispatch(handler) {
                     return new Promise(function(callback){
                         chrome.storage.local.get(["peerAddress"], callback);
                     }).then(function(items){
-                        if (items.peerAddress && items.peerAddress.split(' ').indexOf(adr) >= 0)
-                            return true;
-                        if (blacklist.indexOf(adr) >= 0 || chrome.app.window.get("pending-connection"))
-                            return false;
-                        return new Promise(function(callback){
+                        var tokens = items.peerAddress ? items.peerAddress.split(' ') : [];
+                        if (tokens.indexOf('accept-all') >= 0) return true;
+                        else if (tokens.indexOf(adr) >= 0) return true;
+                        else if (tokens.indexOf('reject-other') >= 0) return false;
+                        else if (blacklist.indexOf(adr) >= 0) return false;
+                        else if (chrome.app.window.get("pending-connection")) return false;
+                        else return new Promise(function(callback){
                             blacklist.push(adr);
                             chrome.app.window.create("pages/pending-connection.html#" + adr, {
                                 id: "pending-connection"
@@ -129,7 +139,8 @@ function dispatch(handler) {
                                 chrome.storage.local.get(["peerAddress"], callback);
                             });
                         }).then(function(items){
-                            return items.peerAddress && items.peerAddress.split(' ').indexOf(adr) >= 0;
+                            var tokens = items.peerAddress ? items.peerAddress.split(' ') : [];
+                            return tokens.indexOf('accept-all') >= 0 || tokens.indexOf(adr) >= 0;
                         });
                     }).then(function(accepted){
                         if (accepted) return adr;
@@ -284,8 +295,13 @@ function dispatch(handler) {
                         throw Error("Unknown message: " + data);
                     }
                 }).then(function(data){
-                    if (typeof handler[data.cmd] == 'function') {
-                        return handler[data.cmd](data);
+                    if (typeof handler[data.cmd] == 'function' && id !== undefined) {
+                        return handler[data.cmd](data, function(update){
+                            if (socket.closed) throw Error("Socket closed");
+                            else socket.send(JSON.stringify({id: id, update: update}) + '\n\n');
+                        });
+                    } else if (typeof handler[data.cmd] == 'function') {
+                        return handler[data.cmd](data, socket);
                     } else {
                         throw Error("Unknown command: " + data.cmd);
                     }
@@ -346,7 +362,7 @@ function dispatch(handler) {
             script: script,
             port: port,
             workload: outstandingCommands,
-            promiseMessage: function(data) {
+            promiseMessage: function(data, update) {
                 var id = data.id && !outstandingCommands[data.id] ? data.id : ++outstandingCounter;
                 outstandingCounter = Math.max(outstandingCounter, id);
                 var timeout;
@@ -366,7 +382,8 @@ function dispatch(handler) {
                         script: script,
                         id: id,
                         resolve: resolve,
-                        reject: reject
+                        reject: reject,
+                        update: update
                     }, _.pick(msg, function(value, key){
                         return _.isString(value) || _.isFinite(value);
                     }));
