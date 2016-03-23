@@ -530,12 +530,6 @@ function filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, 
         if (!data.result || !data.result[period.value]) return data;
         if (data.passed === false || !rest.length) return data;
         var start = data.result[period.value].asof;
-        if (data.result.latest || ltDate(upper, maxDate(start, begin), true)) {
-            // couldn't find signal, end of period
-            return _.defaults({
-                passed: null
-            }, data);
-        }
         var through = data.result[period.value].until;
         return filterSecurityByPeriods(load, signal, watch, rest, start, maxDate(start, begin), minDate(upper, through)).then(function(child){
             if (ltDate(upper, through) || ltDate(through, begin, true) ||
@@ -546,6 +540,12 @@ function filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, 
                 quote: _.compact(_.flatten([data.quote, child.quote])),
                 result: child.result
             }, child);
+            if (data.result.latest || ltDate(upper, maxDate(start, begin), true)) {
+                // couldn't find signal, end of period
+                return _.defaults({
+                    passed: null
+                }, data);
+            }
             // couldn't find a signal, try next period
             return filterSecurityByPeriods(load, signal, watch, periodsAndFilters, after, through, upper);
         });
