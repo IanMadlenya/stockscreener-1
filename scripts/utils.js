@@ -94,7 +94,7 @@ function cache(name, func, maxage) {
                     key: key,
                     asof: now,
                     expires: expires,
-                    rejected: rejected
+                    rejected: rejected instanceof Error ? rejected.message : rejected
                 }).then(function(){
                     return Promise.reject(rejected);
                 });
