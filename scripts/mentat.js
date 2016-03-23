@@ -118,10 +118,14 @@ onmessage = handle.bind(this, {
                     start: period.format(period.dec(data.upper, 1000))
                 };
                 var outdated = ltDate(period.inc(lastComplete.asof, 1), data.upper, true);
-                var soon = data.includeIncomplete && ltDate(period.ceil(data.upper), next, true);
+                var upper = moment(data.upper);
+                var closesAt = upper.tz(ex.tz).format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
+                var closes = moment.tz(closesAt, ex.tz);
+                var ceil = minDate(period.ceil(data.upper), closes);
+                var soon = data.includeIncomplete && ltDate(ceil, next, true);
                 var lastTrade = _.last(last4).lastTrade || _.last(last4).asof;
                 var afterLast = ltDate(lastTrade, data.upper);
-                if (outdated || soon && afterLast && isMarketOpen(ex, data.upper)) return {
+                if (outdated || soon && afterLast && isMarketOpen(ex, upper, closes)) return {
                     security: data.security,
                     interval: period.value,
                     start: period.format(_.first(last4).asof)
@@ -145,10 +149,8 @@ onmessage = handle.bind(this, {
     }, 1)
 });
 
-function isMarketOpen(ex, asof) {
+function isMarketOpen(ex, asof, closes) {
     var now = moment(asof);
-    var closesAt = now.tz(ex.tz).format('YYYY-MM-DD') + 'T' + ex.marketClosesAt;
-    var closes = moment.tz(closesAt, ex.tz);
     if (now.isAfter(closes)) {
         closes.add(1, 'days');
     }
